@@ -1,3 +1,6 @@
+## 1.0.1 (January 28, 2024)
+
+
 ## 1.0.0 (January 28, 2024)
   - fix: Fixes git ignore file
   - feat: remove .env file
