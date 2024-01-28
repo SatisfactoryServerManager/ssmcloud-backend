@@ -83,7 +83,7 @@ func (config *Config) LoadConfigData() error {
 
 func (config *Config) SetDefaultValues() {
 
-	godotenv.Load()
+	godotenv.Load(".env.local")
 
 	config.ConfigData.Version = "v1.0.0"
 

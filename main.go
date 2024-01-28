@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -20,13 +21,21 @@ func main() {
 	ConfigData, err := config.GetConfigData()
 	utils.CheckError(err)
 
-	mongoose.InitiateDB(mongoose.DBConnection{
+	dbConnection := mongoose.DBConnection{
 		Host:     ConfigData.Database.Host,
 		Port:     ConfigData.Database.Port,
 		Database: ConfigData.Database.DB,
 		User:     ConfigData.Database.User,
 		Password: ConfigData.Database.Pass,
-	})
+	}
+
+	mongoose.InitiateDB(dbConnection)
+
+	if err := mongoose.TestConnection(); err != nil {
+		panic(err)
+	}
+
+	PrintConnectionString(dbConnection)
 
 	routes.InitRoutes()
 
@@ -48,4 +57,8 @@ func main() {
 	})
 
 	<-wait
+}
+
+func PrintConnectionString(dbConnection mongoose.DBConnection) {
+	fmt.Printf("mongodb connection: %v\n", dbConnection)
 }

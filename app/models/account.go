@@ -17,6 +17,9 @@ type Accounts struct {
 	Users       primitive.A `json:"-" bson:"users" mson:"collection=users"`
 	UserObjects []Users     `json:"users" bson:"-"`
 
+	Agents       primitive.A `json:"-" bson:"agents" mson:"collection=agents"`
+	AgentObjects []Agents    `json:"agents" bson:"-"`
+
 	State AccountState `json:"state" bson:"state"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
@@ -60,6 +63,25 @@ func (obj *Accounts) PopulateUsers() error {
 
 	if obj.UserObjects == nil {
 		obj.UserObjects = make([]Users, 0)
+	}
+
+	return nil
+}
+
+func (obj *Accounts) PopulateAgents() error {
+
+	if obj.Agents == nil {
+		obj.Agents = make(primitive.A, 0)
+	}
+
+	err := mongoose.PopulateObjectArray(obj, "Agents", &obj.AgentObjects)
+
+	if err != nil {
+		return err
+	}
+
+	if obj.AgentObjects == nil {
+		obj.AgentObjects = make([]Agents, 0)
 	}
 
 	return nil
