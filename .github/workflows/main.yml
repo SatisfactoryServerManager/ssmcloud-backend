@@ -18,7 +18,7 @@ jobs:
       - name: Build
         run: go build -o ./release/linux/ssmcloud-backend .
       - run: if [ ! -f ./release/linux/ssmcloud-backend ]; then exit 1; fi
-      - run: mkdir -p ./docker/releases >/dev/null && cp ./release/linux/* ./docker/releases/.
+      - run: mkdir -p ./docker/release >/dev/null && cp ./release/linux/* ./docker/release/.
       - uses: vimtor/action-zip@v1
         with:
           files: release/linux/ssmcloud-backend
