@@ -1,3 +1,6 @@
+## 1.0.3 (January 28, 2024)
+  - fix: Fixed docker build
+
 ## 1.0.2 (January 28, 2024)
   - fix: Fixed docker build
 
