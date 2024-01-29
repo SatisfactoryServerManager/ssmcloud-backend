@@ -51,6 +51,7 @@ func (obj *routes) AddAccountUsersRoutes() {
 	obj.AccountUsersGroup.Use(Middleware_VerifySession())
 
 	obj.AccountUsersGroup.GET("/", account.API_GetAllUsers)
+	obj.AccountUsersGroup.GET("/me", account.API_GetMyUser)
 }
 
 func (obj *routes) AddAccountAgentRoutes() {

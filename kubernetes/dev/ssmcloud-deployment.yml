@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ssmcloud-dev-backend-deployment
+  name: ssmcloud-dev-backend
   labels:
     app: ssmcloud-dev-backend
 spec:
@@ -14,8 +14,41 @@ spec:
       labels:
         app: ssmcloud-dev-backend
     spec:
+      volumes:
+        - name: ssmdata
+          persistentVolumeClaim:
+            claimName: ssmcloud-dev-backend-data-pvc
       containers:
+        - env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: mongodb_server
+                  name: ssmcloud-dev-backend-secret
+            - name: DB_DB
+              valueFrom:
+                secretKeyRef:
+                  key: mongodb_db
+                  name: ssmcloud-dev-backend-secret
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  key: mongodb_user
+                  name: ssmcloud-dev-backend-secret
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  key: mongodb_pass
+                  name: ssmcloud-dev-backend-secret
+            - name: JWT_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: jwt_key
+                  name: ssmcloud-dev-backend-secret
         - name: ssmcloud-dev-backend
-          image: ssmcloud-backend:latest
+          image: mrhid6/ssmcloud-backend:latest
           ports:
             - containerPort: 3000
+          volumeMounts:
+            - mountPath: "/home/ssm/ssmcloud_data"
+              name: ssmdata

@@ -6,7 +6,7 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-    - host: api.ssmcloud-dev.hostxtra.co.uk
+    - host: api-ssmcloud-dev.hostxtra.co.uk
       http:
         paths:
           - path: /
