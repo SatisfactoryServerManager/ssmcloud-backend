@@ -1,3 +1,6 @@
+## 1.0.7 (January 29, 2024)
+  - fix: Fixed account login
+
 ## 1.0.6 (January 29, 2024)
 
 
