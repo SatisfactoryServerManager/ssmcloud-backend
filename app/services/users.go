@@ -1,12 +1,14 @@
 package services
 
 import (
+	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/mrhid6/go-mongoose/mongoose"
-	"github.com/pquerna/otp/totp"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -68,9 +70,8 @@ func GetMyUser(accountIdStr string, userIdStr string) (models.Users, error) {
 	return theUser, nil
 }
 
-func GenerateUserTwoFASecret(accountIdStr string, userIdStr string) (string, error){
+func GenerateUserTwoFASecret(accountIdStr string, userIdStr string) (string, error) {
 	var theAccount models.Accounts
-	var theUser models.Users
 
 	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
 
@@ -93,13 +94,24 @@ func GenerateUserTwoFASecret(accountIdStr string, userIdStr string) (string, err
 	}
 
 	for idx := range theAccount.UserObjects {
-		user:= theAccount.UserObjects[idx];
+		user := theAccount.UserObjects[idx]
 		if user.ID.Hex() != userId.Hex() {
-			continue;
+			continue
 		}
 
-		user.TwoFAState.TwoFASecret = utils.
+		user.TwoFAState.TwoFASecret = strings.ToUpper(utils.RandStringBytes(8))
+
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"twoFAState", user.TwoFAState},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(user, dbUpdate); err != nil {
+			return "", err
+		}
+
+		return user.TwoFAState.TwoFASecret, nil
 	}
 
-
+	return "", errors.New("error couldn't find user when creatin 2fa secret")
 }
