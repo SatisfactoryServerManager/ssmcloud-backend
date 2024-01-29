@@ -1,3 +1,7 @@
+## 1.0.4 (January 29, 2024)
+  - ci: Added octopus deploy
+  - feat: added me endpoint
+
 ## 1.0.3 (January 28, 2024)
   - fix: Fixed docker build
 
