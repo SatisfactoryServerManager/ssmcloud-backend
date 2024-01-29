@@ -7,6 +7,7 @@ toolchain go1.21.5
 require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/joho/godotenv v1.5.1
+	github.com/kataras/jwt v0.1.12
 	github.com/mrhid6/go-mongoose v0.0.8
 	go.mongodb.org/mongo-driver v1.13.1
 )
@@ -23,7 +24,6 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/kataras/jwt v0.1.12 // indirect
 	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect

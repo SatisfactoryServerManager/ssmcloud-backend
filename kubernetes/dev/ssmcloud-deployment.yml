@@ -45,7 +45,7 @@ spec:
                 secretKeyRef:
                   key: jwt_key
                   name: ssmcloud-dev-backend-secret
-        - name: ssmcloud-dev-backend
+          name: ssmcloud-dev-backend
           image: mrhid6/ssmcloud-backend:latest
           ports:
             - containerPort: 3000

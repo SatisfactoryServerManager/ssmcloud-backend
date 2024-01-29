@@ -13,14 +13,25 @@ import (
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func LoginAccountUser(email string, password string) (string, error) {
 
 	var theUser models.Users
 
-	if err := mongoose.FindOne(bson.M{"email": email, "password": password}, &theUser); err != nil {
+	if err := mongoose.FindOne(bson.M{"email": email}, &theUser); err != nil {
+
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return "", errors.New("invalid user details")
+		}
+
 		return "", fmt.Errorf("error finding user account with error: %s", err.Error())
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(theUser.Password), []byte(password)); err != nil {
+		return "", errors.New("invalid user details")
 	}
 
 	if _, err := mongoose.DeleteMany(bson.M{"userId": theUser.ID}, "accountsessions"); err != nil {
@@ -121,10 +132,15 @@ func AccountSignup(accountName string, email string, password string) error {
 		UpdatedAt:   time.Now(),
 	}
 
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if err != nil {
+		return fmt.Errorf("error creating user with error: %s", err.Error())
+	}
+
 	newUser := models.Users{
 		ID:             primitive.NewObjectID(),
 		Email:          email,
-		Password:       password,
+		Password:       string(hashedPassword),
 		IsAccountAdmin: true,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
