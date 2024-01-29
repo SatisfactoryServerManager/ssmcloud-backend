@@ -1,3 +1,6 @@
+## 1.0.9 (January 29, 2024)
+
+
 ## 1.0.8 (January 29, 2024)
   - feat: 2fa secret generation
 
