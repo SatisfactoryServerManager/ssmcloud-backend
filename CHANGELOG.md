@@ -1,3 +1,6 @@
+## 1.0.6 (January 29, 2024)
+
+
 ## 1.0.5 (January 29, 2024)
   - ci: Added octopus deploy
 
