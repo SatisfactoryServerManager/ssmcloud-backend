@@ -1,3 +1,6 @@
+## 1.0.5 (January 29, 2024)
+  - ci: Added octopus deploy
+
 ## 1.0.4 (January 29, 2024)
   - ci: Added octopus deploy
   - feat: added me endpoint
