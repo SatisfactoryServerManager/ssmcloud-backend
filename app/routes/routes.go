@@ -52,6 +52,7 @@ func (obj *routes) AddAccountUsersRoutes() {
 
 	obj.AccountUsersGroup.GET("/", account.API_GetAllUsers)
 	obj.AccountUsersGroup.GET("/me", account.API_GetMyUser)
+	obj.AccountUsersGroup.POST("/me/twofa/generate", account.API_GenerateUserTwoFASecret)
 }
 
 func (obj *routes) AddAccountAgentRoutes() {
