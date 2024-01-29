@@ -1,3 +1,6 @@
+## 1.0.10 (January 29, 2024)
+  - fix: Fixed unsaved code
+
 ## 1.0.9 (January 29, 2024)
 
 
