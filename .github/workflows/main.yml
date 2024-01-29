@@ -112,3 +112,26 @@ jobs:
           asset_path: ./SSMCloud-Backend-Windows-x64.zip
           asset_name: SSMCloud-Backend-Windows-x64.zip
           asset_content_type: application/zip
+    deploy:
+      needs:
+        - build-linux
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v3
+        - name: Get version
+          id: versionnum
+          run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+        - name: Install Octopus CLI
+          uses: OctopusDeploy/install-octopus-cli-action@v1
+          with:
+            version: latest
+        - name: Create and deploy release
+          uses: OctopusDeploy/create-release-action@v1
+          with:
+            api_key: ${{ secrets.OCTOPUSSERVERAPIKEY }}
+            server: ${{ secrets.OCTOPUSSERVERURL }}
+            space: ${{ secrets.OCTOPUSSERVER_SPACE }}
+            project: ssmcloud-backend
+            release_number: ${{ steps.versionnum.outputs.version }}
+            deploy_to: Dev
+            progress: false
