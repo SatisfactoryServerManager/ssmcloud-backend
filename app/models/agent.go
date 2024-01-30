@@ -22,6 +22,8 @@ type Agents struct {
 	Saves   []AgentSave   `json:"saves" bson:"saves"`
 	Backups []AgentBackup `json:"backups" bson:"backups"`
 
+	ModConfig AgentModConfig `json:"modConfig" bson:"modConfig"`
+
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
@@ -99,6 +101,23 @@ type AgentBackup struct {
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
 
+// Mod Data
+
+type AgentModConfig struct {
+	LatestSMLVersion    string                      `json:"lastestSMLVersion" bson:"lastestSMLVersion"`
+	InstalledSMLVersion string                      `json:"installedSMLVersion" bson:"installedSMLVersion"`
+	SelectedMods        []AgentModConfigSelectedMod `json:"selectedMods" bson:"selectedMods"`
+}
+
+type AgentModConfigSelectedMod struct {
+	Mod              primitive.ObjectID `json:"mod" bson:"mod"`
+	DesiredVersion   string             `json:"desiredVersion" bson:"desiredVersion"`
+	InstalledVersion string             `json:"installedVersion" bson:"installedVersion"`
+	Installed        bool               `json:"installed" bson:"installed"`
+	NeedsUpdate      bool               `json:"needsUpdate" bson:"needsUpdate"`
+	Config           string             `json:"config" bson:"config"`
+}
+
 func NewAgent(agentName string, port int, memory int64) Agents {
 
 	apiKey := "API-AGT-" + strings.ToUpper(utils.RandStringBytes(24))
@@ -129,6 +148,8 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 
 	newAgent.Saves = make([]AgentSave, 0)
 	newAgent.Backups = make([]AgentBackup, 0)
+
+	newAgent.ModConfig.SelectedMods = make([]AgentModConfigSelectedMod, 0)
 
 	return newAgent
 }
