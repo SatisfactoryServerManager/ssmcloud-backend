@@ -143,3 +143,44 @@ func NewAgentTask(accountIdStr string, agentIdStr string, action string, data in
 
 	return nil
 }
+
+func DeleteAgent(accountIdStr string, agentIdStr string) error {
+
+	theAgent, err := GetAgentById(accountIdStr, agentIdStr)
+
+	if err != nil {
+		return err
+	}
+
+	account, err := GetAccount(accountIdStr)
+	if err != nil {
+		return err
+	}
+
+	if err := account.PopulateAgents(); err != nil {
+		return fmt.Errorf("error populating account agents with error: %s", err.Error())
+	}
+
+	newAgentList := make(primitive.A, 0)
+
+	for _, agent := range account.AgentObjects {
+		if agent.ID.Hex() != theAgent.ID.Hex() {
+			newAgentList = append(newAgentList, agent.ID)
+		}
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"agents", newAgentList},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&account, dbUpdate); err != nil {
+		return err
+	}
+
+	if _, err := mongoose.DeleteOne(bson.M{"_id": theAgent.ID}, "agents"); err != nil {
+		return err
+	}
+
+	return nil
+}

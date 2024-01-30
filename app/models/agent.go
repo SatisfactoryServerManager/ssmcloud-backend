@@ -38,6 +38,8 @@ type AgentStatus struct {
 	CPU float64 `json:"cpu" bson:"cpu"`
 	RAM float64 `json:"ram" bson:"ram"`
 
+	LastCommDate time.Time `json:"lastCommDate" bson:"lastCommDate"`
+
 	InstalledSFVersion string `json:"installedSFVersion"`
 	LatestSFVersion    string `json:"latestSFVersion"`
 }
