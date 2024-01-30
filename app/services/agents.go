@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,7 +19,7 @@ func GetAllAgents(accountIdStr string) ([]models.Agents, error) {
 	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
 
 	if err != nil {
-		return emptyAgents, fmt.Errorf("error converting query string to object id with error: %s", err.Error())
+		return emptyAgents, fmt.Errorf("error converting accountid to object id with error: %s", err.Error())
 	}
 
 	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
@@ -39,7 +40,7 @@ func CreateAgent(accountIdStr string, agentName string, port int, memory int64) 
 	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
 
 	if err != nil {
-		return fmt.Errorf("error converting query string to object id with error: %s", err.Error())
+		return fmt.Errorf("error converting accountid to object id with error: %s", err.Error())
 	}
 
 	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
@@ -81,4 +82,27 @@ func CreateAgent(accountIdStr string, agentName string, port int, memory int64) 
 	}
 
 	return nil
+}
+
+func GetAgentById(accountIdStr string, agentIdStr string) (models.Agents, error) {
+
+	agents, err := GetAllAgents(accountIdStr)
+
+	if err != nil {
+		return models.Agents{}, err
+	}
+
+	agentId, err := primitive.ObjectIDFromHex(accountIdStr)
+
+	if err != nil {
+		return models.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
+	}
+
+	for _, agent := range agents {
+		if agent.ID.Hex() == agentId.Hex() {
+			return agent, nil
+		}
+	}
+
+	return models.Agents{}, errors.New("error cant find agent on the account")
 }

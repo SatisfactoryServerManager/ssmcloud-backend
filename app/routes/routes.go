@@ -64,6 +64,7 @@ func (obj *routes) AddAccountAgentRoutes() {
 
 	obj.AccountAgentGroup.GET("/", account.API_GetAllAgents)
 	obj.AccountAgentGroup.POST("/", account.API_CreateNewAgent)
+	obj.AccountAgentGroup.GET("/:agentid", account.API_GetAgentByID)
 }
 
 var (
