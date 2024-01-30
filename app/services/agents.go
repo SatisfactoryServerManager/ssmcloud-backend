@@ -92,7 +92,7 @@ func GetAgentById(accountIdStr string, agentIdStr string) (models.Agents, error)
 		return models.Agents{}, err
 	}
 
-	agentId, err := primitive.ObjectIDFromHex(accountIdStr)
+	agentId, err := primitive.ObjectIDFromHex(agentIdStr)
 
 	if err != nil {
 		return models.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
