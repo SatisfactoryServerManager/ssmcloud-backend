@@ -21,3 +21,7 @@ type API_AccountCreateAgent_PostData struct {
 	Port      int    `json:"port"`
 	Memory    int64  `json:"memory"`
 }
+
+type API_AccountUserTwoFACode_PostData struct {
+	Token string `json:"token"`
+}

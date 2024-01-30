@@ -9,6 +9,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/mrhid6/go-mongoose/mongoose"
+	"github.com/pquerna/otp/totp"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -67,51 +68,60 @@ func GetMyUser(accountIdStr string, userIdStr string) (models.Users, error) {
 		}
 	}
 
+	if theUser.ID.IsZero() {
+		return theUser, errors.New("error user cant be found")
+	}
+
 	return theUser, nil
 }
 
 func GenerateUserTwoFASecret(accountIdStr string, userIdStr string) (string, error) {
-	var theAccount models.Accounts
 
-	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
-
-	if err != nil {
-		return "", fmt.Errorf("error converting query string to object id with error: %s", err.Error())
-	}
-
-	userId, err := primitive.ObjectIDFromHex(userIdStr)
+	theUser, err := GetMyUser(accountIdStr, userIdStr)
 
 	if err != nil {
-		return "", fmt.Errorf("error converting query string to object id with error: %s", err.Error())
+		return "", err
 	}
 
-	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
-		return "", fmt.Errorf("error finding account from session with error: %s", err.Error())
+	theUser.TwoFAState.TwoFASecret = strings.ToUpper(utils.RandStringBytes(8))
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"twoFAState", theUser.TwoFAState},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&theUser, dbUpdate); err != nil {
+		return "", err
 	}
 
-	if err := theAccount.PopulateUsers(); err != nil {
-		return "", fmt.Errorf("error populating account users with error: %s", err.Error())
+	return theUser.TwoFAState.TwoFASecret, nil
+
+}
+
+func ValidateUserTwoFACode(accountIdStr string, userIdStr string, code string) error {
+
+	theUser, err := GetMyUser(accountIdStr, userIdStr)
+
+	if err != nil {
+		return err
 	}
 
-	for idx := range theAccount.UserObjects {
-		user := theAccount.UserObjects[idx]
-		if user.ID.Hex() != userId.Hex() {
-			continue
-		}
+	if !totp.Validate(code, theUser.TwoFAState.TwoFASecret) {
+		return errors.New("invalid 2fa code")
+	}
 
-		user.TwoFAState.TwoFASecret = strings.ToUpper(utils.RandStringBytes(8))
+	if !theUser.TwoFAState.TwoFASetup {
+		theUser.TwoFAState.TwoFASetup = true
 
 		dbUpdate := bson.D{{"$set", bson.D{
-			{"twoFAState", user.TwoFAState},
+			{"twoFAState", theUser.TwoFAState},
 			{"updatedAt", time.Now()},
 		}}}
 
-		if err := mongoose.UpdateDataByID(user, dbUpdate); err != nil {
-			return "", err
+		if err := mongoose.UpdateDataByID(&theUser, dbUpdate); err != nil {
+			return err
 		}
-
-		return user.TwoFAState.TwoFASecret, nil
 	}
 
-	return "", errors.New("error couldn't find user when creatin 2fa secret")
+	return nil
 }

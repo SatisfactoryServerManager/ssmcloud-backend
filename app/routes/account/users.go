@@ -52,3 +52,25 @@ func API_GenerateUserTwoFASecret(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "secret": secret})
 }
+
+func API_ValidateUserTwoFACode(c *gin.Context) {
+	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+	AccountID := JWTData.AccountID
+	UserID := JWTData.UserID
+
+	var PostData app.API_AccountUserTwoFACode_PostData
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := services.ValidateUserTwoFACode(AccountID, UserID, PostData.Token)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
