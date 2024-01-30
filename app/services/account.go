@@ -179,3 +179,18 @@ func GetAccountSession(sessionIdStr string) (models.AccountSessions, error) {
 
 	return theSession, nil
 }
+
+func GetAccount(accountIdStr string) (models.Accounts, error) {
+	var theAccount models.Accounts
+	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
+
+	if err != nil {
+		return theAccount, fmt.Errorf("error converting query string to object id with error: %s", err.Error())
+	}
+
+	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
+		return theAccount, fmt.Errorf("error finding session with error: %s", err.Error())
+	}
+
+	return theAccount, nil
+}

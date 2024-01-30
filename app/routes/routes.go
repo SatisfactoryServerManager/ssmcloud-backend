@@ -42,6 +42,7 @@ func (obj *routes) AddAccountRoutes() {
 	obj.AccountGroup.Use(Middleware_DecodeJWT())
 	obj.AccountGroup.Use(Middleware_VerifySession())
 
+	obj.AccountGroup.GET("/", account.API_GetAccount)
 	obj.AccountGroup.GET("/session", account.API_AccountSession)
 
 }
