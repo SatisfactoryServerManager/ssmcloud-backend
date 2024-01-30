@@ -87,6 +87,6 @@ jobs:
           project: "ssmcloud-backend"
           runbook: "Deploy SSM Cloud Backend"
           environments: |
-            'Dev'
+            "Dev"
           variables: |
             'ssmcloud.image::mrhid6/ssmcloud-backend:dev'
