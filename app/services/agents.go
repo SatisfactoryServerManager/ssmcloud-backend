@@ -106,3 +106,40 @@ func GetAgentById(accountIdStr string, agentIdStr string) (models.Agents, error)
 
 	return models.Agents{}, errors.New("error cant find agent on the account")
 }
+
+func GetAgentTasks(accountIdStr string, agentIdStr string) ([]models.AgentTask, error) {
+
+	tasks := make([]models.AgentTask, 0)
+
+	agent, err := GetAgentById(accountIdStr, agentIdStr)
+
+	if err != nil {
+		return tasks, err
+	}
+
+	return agent.Tasks, nil
+}
+
+func NewAgentTask(accountIdStr string, agentIdStr string, action string, data interface{}) error {
+
+	newTask := models.NewAgentTask(action, data)
+
+	agent, err := GetAgentById(accountIdStr, agentIdStr)
+
+	if err != nil {
+		return err
+	}
+
+	agent.Tasks = append(agent.Tasks, newTask)
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"tasks", agent.Tasks},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}

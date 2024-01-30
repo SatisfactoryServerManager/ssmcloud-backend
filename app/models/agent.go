@@ -22,6 +22,8 @@ type Agents struct {
 	Saves   []AgentSave   `json:"saves" bson:"saves"`
 	Backups []AgentBackup `json:"backups" bson:"backups"`
 
+	Tasks []AgentTask `json:"tasks" bson:"tasks"`
+
 	ModConfig AgentModConfig `json:"modConfig" bson:"modConfig"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
@@ -93,6 +95,8 @@ type AgentSave struct {
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
 
+// Backup Data
+
 type AgentBackup struct {
 	FileName string `json:"fileName" bson:"fileName"`
 	Size     int64  `json:"size" bson:"size"`
@@ -116,6 +120,16 @@ type AgentModConfigSelectedMod struct {
 	Installed        bool               `json:"installed" bson:"installed"`
 	NeedsUpdate      bool               `json:"needsUpdate" bson:"needsUpdate"`
 	Config           string             `json:"config" bson:"config"`
+}
+
+// Task Data
+
+type AgentTask struct {
+	ID        primitive.ObjectID `json:"_id" bson:"_id"`
+	Action    string             `json:"action" bson:"action"`
+	Data      interface{}        `json:"data" bson:"data"`
+	Completed bool               `json:"completed" bson:"completed"`
+	Retries   int                `json:"retries" bson:"retries"`
 }
 
 func NewAgent(agentName string, port int, memory int64) Agents {
@@ -148,8 +162,17 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 
 	newAgent.Saves = make([]AgentSave, 0)
 	newAgent.Backups = make([]AgentBackup, 0)
+	newAgent.Tasks = make([]AgentTask, 0)
 
 	newAgent.ModConfig.SelectedMods = make([]AgentModConfigSelectedMod, 0)
 
 	return newAgent
+}
+
+func NewAgentTask(action string, data interface{}) AgentTask {
+	return AgentTask{
+		ID:     primitive.NewObjectID(),
+		Action: action,
+		Data:   data,
+	}
 }

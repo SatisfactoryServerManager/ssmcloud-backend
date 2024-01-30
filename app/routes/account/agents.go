@@ -58,3 +58,43 @@ func API_GetAgentByID(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "agent": agent})
 }
+
+func API_GetAgentTasks(c *gin.Context) {
+	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+	AccountID := JWTData.AccountID
+
+	AgentID := c.Param("agentid")
+
+	tasks, err := services.GetAgentTasks(AccountID, AgentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "tasks": tasks})
+}
+
+func API_NewAgentTask(c *gin.Context) {
+
+	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+	AccountID := JWTData.AccountID
+
+	AgentID := c.Param("agentid")
+
+	var PostData app.API_AccountAgentTask_PostData
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := services.NewAgentTask(AccountID, AgentID, PostData.Action, PostData.Data)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
