@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
@@ -75,12 +76,14 @@ type AgentMapDataBuilding struct {
 
 func NewAgent(agentName string, port int, memory int64) Agents {
 
-	apiKey := "API-AGT-" + utils.RandStringBytes(24)
+	apiKey := "API-AGT-" + strings.ToUpper(utils.RandStringBytes(24))
 
 	newAgent := Agents{
 		ID:        primitive.NewObjectID(),
 		AgentName: agentName,
 		APIKey:    apiKey,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	newAgent.Config.Port = port
@@ -93,8 +96,8 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 	newAgent.ServerConfig.WorkerThreads = 20
 	newAgent.ServerConfig.Branch = "public"
 	newAgent.ServerConfig.UpdateOnStart = true
-	newAgent.ServerConfig.AutoSaveInterval = 300;
-	newAgent.ServerConfig.AutoSaveOnDisconnect = true;
+	newAgent.ServerConfig.AutoSaveInterval = 300
+	newAgent.ServerConfig.AutoSaveOnDisconnect = true
 
 	newAgent.MapData.Players = make([]AgentMapDataPlayer, 0)
 	newAgent.MapData.Buildings = make([]AgentMapDataBuilding, 0)
