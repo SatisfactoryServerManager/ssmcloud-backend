@@ -83,7 +83,7 @@ func GenerateUserTwoFASecret(accountIdStr string, userIdStr string) (string, err
 		return "", err
 	}
 
-	theUser.TwoFAState.TwoFASecret = strings.ToUpper(utils.RandStringBytes(8))
+	theUser.TwoFAState.TwoFASecret = strings.ToUpper(utils.TwoFASecretGenerator(8))
 
 	dbUpdate := bson.D{{"$set", bson.D{
 		{"twoFAState", theUser.TwoFAState},

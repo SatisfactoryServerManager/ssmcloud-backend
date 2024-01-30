@@ -36,3 +36,12 @@ func RandStringBytes(n int) string {
 	}
 	return string(b)
 }
+
+func TwoFASecretGenerator(n int) string {
+	letterBytes := "abcdefghijklmnopqrstuvwxyz234567"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
