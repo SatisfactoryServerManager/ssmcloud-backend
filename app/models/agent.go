@@ -19,7 +19,8 @@ type Agents struct {
 
 	MapData AgentMapData `json:"mapData" bson:"mapData"`
 
-	Saves []AgentSave `json:"saves" bson:"saves"`
+	Saves   []AgentSave   `json:"saves" bson:"saves"`
+	Backups []AgentBackup `json:"backups" bson:"backups"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
@@ -90,6 +91,14 @@ type AgentSave struct {
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
 
+type AgentBackup struct {
+	FileName string `json:"fileName" bson:"fileName"`
+	Size     int64  `json:"size" bson:"size"`
+
+	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
+}
+
 func NewAgent(agentName string, port int, memory int64) Agents {
 
 	apiKey := "API-AGT-" + strings.ToUpper(utils.RandStringBytes(24))
@@ -119,6 +128,7 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 	newAgent.MapData.Buildings = make([]AgentMapDataBuilding, 0)
 
 	newAgent.Saves = make([]AgentSave, 0)
+	newAgent.Backups = make([]AgentBackup, 0)
 
 	return newAgent
 }
