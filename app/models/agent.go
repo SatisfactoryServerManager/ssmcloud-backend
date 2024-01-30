@@ -118,5 +118,7 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 	newAgent.MapData.Players = make([]AgentMapDataPlayer, 0)
 	newAgent.MapData.Buildings = make([]AgentMapDataBuilding, 0)
 
+	newAgent.Saves = make([]AgentSave, 0)
+
 	return newAgent
 }
