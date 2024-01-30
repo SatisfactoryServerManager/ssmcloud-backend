@@ -8,8 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-
-
 func API_AccountLogin(c *gin.Context) {
 	var PostData app.API_AccountLogin_PostData
 	if err := c.BindJSON(&PostData); err != nil {
@@ -63,7 +61,7 @@ func API_AccountSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "session": session})
 }
 
-func API_GetAccount(c *gin.Context){
+func API_GetAccount(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 
@@ -74,5 +72,5 @@ func API_GetAccount(c *gin.Context){
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "session": account})
+	c.JSON(http.StatusOK, gin.H{"success": true, "account": account})
 }
