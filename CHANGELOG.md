@@ -1,3 +1,6 @@
+## 1.0.13 (January 30, 2024)
+  - feat: Get Account endpoint
+
 ## 1.0.12 (January 30, 2024)
   - fix: Twofa secret generator
 
