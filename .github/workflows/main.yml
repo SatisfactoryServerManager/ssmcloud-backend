@@ -89,4 +89,4 @@ jobs:
           environments: |
             Dev
           variables: |
-            'ssmcloud.image::mrhid6/ssmcloud-backend:dev'
+            ssmcloud.image::mrhid6/ssmcloud-backend:dev
