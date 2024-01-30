@@ -1,3 +1,6 @@
+## 1.0.12 (January 30, 2024)
+  - fix: Twofa secret generator
+
 ## 1.0.11 (January 30, 2024)
   - feat: Validate user twofa
 
