@@ -1,3 +1,6 @@
+## 1.0.11 (January 30, 2024)
+  - feat: Validate user twofa
+
 ## 1.0.10 (January 29, 2024)
   - fix: Fixed unsaved code
 
