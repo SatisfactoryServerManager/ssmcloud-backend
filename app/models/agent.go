@@ -19,6 +19,8 @@ type Agents struct {
 
 	MapData AgentMapData `json:"mapData" bson:"mapData"`
 
+	Saves []AgentSave `json:"saves" bson:"saves"`
+
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
@@ -30,6 +32,9 @@ type AgentStatus struct {
 
 	CPU float64 `json:"cpu" bson:"cpu"`
 	RAM float64 `json:"ram" bson:"ram"`
+
+	InstalledSFVersion string `json:"installedSFVersion"`
+	LatestSFVersion    string `json:"latestSFVersion"`
 }
 
 type AgentConfig struct {
@@ -72,6 +77,17 @@ type AgentMapDataBuilding struct {
 	Type     string   `json:"type" bson:"type"`
 	Location Vector3F `json:"location" bson:"location"`
 	Rotation float32  `json:"rotation" bson:"rotation"`
+}
+
+// Save Data
+
+type AgentSave struct {
+	FileName    string `json:"fileName" bson:"fileName"`
+	SessionName string `json:"sessionName" bson:"sessionName"`
+	Size        int64  `json:"size" bson:"size"`
+
+	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
 
 func NewAgent(agentName string, port int, memory int64) Agents {
