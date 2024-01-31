@@ -30,6 +30,12 @@ func GetAllAgents(accountIdStr string) ([]models.Agents, error) {
 		return emptyAgents, fmt.Errorf("error populating account agents with error: %s", err.Error())
 	}
 
+	for idx := range theAccount.AgentObjects {
+		agent := &theAccount.AgentObjects[idx]
+
+		agent.PopulateModConfig()
+	}
+
 	return theAccount.AgentObjects, nil
 
 }

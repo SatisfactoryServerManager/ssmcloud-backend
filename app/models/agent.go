@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
+	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -116,7 +117,8 @@ type AgentModConfig struct {
 }
 
 type AgentModConfigSelectedMod struct {
-	Mod              primitive.ObjectID `json:"mod" bson:"mod"`
+	Mod              primitive.ObjectID `json:"-" bson:"mod" mson:"collection=mods"`
+	ModObject        Mods               `json:"mod" bson:"-"`
 	DesiredVersion   string             `json:"desiredVersion" bson:"desiredVersion"`
 	InstalledVersion string             `json:"installedVersion" bson:"installedVersion"`
 	Installed        bool               `json:"installed" bson:"installed"`
@@ -132,6 +134,18 @@ type AgentTask struct {
 	Data      interface{}        `json:"data" bson:"data"`
 	Completed bool               `json:"completed" bson:"completed"`
 	Retries   int                `json:"retries" bson:"retries"`
+}
+
+func (obj *Agents) PopulateModConfig() {
+
+	for idx := range obj.ModConfig.SelectedMods {
+		selectedMod := &obj.ModConfig.SelectedMods[idx]
+		selectedMod.PopulateMod()
+	}
+}
+
+func (obj *AgentModConfigSelectedMod) PopulateMod() {
+	mongoose.PopulateObject(obj, "Mod", &obj.ModObject)
 }
 
 func NewAgent(agentName string, port int, memory int64) Agents {

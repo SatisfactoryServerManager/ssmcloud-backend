@@ -1,5 +1,9 @@
 package app
 
+import (
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+)
+
 type Middleware_Session_JWT struct {
 	SessionID string `json:"sessionId"`
 	AccountID string `json:"accountId"`
@@ -29,4 +33,12 @@ type API_AccountUserTwoFACode_PostData struct {
 type API_AccountAgentTask_PostData struct {
 	Action string      `json:"action"`
 	Data   interface{} `json:"data"`
+}
+
+type FicsitAPI_Response_GetMods struct {
+	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
+}
+
+type FicsitAPI_Response_GetMods_Mods struct {
+	Mods []models.Mods `json:"mods"`
 }

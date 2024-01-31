@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/routes"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/mrhid6/go-mongoose/mongoose"
@@ -35,6 +36,8 @@ func main() {
 		panic(err)
 	}
 
+	services.InitAllServices()
+
 	PrintConnectionString(dbConnection)
 
 	routes.InitRoutes()
@@ -53,6 +56,9 @@ func main() {
 	wait := gracefulShutdown(context.Background(), 30*time.Second, map[string]operation{
 		"gin": func(ctx context.Context) error {
 			return srv.Shutdown(ctx)
+		},
+		"services": func(ctx context.Context) error {
+			return services.ShutdownAllServices()
 		},
 	})
 
