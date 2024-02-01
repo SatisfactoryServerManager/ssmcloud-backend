@@ -20,7 +20,6 @@ import (
 
 var (
 	graphqlClient *graphql.Client
-	_quit         = make(chan int)
 )
 
 func InitModService() {
@@ -50,8 +49,6 @@ func InitModService() {
 }
 
 func ShutdownModService() error {
-
-	_quit <- 0
 
 	return nil
 }

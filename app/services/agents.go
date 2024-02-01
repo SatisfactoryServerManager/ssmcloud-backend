@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
@@ -10,6 +11,41 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+func InitAgentService() {
+
+	if err := CheckAllAgentsLastComms(); err != nil {
+		fmt.Println(err)
+	}
+
+	if err := PurgeAgentTasks(); err != nil {
+		fmt.Println(err)
+	}
+
+	uptimeticker := time.NewTicker(30 * time.Second)
+
+	go func() {
+		for {
+			select {
+			case <-uptimeticker.C:
+				if err := CheckAllAgentsLastComms(); err != nil {
+					fmt.Println(err)
+				}
+				if err := PurgeAgentTasks(); err != nil {
+					fmt.Println(err)
+				}
+			case <-_quit:
+				uptimeticker.Stop()
+				log.Println("Stopped Process Orders Ticker")
+				return
+			}
+		}
+	}()
+}
+
+func ShutdownAgentService() error {
+	return nil
+}
 
 func GetAllAgents(accountIdStr string) ([]models.Agents, error) {
 
@@ -37,7 +73,6 @@ func GetAllAgents(accountIdStr string) ([]models.Agents, error) {
 	}
 
 	return theAccount.AgentObjects, nil
-
 }
 
 func CreateAgent(accountIdStr string, agentName string, port int, memory int64) error {
@@ -186,6 +221,60 @@ func DeleteAgent(accountIdStr string, agentIdStr string) error {
 
 	if _, err := mongoose.DeleteOne(bson.M{"_id": theAgent.ID}, "agents"); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func CheckAllAgentsLastComms() error {
+
+	allAgents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+		return err
+	}
+
+	for idx := range allAgents {
+		agent := &allAgents[idx]
+
+		d := time.Now().Add(-1 * time.Hour)
+
+		if agent.Status.LastCommDate.Before(d) {
+			if agent.Status.Online {
+				agent.Status.Online = false
+				agent.Status.Running = false
+				agent.Status.CPU = 0
+				agent.Status.RAM = 0
+				dbUpdate := bson.D{{"$set", bson.D{
+					{"status", agent.Status},
+					{"updatedAt", time.Now()},
+				}}}
+
+				if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func PurgeAgentTasks() error {
+
+	allAgents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+		return err
+	}
+
+	for idx := range allAgents {
+		agent := &allAgents[idx]
+
+		if err := agent.PurgeTasks(); err != nil {
+			return err
+		}
+
 	}
 
 	return nil

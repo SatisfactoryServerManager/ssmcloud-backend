@@ -6,6 +6,7 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/mrhid6/go-mongoose/mongoose"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -142,6 +143,29 @@ func (obj *Agents) PopulateModConfig() {
 		selectedMod := &obj.ModConfig.SelectedMods[idx]
 		selectedMod.PopulateMod()
 	}
+}
+
+func (obj *Agents) PurgeTasks() error {
+	newTaskList := make([]AgentTask, 0)
+	for _, task := range obj.Tasks {
+
+		if task.Completed {
+			continue
+		}
+
+		newTaskList = append(newTaskList, task)
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"tasks", newTaskList},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (obj *AgentModConfigSelectedMod) PopulateMod() {
