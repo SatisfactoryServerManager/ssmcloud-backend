@@ -99,14 +99,12 @@ func API_NewAgentTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-
 func API_DeleteAgent(c *gin.Context) {
 
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 
 	AgentID := c.Param("agentid")
-
 
 	err := services.DeleteAgent(AccountID, AgentID)
 	if err != nil {
@@ -115,5 +113,18 @@ func API_DeleteAgent(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func API_AgentInstallMod(c *gin.Context) {
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func API_AgentUpdateMod(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func API_AgentUninstallMod(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }

@@ -29,6 +29,7 @@ func (obj *routes) SetupAPIGroups() {
 
 func (obj *routes) AddV1Routes() {
 	obj.MainGroup.GET("/ping", API_Ping)
+	obj.MainGroup.GET("/mods", API_Mods)
 
 	obj.AddAccountRoutes()
 	obj.AddAccountUsersRoutes()
@@ -68,6 +69,10 @@ func (obj *routes) AddAccountAgentRoutes() {
 	obj.AccountAgentGroup.DELETE("/:agentid", account.API_DeleteAgent)
 	obj.AccountAgentGroup.GET("/:agentid/tasks", account.API_GetAgentTasks)
 	obj.AccountAgentGroup.POST("/:agentid/tasks", account.API_NewAgentTask)
+
+	obj.AccountAgentGroup.POST("/:agentid/mods/install", account.API_AgentInstallMod)
+	obj.AccountAgentGroup.POST("/:agentid/mods/update", account.API_AgentUpdateMod)
+	obj.AccountAgentGroup.POST("/:agentid/mods/uninstall", account.API_AgentUninstallMod)
 }
 
 var (
