@@ -34,17 +34,66 @@ func LoginAccountUser(email string, password string) (string, error) {
 		return "", errors.New("invalid user details")
 	}
 
-	if _, err := mongoose.DeleteMany(bson.M{"userId": theUser.ID}, "accountsessions"); err != nil {
-		return "", fmt.Errorf("error deleting existing account sessions with error: %s", err.Error())
-	}
-
 	var theAccount models.Accounts
 
 	if err := mongoose.FindOne(bson.M{"users": theUser.ID}, &theAccount); err != nil {
 		return "", fmt.Errorf("error finding account with error: %s", err.Error())
 	}
 
+	var existingSession models.AccountSessions
+	mongoose.FindOne(bson.M{"userId": theUser.ID}, &existingSession)
+
 	sessionExpiry := time.Now().AddDate(0, 0, 1)
+
+	if !existingSession.ID.IsZero() {
+
+		if existingSession.Expiry.Before(time.Now()) {
+
+			if _, err := mongoose.DeleteOne(bson.M{"_id": existingSession.ID}, "accountsessions"); err != nil {
+				return "", err
+			}
+
+			if err := theAccount.PopulateSessions(); err != nil {
+				return "", err
+			}
+
+			newSessionIds := make(primitive.A, 0)
+			for _, session := range theAccount.SessionObjects {
+				if session.ID.IsZero() {
+					continue
+				}
+
+				if session.ID.Hex() != existingSession.ID.Hex() {
+					newSessionIds = append(newSessionIds, session.ID)
+				}
+			}
+
+			theAccount.Sessions = newSessionIds
+
+		} else {
+
+			dbUpdate := bson.D{{"$set", bson.D{
+				{"expiry", sessionExpiry},
+			}}}
+			if err := mongoose.UpdateDataByID(&existingSession, dbUpdate); err != nil {
+				return "", err
+			}
+
+			myClaims := app.Middleware_Session_JWT{
+				SessionID: existingSession.ID.Hex(),
+				AccountID: existingSession.AccountID.Hex(),
+				UserID:    existingSession.UserID.Hex(),
+			}
+
+			token, err := jwt.Sign(jwt.HS256, []byte(os.Getenv("JWT_KEY")), myClaims, jwt.MaxAge(24*time.Hour))
+			if err != nil {
+				return "", err
+			}
+
+			return string(token), nil
+		}
+
+	}
 
 	newSession := models.AccountSessions{
 		ID:        primitive.NewObjectID(),
