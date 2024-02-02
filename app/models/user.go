@@ -18,6 +18,8 @@ type Users struct {
 
 	ProfileImageURL string `json:"profileImageUrl" bson:"profileImageUrl"`
 
+	APIKeys []UserAPIKey `json:"apiKeys" bson:"apiKeys"`
+
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
@@ -25,4 +27,9 @@ type Users struct {
 type User2FAState struct {
 	TwoFASetup  bool   `json:"twoFASetup" bson:"twoFASetup"`
 	TwoFASecret string `json:"-" bson:"twoFASecret"`
+}
+
+type UserAPIKey struct {
+	Key      string `json:"-" bson:"key"`
+	ShortKey string `json:"shortKey" bson:"shortKey"`
 }

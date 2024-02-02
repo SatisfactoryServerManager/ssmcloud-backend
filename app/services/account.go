@@ -191,6 +191,7 @@ func AccountSignup(accountName string, email string, password string) error {
 		Email:          email,
 		Password:       string(hashedPassword),
 		IsAccountAdmin: true,
+		APIKeys: 		make([]models.UserAPIKey, 0),
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
