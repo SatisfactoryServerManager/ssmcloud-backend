@@ -446,3 +446,33 @@ func UpdateMod(accountIdStr string, agentIdStr, modReference string) error {
 
 	return nil
 }
+
+func UninstallMod(accountIdStr string, agentIdStr, modReference string) error {
+
+	agent, err := GetAgentById(accountIdStr, agentIdStr)
+	if err != nil {
+		return err
+	}
+
+	newSelectedModsList := make([]models.AgentModConfigSelectedMod, 0)
+
+	for idx := range agent.ModConfig.SelectedMods {
+		selectedMod := agent.ModConfig.SelectedMods[idx]
+
+		if selectedMod.ModObject.ModReference != modReference {
+			newSelectedModsList = append(newSelectedModsList, selectedMod)
+		}
+	}
+
+	agent.ModConfig.SelectedMods = newSelectedModsList
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"modConfig", agent.ModConfig},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+	return nil
+}
