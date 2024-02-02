@@ -118,6 +118,24 @@ func API_DeleteAgent(c *gin.Context) {
 
 func API_AgentInstallMod(c *gin.Context) {
 
+	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+	AccountID := JWTData.AccountID
+	AgentID := c.Param("agentid")
+
+	var PostData app.API_AccountAgentInstallMod_PostData
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := services.InstallMod(AccountID, AgentID, PostData.ModReference, PostData.Version)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 

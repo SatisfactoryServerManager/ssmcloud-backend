@@ -16,6 +16,7 @@ type Mods struct {
 }
 
 type ModVersion struct {
+	ID           string                 `json:"id" bson:"id"`
 	Version      string                 `json:"version" bson:"version"`
 	CreatedAt    string                 `json:"created_at" bson:"created_at"`
 	SMLVersion   string                 `json:"sml_version" bson:"sml_version"`
@@ -26,9 +27,13 @@ type ModVersion struct {
 type ModVersionTarget struct {
 	TargetName string `json:"targetName" bson:"targetName"`
 	Link       string `json:"link" bson:"link"`
+	Hash       string `json:"hash" bson:"hash"`
+	Size       int64  `json:"size" bson:"size"`
+	VersionID  string `json:"VersionID" bson:"VersionID"`
 }
 
 type ModVersionDependency struct {
 	ModReference string `json:"mod_id" bson:"modReference"`
 	Condition    string `json:"condition" bson:"condition"`
+	Optional     bool   `json:"optional" bson:"optional"`
 }

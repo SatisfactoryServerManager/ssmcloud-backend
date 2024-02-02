@@ -204,6 +204,8 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 	newAgent.Backups = make([]AgentBackup, 0)
 	newAgent.Tasks = make([]AgentTask, 0)
 
+	newAgent.ModConfig.InstalledSMLVersion = "0.0.0"
+	newAgent.ModConfig.LatestSMLVersion = "0.0.0"
 	newAgent.ModConfig.SelectedMods = make([]AgentModConfigSelectedMod, 0)
 
 	return newAgent

@@ -158,17 +158,22 @@ func GetModsFromAPI(offset int) ([]models.Mods, error) {
                         mod_reference,
                         downloads,
                         versions {
+							id,
                             version,
                             created_at,
                             link,
                             targets {
+								VersionID
+								hash
                                 targetName
+								size
                                 link
                               },
                             sml_version,
                             dependencies {
                                 mod_id
                                 condition
+								optional
                             }
                         }
                     }

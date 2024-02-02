@@ -1,13 +1,17 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose/mongoose"
+	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -22,6 +26,10 @@ func InitAgentService() {
 		fmt.Println(err)
 	}
 
+	if err := CheckAgentModsConfigs(); err != nil {
+		fmt.Println(err)
+	}
+
 	uptimeticker := time.NewTicker(30 * time.Second)
 
 	go func() {
@@ -32,6 +40,9 @@ func InitAgentService() {
 					fmt.Println(err)
 				}
 				if err := PurgeAgentTasks(); err != nil {
+					fmt.Println(err)
+				}
+				if err := CheckAgentModsConfigs(); err != nil {
 					fmt.Println(err)
 				}
 			case <-_quit:
@@ -275,6 +286,141 @@ func PurgeAgentTasks() error {
 			return err
 		}
 
+	}
+
+	return nil
+}
+
+func CheckAgentModsConfigs() error {
+
+	agents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &agents); err != nil {
+		return fmt.Errorf("error finding agents with error: %s", err.Error())
+	}
+
+	for idx := range agents {
+		agent := &agents[idx]
+
+		agent.PopulateModConfig()
+
+		for modidx := range agent.ModConfig.SelectedMods {
+			selectedMod := &agent.ModConfig.SelectedMods[modidx]
+
+			if len(selectedMod.ModObject.Versions) == 0 {
+				continue
+			}
+
+			latestVersion, _ := semver.NewVersion(selectedMod.ModObject.Versions[0].Version)
+
+			//installedVersion, _ := semver.NewVersion(selectedMod.InstalledVersion)
+			desiredVersion, _ := semver.NewVersion(selectedMod.DesiredVersion)
+
+			if latestVersion.Compare(desiredVersion) == 0 {
+				selectedMod.NeedsUpdate = false
+			} else if latestVersion.Compare(desiredVersion) > 0 {
+				selectedMod.NeedsUpdate = true
+			}
+		}
+
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"modConfig", agent.ModConfig},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func InstallMod(accountIdStr string, agentIdStr, modReference string, version string) error {
+
+	agent, err := GetAgentById(accountIdStr, agentIdStr)
+	if err != nil {
+		return err
+	}
+
+	depResolver := resolver.NewDependencyResolver(SSMProvider{}, "https://api.ficsit.app")
+
+	constraints := make(map[string]string, 0)
+
+	constraints[modReference] = version
+
+	requiredTargets := make([]resolver.TargetName, 0)
+	requiredTargets = append(requiredTargets, resolver.TargetNameWindowsServer)
+	requiredTargets = append(requiredTargets, resolver.TargetNameLinuxServer)
+
+	resolved, err := depResolver.ResolveModDependencies(context.Background(), constraints, nil, math.MaxInt, requiredTargets)
+
+	if err != nil {
+		return err
+	}
+
+	mods := resolved.Mods
+
+	for k := range mods {
+		mod := mods[k]
+
+		if k == "SML" {
+
+			smlConstraint, err := semver.NewConstraint(">" + agent.ModConfig.InstalledSMLVersion)
+			if err != nil {
+				return err
+			}
+
+			smlVersion, err := semver.NewVersion(mod.Version)
+			if err != nil {
+				return err
+			}
+
+			if smlConstraint.Contains(smlVersion) {
+				agent.ModConfig.LatestSMLVersion = smlVersion.RawString()
+			}
+			continue
+		}
+
+		exists := false
+		for idx := range agent.ModConfig.SelectedMods {
+			selectedMod := &agent.ModConfig.SelectedMods[idx]
+
+			if selectedMod.ModObject.ModReference == k {
+				selectedMod.DesiredVersion = mod.Version
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+
+			fmt.Printf("Installing Mod %s\n", k)
+
+			var dbMod models.Mods
+			if err := mongoose.FindOne(bson.M{"modReference": k}, &dbMod); err != nil {
+				return err
+			}
+
+			newSelectedMod := models.AgentModConfigSelectedMod{
+				Mod:              dbMod.ID,
+				ModObject:        dbMod,
+				DesiredVersion:   mod.Version,
+				InstalledVersion: "0.0.0",
+				Config:           "{}",
+			}
+
+			agent.ModConfig.SelectedMods = append(agent.ModConfig.SelectedMods, newSelectedMod)
+		}
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"modConfig", agent.ModConfig},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
 	}
 
 	return nil
