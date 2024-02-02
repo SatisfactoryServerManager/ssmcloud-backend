@@ -36,9 +36,8 @@ type API_AccountAgentTask_PostData struct {
 	Data   interface{} `json:"data"`
 }
 
-type API_AccountAgentInstallMod_PostData struct {
+type API_AccountAgentMod_PostData struct {
 	ModReference string `json:"modReference"`
-	Version      string `json:"version"`
 }
 
 type FicsitAPI_Response_GetMods struct {

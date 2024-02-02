@@ -425,3 +425,24 @@ func InstallMod(accountIdStr string, agentIdStr, modReference string, version st
 
 	return nil
 }
+
+func UpdateMod(accountIdStr string, agentIdStr, modReference string) error {
+
+	var dbMod models.Mods
+
+	if err := mongoose.FindOne(bson.M{"modReference": modReference}, &dbMod); err != nil {
+		return fmt.Errorf("error finding mod with error: %s", err.Error())
+	}
+
+	if len(dbMod.Versions) == 0 {
+		return errors.New("error updating mod with error: no mod versions")
+	}
+
+	latestVersion := dbMod.Versions[0].Version
+
+	if err := InstallMod(accountIdStr, agentIdStr, dbMod.ModReference, latestVersion); err != nil {
+		return fmt.Errorf("error installing mod with error: %s", err.Error())
+	}
+
+	return nil
+}
