@@ -825,7 +825,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) erro
 	return nil
 }
 
-func GetAgentModConfig(agentAPIKey string) (models.AgentModConfig, error){
+func GetAgentModConfig(agentAPIKey string) (models.AgentModConfig, error) {
 
 	var theModConfig models.AgentModConfig
 
@@ -836,7 +836,47 @@ func GetAgentModConfig(agentAPIKey string) (models.AgentModConfig, error){
 
 	agent.PopulateModConfig()
 
-	return agent.ModConfig, nil;
+	return agent.ModConfig, nil
 
+}
 
+func UpdateAgentModConfig(agentAPIKey string, newConfig models.AgentModConfig) error {
+
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	agent.PopulateModConfig()
+
+	agent.ModConfig.InstalledSMLVersion = newConfig.InstalledSMLVersion
+
+	for idx := range agent.ModConfig.SelectedMods {
+		agentMod := &agent.ModConfig.SelectedMods[idx]
+
+		for newIdx := range newConfig.SelectedMods {
+			newMod := newConfig.SelectedMods[newIdx]
+
+			if newMod.ModObject.ModReference == agentMod.ModObject.ModReference {
+				agentMod.Installed = newMod.Installed
+				agentMod.InstalledVersion = newMod.InstalledVersion
+				agentMod.Config = newMod.Config
+			}
+		}
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"modConfig", agent.ModConfig},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
 }
