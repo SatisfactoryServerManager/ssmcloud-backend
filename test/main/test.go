@@ -2,18 +2,17 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
+
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 )
 
 func main() {
 
-	fileSrc := "D:\\Test\\Test.sav"
+	fileContents, err := utils.ReadLastNBtyesFromFile("./test.go", 500)
 
-	fmt.Println(fileSrc)
-	fmt.Println(filepath.Base(fileSrc))
-	convertedSrc := strings.ReplaceAll(fileSrc, "\\", "/")
-	fmt.Println(convertedSrc)
-	fmt.Println(filepath.Base(convertedSrc))
+	if err != nil {
+		panic(err)
+	}
 
+	fmt.Println(fileContents)
 }

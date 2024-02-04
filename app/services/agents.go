@@ -721,7 +721,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) erro
 	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
 		return fmt.Errorf("error finding agent account with error: %s", err.Error())
 	}
-	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), agent.ID.Hex(), "backups")
+	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), agent.ID.Hex(), "logs")
 	newFileLocation := filepath.Join(newFilePath, fileIdentity.FileName)
 
 	if err := utils.CreateFolder(newFilePath); err != nil {
@@ -748,6 +748,12 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) erro
 	var theLog models.AgentLogs
 	hasLog := false
 
+	fileContents, err := utils.ReadLastNBtyesFromFile(newFileLocation, 2000)
+
+	if err != nil {
+		return fmt.Errorf("error reading log contents with error: %s", err.Error())
+	}
+
 	for _, log := range agent.LogObjects {
 		if log.Type == logType {
 			hasLog = true
@@ -760,7 +766,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) erro
 		theLog := models.AgentLogs{
 			ID:        primitive.NewObjectID(),
 			Type:      logType,
-			Snippet:   "",
+			Snippet:   fileContents,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
@@ -779,12 +785,6 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) erro
 		if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
 			return err
 		}
-	}
-
-	fileContents, err := utils.ReadLastNBtyesFromFile(newFileLocation, 500)
-
-	if err != nil {
-		return fmt.Errorf("error reading log contents with error: %s", err.Error())
 	}
 
 	theLog.Snippet = fileContents

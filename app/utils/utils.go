@@ -79,11 +79,17 @@ func ReadLastNBtyesFromFile(fname string, nbytes int64) (string, error) {
 	}
 	defer file.Close()
 
-	buf := make([]byte, nbytes)
 	stat, statErr := file.Stat()
 	if statErr != nil {
 		return "", statErr
 	}
+
+	if stat.Size() < nbytes {
+		nbytes = stat.Size()
+	}
+
+	buf := make([]byte, nbytes)
+
 	start := stat.Size() - nbytes
 	_, err = file.ReadAt(buf, start)
 
