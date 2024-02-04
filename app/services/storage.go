@@ -32,7 +32,7 @@ func ConvertUploadToFileIdentity(file *multipart.FileHeader) StorageFileIdentity
 
 	return StorageFileIdentity{
 		UUID:          uuid,
-		FileName:      file.Filename,
+		FileName:      filepath.Base(file.Filename),
 		Extension:     extension,
 		LocalFilePath: destFilePath,
 	}
