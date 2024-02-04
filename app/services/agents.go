@@ -891,6 +891,10 @@ func GetAgentTasksApi(agentAPIKey string) ([]models.AgentTask, error) {
 		return tasks, fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
+	if err := agent.PurgeTasks(); err != nil {
+		return tasks, err
+	}
+
 	return agent.Tasks, nil
 }
 
