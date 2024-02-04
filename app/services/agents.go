@@ -824,3 +824,19 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) erro
 
 	return nil
 }
+
+func GetAgentModConfig(agentAPIKey string) (models.AgentModConfig, error){
+
+	var theModConfig models.AgentModConfig
+
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return theModConfig, fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	agent.PopulateModConfig()
+
+	return agent.ModConfig, nil;
+
+
+}

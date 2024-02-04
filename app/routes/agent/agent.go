@@ -71,3 +71,16 @@ func API_UploadAgentLog(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
+
+func API_GetModConfig(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	config, err := services.GetAgentModConfig(AgentAPIKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "config": config})
+}

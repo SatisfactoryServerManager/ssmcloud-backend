@@ -102,6 +102,8 @@ func (obj *routes) AddAgentRoutes() {
 	uploadGroup.POST("/save", agent.API_UploadAgentSave)
 	uploadGroup.POST("/backup", agent.API_UploadAgentBackup)
 	uploadGroup.POST("/log", agent.API_UploadAgentLog)
+
+	obj.AgentGroup.GET("/modconfig", agent.API_GetModConfig)
 }
 
 var (
