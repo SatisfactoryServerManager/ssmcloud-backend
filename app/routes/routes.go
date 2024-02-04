@@ -89,6 +89,13 @@ func (obj *routes) AddAgentRoutes() {
 	obj.AgentGroup.Use(Middleware_AgentAPIKey())
 
 	obj.AgentGroup.PUT("/status", agent.API_UpdateAgentStatus)
+
+	uploadGroup := obj.AgentGroup.Group("upload")
+	uploadGroup.Use(Middleware_UploadFile())
+
+	uploadGroup.POST("/save", agent.API_UploadAgentSave)
+	uploadGroup.POST("/backup", agent.API_UploadAgentBackup)
+	//uploadGroup.POST("/log", agent.API_UploadAgentLog)
 }
 
 var (

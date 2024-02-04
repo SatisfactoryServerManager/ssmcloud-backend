@@ -91,6 +91,7 @@ type AgentMapDataBuilding struct {
 // Save Data
 
 type AgentSave struct {
+	UUID        string `json:"uuid" bson:"uuid"`
 	FileName    string `json:"fileName" bson:"fileName"`
 	SessionName string `json:"sessionName" bson:"sessionName"`
 	Size        int64  `json:"size" bson:"size"`
@@ -102,6 +103,7 @@ type AgentSave struct {
 // Backup Data
 
 type AgentBackup struct {
+	UUID     string `json:"uuid" bson:"uuid"`
 	FileName string `json:"fileName" bson:"fileName"`
 	Size     int64  `json:"size" bson:"size"`
 

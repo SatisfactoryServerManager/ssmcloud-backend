@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
@@ -524,6 +528,26 @@ func GetAgentByAPIKey(agentAPIKey string) (models.Agents, error) {
 	return theAgent, nil
 }
 
+func UpdateAgentLastComm(agentAPIKey string) error {
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	agent.Status.LastCommDate = time.Now()
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"status", agent.Status},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running bool, cpu float64, mem float32) error {
 
 	agent, err := GetAgentByAPIKey(agentAPIKey)
@@ -536,7 +560,6 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 	agent.Status.Running = running
 	agent.Status.CPU = cpu
 	agent.Status.RAM = float64(mem)
-	agent.Status.LastCommDate = time.Now();
 
 	dbUpdate := bson.D{{"$set", bson.D{
 		{"status", agent.Status},
@@ -544,6 +567,139 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 	}}}
 
 	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity) error {
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	var theAccount models.Accounts
+	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
+		return fmt.Errorf("error finding agent account with error: %s", err.Error())
+	}
+	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), agent.ID.Hex(), "saves")
+	newFileLocation := filepath.Join(newFilePath, fileIdentity.FileName)
+
+	if err := utils.CreateFolder(newFilePath); err != nil {
+		return fmt.Errorf("error creating path folders with error: %s", err.Error())
+	}
+
+	if err := utils.MoveFile(fileIdentity.LocalFilePath, newFileLocation); err != nil {
+		return fmt.Errorf("error moving file to destination with error: %s", err.Error())
+	}
+	file, err := os.Open(newFileLocation)
+	if err != nil {
+		return fmt.Errorf("error opening file with error: %s", err.Error())
+	}
+
+	fi, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("error opening file with error: %s", err.Error())
+	}
+
+	agentSaveExists := false
+
+	for _, save := range agent.Saves {
+		if save.FileName == fileIdentity.FileName {
+			agentSaveExists = true
+			break
+		}
+	}
+
+	if !agentSaveExists {
+		newAgentSave := models.AgentSave{
+			UUID:      fileIdentity.UUID,
+			FileName:  fileIdentity.FileName,
+			Size:      fi.Size(),
+			CreatedAt: time.Now(),
+		}
+
+		agent.Saves = append(agent.Saves, newAgentSave)
+	} else {
+		for idx := range agent.Saves {
+			save := &agent.Saves[idx]
+			if save.FileName == fileIdentity.FileName {
+				save.Size = fi.Size()
+				save.UpdatedAt = time.Now()
+			}
+		}
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"saves", agent.Saves},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UploadedAgentBackup(agentAPIKey string, fileIdentity StorageFileIdentity) error {
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	var theAccount models.Accounts
+	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
+		return fmt.Errorf("error finding agent account with error: %s", err.Error())
+	}
+	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), agent.ID.Hex(), "backups")
+	newFileLocation := filepath.Join(newFilePath, fileIdentity.FileName)
+
+	if err := utils.CreateFolder(newFilePath); err != nil {
+		return fmt.Errorf("error creating path folders with error: %s", err.Error())
+	}
+
+	if err := utils.MoveFile(fileIdentity.LocalFilePath, newFileLocation); err != nil {
+		return fmt.Errorf("error moving file to destination with error: %s", err.Error())
+	}
+	file, err := os.Open(newFileLocation)
+	if err != nil {
+		return fmt.Errorf("error opening file with error: %s", err.Error())
+	}
+
+	fi, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("error opening file with error: %s", err.Error())
+	}
+
+	newAgentBackup := models.AgentBackup{
+		UUID:      fileIdentity.UUID,
+		FileName:  fileIdentity.FileName,
+		Size:      fi.Size(),
+		CreatedAt: time.Now(),
+	}
+
+	agent.Backups = append(agent.Backups, newAgentBackup)
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"backups", agent.Backups},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
 		return err
 	}
 

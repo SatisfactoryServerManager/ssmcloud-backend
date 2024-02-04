@@ -88,3 +88,13 @@ func Middleware_AgentAPIKey() gin.HandlerFunc {
 		c.Set("AgentKey", key)
 	}
 }
+
+func Middleware_UploadFile() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		file, _ := c.FormFile("file")
+		fileIdentity := services.ConvertUploadToFileIdentity(file)
+
+		c.SaveUploadedFile(file, fileIdentity.LocalFilePath)
+		c.Set("FileIdentity", fileIdentity)
+	}
+}
