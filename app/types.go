@@ -54,6 +54,10 @@ type API_AgentStatus_PutData struct {
 	LatestSFVersion    int64   `json:"latestSFVersion"`
 }
 
+type API_AgentTaskItem_PutData struct {
+	Item models.AgentTask `json:"item"`
+}
+
 type FicsitAPI_Response_GetMods struct {
 	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
 }

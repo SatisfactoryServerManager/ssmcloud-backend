@@ -106,7 +106,8 @@ func (obj *routes) AddAgentRoutes() {
 	obj.AgentGroup.GET("/modconfig", agent.API_GetModConfig)
 	obj.AgentGroup.PUT("/modconfig", agent.API_UpdateModConfig)
 
-	// GET Get All Tasks
+	obj.AgentGroup.GET("/tasks", agent.API_GetAgentTasks)
+	obj.AgentGroup.PUT("/tasks/:taskid", agent.API_UpdateTaskItem)
 	// PUT Update Task
 
 	// GET Get agent config

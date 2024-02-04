@@ -882,3 +882,51 @@ func UpdateAgentModConfig(agentAPIKey string, newConfig models.AgentModConfig) e
 
 	return nil
 }
+
+func GetAgentTasksApi(agentAPIKey string) ([]models.AgentTask, error) {
+	tasks := make([]models.AgentTask, 0)
+
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return tasks, fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	return agent.Tasks, nil
+}
+
+func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask models.AgentTask) error {
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	if err := agent.PurgeTasks(); err != nil {
+		return err
+	}
+
+	for idx := range agent.Tasks {
+		task := &agent.Tasks[idx]
+
+		if task.ID.Hex() != newTask.ID.Hex() {
+			continue
+		}
+
+		task.Completed = newTask.Completed
+		task.Retries = newTask.Retries
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"tasks", agent.Tasks},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
+}

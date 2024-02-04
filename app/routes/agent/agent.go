@@ -105,3 +105,37 @@ func API_UpdateModConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
+
+func API_GetAgentTasks(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	tasks, err := services.GetAgentTasksApi(AgentAPIKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": tasks})
+}
+
+func API_UpdateTaskItem(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+	TaskID := c.Param("taskid")
+
+	var PostData app.API_AgentTaskItem_PutData
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := services.UpdateAgentTaskItem(AgentAPIKey, TaskID, PostData.Item)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
