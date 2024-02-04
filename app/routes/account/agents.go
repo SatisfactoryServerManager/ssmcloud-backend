@@ -312,3 +312,53 @@ func API_DownloadAgentSave(c *gin.Context) {
 	c.Header("Content-Type", "application/octet-stream")
 	c.File(newFileLocation)
 }
+
+func API_DownloadAgentLog(c *gin.Context) {
+	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+	AccountID := JWTData.AccountID
+	AgentID := c.Param("agentid")
+	Type := c.Param("type")
+
+	theAccount, err := services.GetAccount(AccountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theAgent, err := services.GetAgentById(AccountID, AgentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	if err := theAgent.PopulateLogs(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	var theLog models.AgentLogs
+	for _, log := range theAgent.LogObjects {
+		if log.Type == Type {
+			theLog = log
+			break
+		}
+	}
+
+	if theLog.ID.IsZero() {
+		c.JSON(http.StatusNotFound, gin.H{"error": "log file not found", "success": false})
+		c.Abort()
+		return
+	}
+
+	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), theAgent.ID.Hex(), "logs")
+	newFileLocation := filepath.Join(newFilePath, theLog.FileName)
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Content-Disposition", "attachment; filename="+theLog.FileName)
+	c.Header("Content-Type", "application/octet-stream")
+	c.File(newFileLocation)
+}

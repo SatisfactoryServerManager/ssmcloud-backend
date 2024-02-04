@@ -782,6 +782,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) erro
 	if !hasLog {
 		theLog := models.AgentLogs{
 			ID:        primitive.NewObjectID(),
+			FileName:  fileIdentity.FileName,
 			Type:      logType,
 			Snippet:   fileContents,
 			CreatedAt: time.Now(),
@@ -805,9 +806,11 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) erro
 	}
 
 	theLog.Snippet = fileContents
+	theLog.FileName = fileIdentity.FileName
 
 	dbUpdate := bson.D{{"$set", bson.D{
 		{"snippet", theLog.Snippet},
+		{"fileName", theLog.FileName},
 		{"updatedAt", time.Now()},
 	}}}
 

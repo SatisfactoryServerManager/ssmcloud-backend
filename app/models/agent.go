@@ -144,6 +144,7 @@ type AgentTask struct {
 
 type AgentLogs struct {
 	ID        primitive.ObjectID `json:"_id" bson:"_id"`
+	FileName  string             `json:"fileName" bson:"fileName"`
 	Type      string             `json:"type" bson:"type"`
 	Snippet   string             `json:"snippet" bson:"snippet"`
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
