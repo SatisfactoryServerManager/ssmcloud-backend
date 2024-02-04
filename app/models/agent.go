@@ -45,8 +45,8 @@ type AgentStatus struct {
 
 	LastCommDate time.Time `json:"lastCommDate" bson:"lastCommDate"`
 
-	InstalledSFVersion string `json:"installedSFVersion"`
-	LatestSFVersion    string `json:"latestSFVersion"`
+	InstalledSFVersion int64 `json:"installedSFVersion"`
+	LatestSFVersion    int64 `json:"latestSFVersion"`
 }
 
 type AgentConfig struct {

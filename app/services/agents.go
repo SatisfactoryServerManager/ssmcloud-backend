@@ -566,7 +566,7 @@ func UpdateAgentLastComm(agentAPIKey string) error {
 	return nil
 }
 
-func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running bool, cpu float64, mem float32) error {
+func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running bool, cpu float64, mem float32, installedSFVersion int64, latestSFVersion int64) error {
 
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
@@ -578,6 +578,8 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 	agent.Status.Running = running
 	agent.Status.CPU = cpu
 	agent.Status.RAM = float64(mem)
+	agent.Status.InstalledSFVersion = installedSFVersion
+	agent.Status.LatestSFVersion = latestSFVersion
 
 	dbUpdate := bson.D{{"$set", bson.D{
 		{"status", agent.Status},

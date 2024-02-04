@@ -45,11 +45,13 @@ type API_AccountAgentConfig_PutData struct {
 }
 
 type API_AgentStatus_PutData struct {
-	Online    bool    `json:"online"`
-	Installed bool    `json:"installed"`
-	Running   bool    `json:"running"`
-	CPU       float64 `json:"cpu"`
-	MEM       float32 `json:"mem"`
+	Online             bool    `json:"online"`
+	Installed          bool    `json:"installed"`
+	Running            bool    `json:"running"`
+	CPU                float64 `json:"cpu"`
+	MEM                float32 `json:"mem"`
+	InstalledSFVersion int64   `json:"installedSFVersion"`
+	LatestSFVersion    int64   `json:"latestSFVersion"`
 }
 
 type FicsitAPI_Response_GetMods struct {

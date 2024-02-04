@@ -19,7 +19,7 @@ func API_UpdateAgentStatus(c *gin.Context) {
 		return
 	}
 
-	err := services.UpdateAgentStatus(AgentAPIKey, PostData.Online, PostData.Installed, PostData.Running, PostData.CPU, PostData.MEM)
+	err := services.UpdateAgentStatus(AgentAPIKey, PostData.Online, PostData.Installed, PostData.Running, PostData.CPU, PostData.MEM, PostData.InstalledSFVersion, PostData.LatestSFVersion)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
