@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
@@ -602,6 +603,8 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity) err
 		return fmt.Errorf("error opening file with error: %s", err.Error())
 	}
 
+	defer file.Close()
+
 	fi, err := file.Stat()
 	if err != nil {
 		return fmt.Errorf("error opening file with error: %s", err.Error())
@@ -676,6 +679,8 @@ func UploadedAgentBackup(agentAPIKey string, fileIdentity StorageFileIdentity) e
 		return fmt.Errorf("error opening file with error: %s", err.Error())
 	}
 
+	defer file.Close()
+
 	fi, err := file.Stat()
 	if err != nil {
 		return fmt.Errorf("error opening file with error: %s", err.Error())
@@ -696,6 +701,100 @@ func UploadedAgentBackup(agentAPIKey string, fileIdentity StorageFileIdentity) e
 	}}}
 
 	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UploadedAgentLog(agentAPIKey string, fileIdentity StorageFileIdentity) error {
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	var theAccount models.Accounts
+	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
+		return fmt.Errorf("error finding agent account with error: %s", err.Error())
+	}
+	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), agent.ID.Hex(), "backups")
+	newFileLocation := filepath.Join(newFilePath, fileIdentity.FileName)
+
+	if err := utils.CreateFolder(newFilePath); err != nil {
+		return fmt.Errorf("error creating path folders with error: %s", err.Error())
+	}
+
+	if err := utils.MoveFile(fileIdentity.LocalFilePath, newFileLocation); err != nil {
+		return fmt.Errorf("error moving file to destination with error: %s", err.Error())
+	}
+
+	if err := agent.PopulateLogs(); err != nil {
+		return fmt.Errorf("error populating agent logs with error: %s", err.Error())
+	}
+
+	logType := "FactoryGame"
+
+	if strings.HasPrefix(fileIdentity.FileName, "SSMAgent") {
+		logType = "Agent"
+	}
+	if strings.HasPrefix(fileIdentity.FileName, "Steam") {
+		logType = "Steam"
+	}
+
+	var theLog models.AgentLogs
+	hasLog := false
+
+	for _, log := range agent.LogObjects {
+		if log.Type == logType {
+			hasLog = true
+			theLog = log
+			break
+		}
+	}
+
+	if !hasLog {
+		theLog := models.AgentLogs{
+			ID:        primitive.NewObjectID(),
+			Type:      logType,
+			Snippet:   "",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		if _, err := mongoose.InsertOne(&theLog); err != nil {
+			return fmt.Errorf("error inserting new agent log with error: %s", err.Error())
+		}
+
+		agent.Logs = append(agent.Logs, theLog.ID)
+
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"logs", agent.Logs},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+			return err
+		}
+	}
+
+	fileContents, err := utils.ReadLastNBtyesFromFile(newFileLocation, 500)
+
+	if err != nil {
+		return fmt.Errorf("error reading log contents with error: %s", err.Error())
+	}
+
+	theLog.Snippet = fileContents
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"snippet", theLog.Snippet},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&theLog, dbUpdate); err != nil {
 		return err
 	}
 

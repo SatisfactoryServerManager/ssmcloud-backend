@@ -57,3 +57,17 @@ func API_UploadAgentBackup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
+
+func API_UploadAgentLog(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
+
+	err := services.UploadedAgentLog(AgentAPIKey, FileIdentity)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}

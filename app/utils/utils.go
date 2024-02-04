@@ -71,3 +71,26 @@ func MoveFile(sourcePath, destPath string) error {
 	}
 	return nil
 }
+
+func ReadLastNBtyesFromFile(fname string, nbytes int64) (string, error) {
+	file, err := os.Open(fname)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	buf := make([]byte, nbytes)
+	stat, statErr := file.Stat()
+	if statErr != nil {
+		return "", statErr
+	}
+	start := stat.Size() - nbytes
+	_, err = file.ReadAt(buf, start)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(buf), nil
+
+}

@@ -26,6 +26,9 @@ type Agents struct {
 
 	Tasks []AgentTask `json:"tasks" bson:"tasks"`
 
+	Logs       primitive.A `json:"-" bson:"logs" mson:"collection=agentlogs"`
+	LogObjects []AgentLogs `json:"logs" bson:"-"`
+
 	ModConfig AgentModConfig `json:"modConfig" bson:"modConfig"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
@@ -139,12 +142,34 @@ type AgentTask struct {
 	Retries   int                `json:"retries" bson:"retries"`
 }
 
+type AgentLogs struct {
+	ID        primitive.ObjectID `json:"_id" bson:"_id"`
+	Type      string             `json:"type" bson:"type"`
+	Snippet   string             `json:"snippet" bson:"snippet"`
+	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
+	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt"`
+}
+
 func (obj *Agents) PopulateModConfig() {
 
 	for idx := range obj.ModConfig.SelectedMods {
 		selectedMod := &obj.ModConfig.SelectedMods[idx]
 		selectedMod.PopulateMod()
 	}
+}
+
+func (obj *Agents) PopulateLogs() error {
+	err := mongoose.PopulateObjectArray(obj, "Logs", &obj.LogObjects)
+
+	if err != nil {
+		return err
+	}
+
+	if obj.LogObjects == nil {
+		obj.LogObjects = make([]AgentLogs, 0)
+	}
+
+	return nil
 }
 
 func (obj *Agents) PurgeTasks() error {
