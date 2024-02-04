@@ -83,6 +83,8 @@ func (obj *routes) AddAccountAgentRoutes() {
 	obj.AccountAgentGroup.POST("/:agentid/mods/install", account.API_AgentInstallMod)
 	obj.AccountAgentGroup.POST("/:agentid/mods/update", account.API_AgentUpdateMod)
 	obj.AccountAgentGroup.POST("/:agentid/mods/uninstall", account.API_AgentUninstallMod)
+
+	obj.AccountAgentGroup.GET("/:agentid/download/backup/:uuid", account.API_DownloadAgentBackup)
 }
 
 func (obj *routes) AddAgentRoutes() {

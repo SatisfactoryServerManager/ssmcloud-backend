@@ -2,9 +2,12 @@ package account
 
 import (
 	"net/http"
+	"path/filepath"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -185,8 +188,7 @@ func API_AgentUninstallMod(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-
-func API_UpdateAgentConfigs(c *gin.Context){
+func API_UpdateAgentConfigs(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	AgentID := c.Param("agentid")
@@ -206,4 +208,48 @@ func API_UpdateAgentConfigs(c *gin.Context){
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func API_DownloadAgentBackup(c *gin.Context) {
+	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+	AccountID := JWTData.AccountID
+	AgentID := c.Param("agentid")
+	BackupUUID := c.Param("uuid")
+
+	theAccount, err := services.GetAccount(AccountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theAgent, err := services.GetAgentById(AccountID, AgentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	var theBackup models.AgentBackup
+	for _, backup := range theAgent.Backups {
+		if backup.UUID == BackupUUID {
+			theBackup = backup
+			break
+		}
+	}
+
+	if theBackup.FileName == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "backup file not found", "success": false})
+		c.Abort()
+		return
+	}
+
+	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), theAgent.ID.Hex(), "backups")
+	newFileLocation := filepath.Join(newFilePath, theBackup.FileName)
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Content-Disposition", "attachment; filename="+theBackup.FileName)
+	c.Header("Content-Type", "application/octet-stream")
+	c.File(newFileLocation)
 }
