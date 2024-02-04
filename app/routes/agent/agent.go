@@ -82,5 +82,5 @@ func API_GetModConfig(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "config": config})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
 }
