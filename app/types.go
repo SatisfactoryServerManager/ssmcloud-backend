@@ -63,6 +63,11 @@ type API_AgentConfig_ResData struct {
 	ServerConfig models.AgentServerConfig `json:"serverConfig"`
 }
 
+type API_AgentConfig_PutData struct {
+	Version string `json:"version"`
+	IP      string `json:"ip"`
+}
+
 type FicsitAPI_Response_GetMods struct {
 	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
 }

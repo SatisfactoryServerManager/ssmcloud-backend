@@ -110,7 +110,7 @@ func (obj *routes) AddAgentRoutes() {
 	obj.AgentGroup.PUT("/tasks/:taskid", agent.API_UpdateTaskItem)
 
 	obj.AgentGroup.GET("/config", agent.API_GetAgentConfig)
-	// PUT Update agent config
+	obj.AgentGroup.PUT("/config", agent.API_UpdateAgentConfig)
 }
 
 var (

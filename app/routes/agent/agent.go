@@ -152,3 +152,23 @@ func API_GetAgentConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
 }
+
+func API_UpdateAgentConfig(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	var PostData app.API_AgentConfig_PutData
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := services.UpdateAgentConfigApi(AgentAPIKey, PostData.Version, PostData.IP)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}

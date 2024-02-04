@@ -949,3 +949,28 @@ func GetAgentConfig(agentAPIKey string) (app.API_AgentConfig_ResData, error) {
 
 	return config, nil
 }
+
+func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	agent.Config.Version = version
+	agent.Config.IP = ip
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"config", agent.Config},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
+}
