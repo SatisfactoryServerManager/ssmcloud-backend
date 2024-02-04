@@ -2,6 +2,7 @@ package routes
 
 import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/routes/account"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/routes/agent"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,6 +16,7 @@ type routes struct {
 	AccountAgentGroup *gin.RouterGroup
 
 	// Agent Groups e.g. anything that the agent can access
+	AgentGroup *gin.RouterGroup
 
 	// Mod Groups e.g. anything that the SSM mod can access
 }
@@ -25,6 +27,8 @@ func (obj *routes) SetupAPIGroups() {
 	obj.AccountGroup = obj.MainGroup.Group("account")
 	obj.AccountUsersGroup = obj.AccountGroup.Group("users")
 	obj.AccountAgentGroup = obj.AccountGroup.Group("agents")
+
+	obj.AgentGroup = obj.MainGroup.Group("agent")
 }
 
 func (obj *routes) AddV1Routes() {
@@ -34,6 +38,8 @@ func (obj *routes) AddV1Routes() {
 	obj.AddAccountRoutes()
 	obj.AddAccountUsersRoutes()
 	obj.AddAccountAgentRoutes()
+
+	obj.AddAgentRoutes()
 }
 
 func (obj *routes) AddAccountRoutes() {
@@ -77,6 +83,12 @@ func (obj *routes) AddAccountAgentRoutes() {
 	obj.AccountAgentGroup.POST("/:agentid/mods/install", account.API_AgentInstallMod)
 	obj.AccountAgentGroup.POST("/:agentid/mods/update", account.API_AgentUpdateMod)
 	obj.AccountAgentGroup.POST("/:agentid/mods/uninstall", account.API_AgentUninstallMod)
+}
+
+func (obj *routes) AddAgentRoutes() {
+	obj.AgentGroup.Use(Middleware_AgentAPIKey())
+
+	obj.AgentGroup.PUT("/status", agent.API_UpdateAgentStatus)
 }
 
 var (

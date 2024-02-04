@@ -344,6 +344,8 @@ func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent mode
 		return err
 	}
 
+	fmt.Println(updatedAgent)
+
 	var updatedConfigs bson.D
 
 	if !reflect.DeepEqual(agent.Config, updatedAgent.Config) {
@@ -506,5 +508,44 @@ func UninstallMod(accountIdStr string, agentIdStr, modReference string) error {
 	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
 		return err
 	}
+	return nil
+}
+
+// Agent API Functions
+
+func GetAgentByAPIKey(agentAPIKey string) (models.Agents, error) {
+
+	var theAgent models.Agents
+
+	if err := mongoose.FindOne(bson.M{"apiKey": agentAPIKey}, &theAgent); err != nil {
+		return theAgent, err
+	}
+
+	return theAgent, nil
+}
+
+func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running bool, cpu float64, mem float32) error {
+
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	agent.Status.Online = online
+	agent.Status.Installed = installed
+	agent.Status.Running = running
+	agent.Status.CPU = cpu
+	agent.Status.RAM = float64(mem)
+	agent.Status.LastCommDate = time.Now();
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"status", agent.Status},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+		return err
+	}
+
 	return nil
 }

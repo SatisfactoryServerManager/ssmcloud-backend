@@ -15,6 +15,7 @@ import (
 
 var (
 	_config *Config
+	DataDir string
 )
 
 type Config struct {
@@ -118,7 +119,7 @@ func InitConfig() error {
 		return err
 	}
 
-	DataDir := filepath.Join(HomeDir, "ssmcloud_data")
+	DataDir = filepath.Join(HomeDir, "ssmcloud_data")
 
 	_config = &Config{}
 	_config.ConfigBaseDir = filepath.Join(DataDir, "config")

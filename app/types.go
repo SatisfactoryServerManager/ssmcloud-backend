@@ -44,6 +44,14 @@ type API_AccountAgentConfig_PutData struct {
 	UpdatedAgent models.Agents `json:"updatedAgent"`
 }
 
+type API_AgentStatus_PutData struct {
+	Online    bool    `json:"online"`
+	Installed bool    `json:"installed"`
+	Running   bool    `json:"running"`
+	CPU       float64 `json:"cpu"`
+	MEM       float32 `json:"mem"`
+}
+
 type FicsitAPI_Response_GetMods struct {
 	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
 }
