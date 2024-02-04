@@ -58,6 +58,11 @@ type API_AgentTaskItem_PutData struct {
 	Item models.AgentTask `json:"item"`
 }
 
+type API_AgentConfig_ResData struct {
+	Config       models.AgentConfig       `json:"config"`
+	ServerConfig models.AgentServerConfig `json:"serverConfig"`
+}
+
 type FicsitAPI_Response_GetMods struct {
 	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
 }

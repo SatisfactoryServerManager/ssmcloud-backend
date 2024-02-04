@@ -139,3 +139,16 @@ func API_UpdateTaskItem(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
+
+func API_GetAgentConfig(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	config, err := services.GetAgentConfig(AgentAPIKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
+}

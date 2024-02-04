@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
@@ -933,4 +934,18 @@ func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask models.Agent
 	}
 
 	return nil
+}
+
+func GetAgentConfig(agentAPIKey string) (app.API_AgentConfig_ResData, error) {
+	var config app.API_AgentConfig_ResData
+
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return config, fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	config.Config = agent.Config
+	config.ServerConfig = agent.ServerConfig
+
+	return config, nil
 }
