@@ -375,7 +375,7 @@ func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent mode
 	return nil
 }
 
-func InstallMod(accountIdStr string, agentIdStr, modReference string, version string) error {
+func InstallMod(accountIdStr string, agentIdStr string, modReference string, version string) error {
 
 	agent, err := GetAgentById(accountIdStr, agentIdStr)
 	if err != nil {
@@ -465,7 +465,7 @@ func InstallMod(accountIdStr string, agentIdStr, modReference string, version st
 	return nil
 }
 
-func UpdateMod(accountIdStr string, agentIdStr, modReference string) error {
+func UpdateMod(accountIdStr string, agentIdStr string, modReference string) error {
 
 	var dbMod models.Mods
 
@@ -486,7 +486,7 @@ func UpdateMod(accountIdStr string, agentIdStr, modReference string) error {
 	return nil
 }
 
-func UninstallMod(accountIdStr string, agentIdStr, modReference string) error {
+func UninstallMod(accountIdStr string, agentIdStr string, modReference string) error {
 
 	agent, err := GetAgentById(accountIdStr, agentIdStr)
 	if err != nil {
@@ -514,6 +514,23 @@ func UninstallMod(accountIdStr string, agentIdStr, modReference string) error {
 		return err
 	}
 	return nil
+}
+
+func GetAgentLogs(accountIdStr string, agentIdStr string) ([]models.AgentLogs, error) {
+
+	logs := make([]models.AgentLogs, 0)
+
+	agent, err := GetAgentById(accountIdStr, agentIdStr)
+	if err != nil {
+		return logs, err
+	}
+
+	if err := agent.PopulateLogs(); err != nil {
+		return logs, fmt.Errorf("error populating agent logs with error: %s", err.Error())
+	}
+
+	return agent.LogObjects, nil
+
 }
 
 // Agent API Functions

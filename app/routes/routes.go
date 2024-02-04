@@ -77,6 +77,8 @@ func (obj *routes) AddAccountAgentRoutes() {
 
 	obj.AccountAgentGroup.PUT("/:agentid/configs", account.API_UpdateAgentConfigs)
 
+	obj.AccountAgentGroup.GET("/:agentid/logs", account.API_GetAgentLogs)
+
 	obj.AccountAgentGroup.GET("/:agentid/tasks", account.API_GetAgentTasks)
 	obj.AccountAgentGroup.POST("/:agentid/tasks", account.API_NewAgentTask)
 

@@ -188,6 +188,21 @@ func API_AgentUninstallMod(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+func API_GetAgentLogs(c *gin.Context) {
+	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+	AccountID := JWTData.AccountID
+	AgentID := c.Param("agentid")
+
+	logs, err := services.GetAgentLogs(AccountID, AgentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "logs": logs})
+}
+
 func API_UpdateAgentConfigs(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
