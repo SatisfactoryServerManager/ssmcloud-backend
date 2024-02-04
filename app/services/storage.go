@@ -15,6 +15,11 @@ type StorageFileIdentity struct {
 	LocalFilePath string
 }
 
+func InitStorageService() {
+	utils.CreateFolder(filepath.Join(config.DataDir, "temp"))
+	utils.CreateFolder(filepath.Join(config.DataDir, "account_data"))
+}
+
 func ConvertUploadToFileIdentity(file *multipart.FileHeader) StorageFileIdentity {
 	uuid := utils.RandStringBytes(16)
 
@@ -22,7 +27,6 @@ func ConvertUploadToFileIdentity(file *multipart.FileHeader) StorageFileIdentity
 	newFileName := uuid + "_" + file.Filename
 
 	tempDir := filepath.Join(config.DataDir, "temp")
-	utils.CreateFolder(tempDir)
 
 	destFilePath := filepath.Join(tempDir, newFileName)
 

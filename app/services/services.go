@@ -5,6 +5,7 @@ var (
 )
 
 func InitAllServices() {
+	InitStorageService()
 	InitModService()
 	InitAgentService()
 }
