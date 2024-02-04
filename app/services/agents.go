@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
@@ -55,6 +56,105 @@ func InitAgentService() {
 }
 
 func ShutdownAgentService() error {
+	return nil
+}
+
+func CheckAllAgentsLastComms() error {
+
+	allAgents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+		return err
+	}
+
+	for idx := range allAgents {
+		agent := &allAgents[idx]
+
+		d := time.Now().Add(-1 * time.Hour)
+
+		if agent.Status.LastCommDate.Before(d) {
+			if agent.Status.Online {
+				agent.Status.Online = false
+				agent.Status.Running = false
+				agent.Status.CPU = 0
+				agent.Status.RAM = 0
+				dbUpdate := bson.D{{"$set", bson.D{
+					{"status", agent.Status},
+					{"updatedAt", time.Now()},
+				}}}
+
+				if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func PurgeAgentTasks() error {
+
+	allAgents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+		return err
+	}
+
+	for idx := range allAgents {
+		agent := &allAgents[idx]
+
+		if err := agent.PurgeTasks(); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
+func CheckAgentModsConfigs() error {
+
+	agents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &agents); err != nil {
+		return fmt.Errorf("error finding agents with error: %s", err.Error())
+	}
+
+	for idx := range agents {
+		agent := &agents[idx]
+
+		agent.PopulateModConfig()
+
+		for modidx := range agent.ModConfig.SelectedMods {
+			selectedMod := &agent.ModConfig.SelectedMods[modidx]
+
+			if len(selectedMod.ModObject.Versions) == 0 {
+				continue
+			}
+
+			latestVersion, _ := semver.NewVersion(selectedMod.ModObject.Versions[0].Version)
+
+			//installedVersion, _ := semver.NewVersion(selectedMod.InstalledVersion)
+			desiredVersion, _ := semver.NewVersion(selectedMod.DesiredVersion)
+
+			if latestVersion.Compare(desiredVersion) == 0 {
+				selectedMod.NeedsUpdate = false
+			} else if latestVersion.Compare(desiredVersion) > 0 {
+				selectedMod.NeedsUpdate = true
+			}
+		}
+
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"modConfig", agent.ModConfig},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -237,100 +337,32 @@ func DeleteAgent(accountIdStr string, agentIdStr string) error {
 	return nil
 }
 
-func CheckAllAgentsLastComms() error {
+func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent models.Agents) error {
 
-	allAgents := make([]models.Agents, 0)
-
-	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+	agent, err := GetAgentById(accountIdStr, agentIdStr)
+	if err != nil {
 		return err
 	}
 
-	for idx := range allAgents {
-		agent := &allAgents[idx]
+	var updatedConfigs bson.D
 
-		d := time.Now().Add(-1 * time.Hour)
+	if !reflect.DeepEqual(agent.Config, updatedAgent.Config) {
+		agent.Config.BackupInterval = updatedAgent.Config.BackupInterval
+		agent.Config.BackupKeepAmount = updatedAgent.Config.BackupKeepAmount
 
-		if agent.Status.LastCommDate.Before(d) {
-			if agent.Status.Online {
-				agent.Status.Online = false
-				agent.Status.Running = false
-				agent.Status.CPU = 0
-				agent.Status.RAM = 0
-				dbUpdate := bson.D{{"$set", bson.D{
-					{"status", agent.Status},
-					{"updatedAt", time.Now()},
-				}}}
-
-				if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
-					return err
-				}
-			}
-		}
+		updatedConfigs = append(updatedConfigs, bson.E{"config.backupInterval", agent.Config.BackupInterval})
+		updatedConfigs = append(updatedConfigs, bson.E{"config.backupKeepAmount", agent.Config.BackupKeepAmount})
 	}
 
-	return nil
-}
+	if !reflect.DeepEqual(agent.ServerConfig, updatedAgent.ServerConfig) {
+		agent.ServerConfig = updatedAgent.ServerConfig
+		updatedConfigs = append(updatedConfigs, bson.E{"serverConfig", agent.ServerConfig})
+	}
 
-func PurgeAgentTasks() error {
+	dbUpdate := bson.D{{"$set", updatedConfigs}}
 
-	allAgents := make([]models.Agents, 0)
-
-	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+	if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
 		return err
-	}
-
-	for idx := range allAgents {
-		agent := &allAgents[idx]
-
-		if err := agent.PurgeTasks(); err != nil {
-			return err
-		}
-
-	}
-
-	return nil
-}
-
-func CheckAgentModsConfigs() error {
-
-	agents := make([]models.Agents, 0)
-
-	if err := mongoose.FindAll(bson.M{}, &agents); err != nil {
-		return fmt.Errorf("error finding agents with error: %s", err.Error())
-	}
-
-	for idx := range agents {
-		agent := &agents[idx]
-
-		agent.PopulateModConfig()
-
-		for modidx := range agent.ModConfig.SelectedMods {
-			selectedMod := &agent.ModConfig.SelectedMods[modidx]
-
-			if len(selectedMod.ModObject.Versions) == 0 {
-				continue
-			}
-
-			latestVersion, _ := semver.NewVersion(selectedMod.ModObject.Versions[0].Version)
-
-			//installedVersion, _ := semver.NewVersion(selectedMod.InstalledVersion)
-			desiredVersion, _ := semver.NewVersion(selectedMod.DesiredVersion)
-
-			if latestVersion.Compare(desiredVersion) == 0 {
-				selectedMod.NeedsUpdate = false
-			} else if latestVersion.Compare(desiredVersion) > 0 {
-				selectedMod.NeedsUpdate = true
-			}
-		}
-
-		dbUpdate := bson.D{{"$set", bson.D{
-			{"modConfig", agent.ModConfig},
-			{"updatedAt", time.Now()},
-		}}}
-
-		if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
-			return err
-		}
 	}
 
 	return nil

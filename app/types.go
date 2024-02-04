@@ -40,6 +40,10 @@ type API_AccountAgentMod_PostData struct {
 	ModReference string `json:"modReference"`
 }
 
+type API_AccountAgentConfig_PutData struct {
+	UpdatedAgent models.Agents `json:"updatedAgent"`
+}
+
 type FicsitAPI_Response_GetMods struct {
 	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
 }

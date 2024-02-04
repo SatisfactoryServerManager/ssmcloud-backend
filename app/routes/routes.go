@@ -69,6 +69,8 @@ func (obj *routes) AddAccountAgentRoutes() {
 	obj.AccountAgentGroup.GET("/:agentid", account.API_GetAgentByID)
 	obj.AccountAgentGroup.DELETE("/:agentid", account.API_DeleteAgent)
 
+	obj.AccountAgentGroup.PUT("/:agentid/configs", account.API_UpdateAgentConfigs)
+
 	obj.AccountAgentGroup.GET("/:agentid/tasks", account.API_GetAgentTasks)
 	obj.AccountAgentGroup.POST("/:agentid/tasks", account.API_NewAgentTask)
 
