@@ -3,6 +3,7 @@ package services
 import (
 	"mime/multipart"
 	"path/filepath"
+	"strings"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
@@ -23,8 +24,10 @@ func InitStorageService() {
 func ConvertUploadToFileIdentity(file *multipart.FileHeader) StorageFileIdentity {
 	uuid := utils.RandStringBytes(16)
 
-	extension := filepath.Ext(file.Filename)
-	newFileName := uuid + "_" + file.Filename
+	normizliedFileName := filepath.Base(strings.ReplaceAll(file.Filename, "\\", "/"))
+
+	extension := filepath.Ext(normizliedFileName)
+	newFileName := uuid + "_" + normizliedFileName
 
 	tempDir := filepath.Join(config.DataDir, "temp")
 
@@ -32,7 +35,7 @@ func ConvertUploadToFileIdentity(file *multipart.FileHeader) StorageFileIdentity
 
 	return StorageFileIdentity{
 		UUID:          uuid,
-		FileName:      filepath.Base(file.Filename),
+		FileName:      normizliedFileName,
 		Extension:     extension,
 		LocalFilePath: destFilePath,
 	}
