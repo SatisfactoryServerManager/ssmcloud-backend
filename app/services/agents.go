@@ -960,7 +960,8 @@ func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
 	agent.Config.IP = ip
 
 	dbUpdate := bson.D{{"$set", bson.D{
-		{"config", agent.Config},
+		{"config.version", agent.Config.Version},
+		{"config.ip", agent.Config.IP},
 		{"updatedAt", time.Now()},
 	}}}
 
