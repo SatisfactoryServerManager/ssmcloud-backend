@@ -239,6 +239,8 @@ func CreateAgent(accountIdStr string, agentName string, port int, memory int64) 
 		return fmt.Errorf("error updating account agents with error: %s", err.Error())
 	}
 
+	theAccount.AddAudit("CREATE_AGENT", fmt.Sprintf("New agent created (%s)", agentName))
+
 	return nil
 }
 
@@ -339,6 +341,8 @@ func DeleteAgent(accountIdStr string, agentIdStr string) error {
 	if _, err := mongoose.DeleteOne(bson.M{"_id": theAgent.ID}, "agents"); err != nil {
 		return err
 	}
+
+	account.AddAudit("DELETE_AGENT", fmt.Sprintf("Agent deleted (%s)", theAgent.AgentName))
 
 	return nil
 }

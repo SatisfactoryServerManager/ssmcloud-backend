@@ -30,14 +30,15 @@ func LoginAccountUser(email string, password string) (string, error) {
 		return "", fmt.Errorf("error finding user account with error: %s", err.Error())
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(theUser.Password), []byte(password)); err != nil {
-		return "", errors.New("invalid user details")
-	}
-
 	var theAccount models.Accounts
 
 	if err := mongoose.FindOne(bson.M{"users": theUser.ID}, &theAccount); err != nil {
 		return "", fmt.Errorf("error finding account with error: %s", err.Error())
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(theUser.Password), []byte(password)); err != nil {
+		theAccount.AddAudit("LOGIN_FAILURE", fmt.Sprintf("Login failed using %s", theUser.Email))
+		return "", errors.New("invalid user details")
 	}
 
 	var existingSession models.AccountSessions
@@ -90,6 +91,8 @@ func LoginAccountUser(email string, password string) (string, error) {
 				return "", err
 			}
 
+			theAccount.AddAudit("LOGIN_SUCCESS", fmt.Sprintf("Login successful using %s", theUser.Email))
+
 			return string(token), nil
 		}
 
@@ -133,6 +136,8 @@ func LoginAccountUser(email string, password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	theAccount.AddAudit("LOGIN_SUCCESS", fmt.Sprintf("Login successful using %s", theUser.Email))
 
 	return string(token), nil
 }
@@ -191,7 +196,7 @@ func AccountSignup(accountName string, email string, password string) error {
 		Email:          email,
 		Password:       string(hashedPassword),
 		IsAccountAdmin: true,
-		APIKeys: 		make([]models.UserAPIKey, 0),
+		APIKeys:        make([]models.UserAPIKey, 0),
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}

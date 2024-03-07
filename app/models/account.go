@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/mrhid6/go-mongoose/mongoose"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -19,6 +20,9 @@ type Accounts struct {
 
 	Agents       primitive.A `json:"-" bson:"agents" mson:"collection=agents"`
 	AgentObjects []Agents    `json:"agents" bson:"-"`
+
+	Audit        primitive.A    `json:"-" bson:"audit" mson:"collection=accountaudit"`
+	AuditObjects []AccountAudit `json:"audit" bson:"-"`
 
 	State AccountState `json:"state" bson:"state"`
 
@@ -36,6 +40,14 @@ type AccountSessions struct {
 type AccountState struct {
 	Inactive       bool      `json:"inactive" bson:"inactive"`
 	InactivityDate time.Time `json:"inactivityDate" bson:"inactivityDate"`
+}
+
+type AccountAudit struct {
+	ID      primitive.ObjectID `json:"_id" bson:"_id"`
+	Type    string             `json:"type" bson:"type"`
+	Message string             `json:"message" bson:"message"`
+
+	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 }
 
 func (obj *Accounts) PopulateSessions() error {
@@ -82,6 +94,51 @@ func (obj *Accounts) PopulateAgents() error {
 
 	if obj.AgentObjects == nil {
 		obj.AgentObjects = make([]Agents, 0)
+	}
+
+	return nil
+}
+
+func (obj *Accounts) PopulateAudit() error {
+
+	err := mongoose.PopulateObjectArray(obj, "Audit", &obj.AuditObjects)
+
+	if err != nil {
+		return err
+	}
+
+	if obj.AuditObjects == nil {
+		obj.AuditObjects = make([]AccountAudit, 0)
+	}
+
+	return nil
+}
+
+func (obj *Accounts) AddAudit(auditType string, message string) error {
+	if err := obj.PopulateAudit(); err != nil {
+		return err
+	}
+
+	newAudit := AccountAudit{
+		ID:        primitive.NewObjectID(),
+		Type:      auditType,
+		Message:   message,
+		CreatedAt: time.Now(),
+	}
+
+	obj.Audit = append(obj.Audit, newAudit.ID)
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"audit", obj.Audit},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	if _, err := mongoose.InsertOne(&newAudit); err != nil {
+		return err
 	}
 
 	return nil

@@ -51,6 +51,7 @@ func (obj *routes) AddAccountRoutes() {
 
 	obj.AccountGroup.GET("/", account.API_GetAccount)
 	obj.AccountGroup.GET("/session", account.API_AccountSession)
+	obj.AccountGroup.GET("/audit", account.API_GetAccountAudit)
 
 }
 func (obj *routes) AddAccountUsersRoutes() {
