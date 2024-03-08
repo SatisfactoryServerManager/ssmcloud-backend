@@ -12,6 +12,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func GetAllUsers(accountIdStr string) ([]models.Users, error) {
@@ -70,6 +71,19 @@ func GetMyUser(accountIdStr string, userIdStr string) (models.Users, error) {
 
 	if theUser.ID.IsZero() {
 		return theUser, errors.New("error user cant be found")
+	}
+
+	return theUser, nil
+}
+
+func GetUserByInviteCode(inviteCode string) (models.Users, error) {
+
+	var theUser models.Users
+
+	if err := mongoose.FindOne(bson.M{"inviteCode": inviteCode, "active": false}, &theUser); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return theUser, errors.New("no user with that invite code exists")
+		}
 	}
 
 	return theUser, nil

@@ -56,6 +56,8 @@ func (obj *routes) AddAccountRoutes() {
 }
 func (obj *routes) AddAccountUsersRoutes() {
 
+	obj.AccountUsersGroup.GET("/byinvitecode/:invitecode", account.API_GetUserByInviteCode)
+
 	obj.AccountUsersGroup.Use(Middleware_DecodeJWT())
 	obj.AccountUsersGroup.Use(Middleware_VerifySession())
 
