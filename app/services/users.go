@@ -125,3 +125,51 @@ func ValidateUserTwoFACode(accountIdStr string, userIdStr string, code string) e
 
 	return nil
 }
+
+func CreateAccountUser(accountIdStr string, email string) error {
+
+	theAccount, err := GetAccount(accountIdStr)
+
+	if err != nil {
+		return err
+	}
+
+	allUsers, err := GetAllUsers(accountIdStr)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range allUsers {
+		if user.Email == email {
+			return errors.New("user already exists")
+		}
+	}
+
+	inviteCode := strings.ToUpper(utils.RandStringBytes(10))
+
+	newUser := models.Users{
+		ID:         primitive.NewObjectID(),
+		Email:      email,
+		APIKeys:    make([]models.UserAPIKey, 0),
+		InviteCode: inviteCode,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	theAccount.Users = append(theAccount.Users, newUser.ID)
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"users", theAccount.Users},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if _, err := mongoose.InsertOne(&newUser); err != nil {
+		return fmt.Errorf("error inserting new user with error: %s", err.Error())
+	}
+
+	if err := mongoose.UpdateDataByID(&theAccount, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}

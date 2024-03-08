@@ -60,6 +60,7 @@ func (obj *routes) AddAccountUsersRoutes() {
 	obj.AccountUsersGroup.Use(Middleware_VerifySession())
 
 	obj.AccountUsersGroup.GET("/", account.API_GetAllUsers)
+	obj.AccountUsersGroup.POST("/", account.API_CreateAccountUser)
 	obj.AccountUsersGroup.GET("/me", account.API_GetMyUser)
 	obj.AccountUsersGroup.POST("/me/twofa/generate", account.API_GenerateUserTwoFASecret)
 	obj.AccountUsersGroup.POST("/me/twofa/validate", account.API_ValidateUserTwoFACode)

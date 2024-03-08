@@ -68,6 +68,10 @@ type API_AgentConfig_PutData struct {
 	IP      string `json:"ip"`
 }
 
+type API_CreateAccountUser_PostData struct {
+	Email string `json:"email"`
+}
+
 type FicsitAPI_Response_GetMods struct {
 	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
 }

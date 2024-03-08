@@ -20,6 +20,8 @@ type Users struct {
 
 	APIKeys []UserAPIKey `json:"apiKeys" bson:"apiKeys"`
 
+	InviteCode string `json:"inviteCode" bson:"inviteCode"`
+
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
