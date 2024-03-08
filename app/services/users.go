@@ -171,5 +171,7 @@ func CreateAccountUser(accountIdStr string, email string) error {
 		return err
 	}
 
+	theAccount.AddAudit("CREATE_USER", fmt.Sprintf("A new user was created (%s)", newUser.Email))
+
 	return nil
 }
