@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func GetAllUsers(accountIdStr string) ([]models.Users, error) {
@@ -109,7 +110,6 @@ func GenerateUserTwoFASecret(accountIdStr string, userIdStr string) (string, err
 	}
 
 	return theUser.TwoFAState.TwoFASecret, nil
-
 }
 
 func ValidateUserTwoFACode(accountIdStr string, userIdStr string, code string) error {
@@ -186,6 +186,39 @@ func CreateAccountUser(accountIdStr string, email string) error {
 	}
 
 	theAccount.AddAudit("CREATE_USER", fmt.Sprintf("A new user was created (%s)", newUser.Email))
+
+	return nil
+}
+
+func AcceptInviteCode(inviteCode string, password string) error {
+
+	var theUser models.Users
+
+	if err := mongoose.FindOne(bson.M{"inviteCode": inviteCode, "active": false}, &theUser); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return errors.New("no user with that invite code exists")
+		}
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if err != nil {
+		return fmt.Errorf("error creating user with error: %s", err.Error())
+	}
+
+	theUser.Password = string(hashedPassword)
+	theUser.Active = true
+	theUser.InviteCode = ""
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"password", theUser.Password},
+		{"active", theUser.Active},
+		{"inviteCode", theUser.InviteCode},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&theUser, dbUpdate); err != nil {
+		return err
+	}
 
 	return nil
 }

@@ -72,6 +72,10 @@ type API_CreateAccountUser_PostData struct {
 	Email string `json:"email"`
 }
 
+type API_AcceptInvite_PostData struct {
+	Password string `json:"password"`
+}
+
 type FicsitAPI_Response_GetMods struct {
 	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
 }

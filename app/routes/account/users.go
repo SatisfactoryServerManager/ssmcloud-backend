@@ -113,3 +113,28 @@ func API_CreateAccountUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
+
+func API_AcceptUserInvite(c *gin.Context) {
+	inviteCode := c.Param("invitecode")
+
+	if inviteCode == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invite code was nil", "success": false})
+		c.Abort()
+		return
+	}
+
+	var PostData app.API_AcceptInvite_PostData
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	if err := services.AcceptInviteCode(inviteCode, PostData.Password); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
