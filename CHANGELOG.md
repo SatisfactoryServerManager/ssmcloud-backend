@@ -1,3 +1,55 @@
+## 1.0.14 (March 18, 2024)
+  - feat: accept invite
+  - feat: Get user by invite code
+  - feat: Add audit event for new user
+  - feat: Create users
+  - feat: Account Audits
+  - feat: Update agent config
+  - feat: Update agent config
+  - feat: Get Agent Config
+  - feat: Purge completed tasks
+  - feat: Update agent tasks
+  - feat: installed sf version
+  - feat: Update agent ModConfig
+  - fix: mod config endpoint
+  - feat: Agent Mod Config
+  - feat: Download log file
+  - feat: get agent logs
+  - feat: increased log snippet length
+  - feat: Upload Agent Log
+  - feat: Download Agent Save
+  - feat: Download Agent Backup
+  - fix: normalised filepath
+  - fix: uploaded file name
+  - feat: Init storage service
+  - feat: File upload management
+  - feat: Agent endpoints
+  - feat: Put endpoint for updating agent configs
+  - feat: User api keys
+  - feat: Better session handling
+  - feat: Uninstall Mod
+  - feat: Update Agent Mod
+  - feat: Install Mods
+  - feat: agent last comm and purge agent tasks
+  - feat: Public mods endpoint
+  - feat: Add/Update mods from SMR
+  - feat: Delete Agent endpoint
+  - feat: Agent Tasks Model
+  - feat: Agent Mod Config
+  - feat: Agent Backups model
+  - feat: Agent Saves
+  - feat: Agent Saves
+  - fix: Fixed get agent by id
+  - feat: GetAgentById Endpoint
+  - fix: Fixed new agent createdat time
+  - ci: Updated Workflow
+  - ci: Updated Workflow
+  - ci: Updated Workflow
+  - ci: Updated Workflow
+  - ci: Updated workflow
+  - ci: Updated workflow
+  - fix: Account endpoint
+
 ## 1.0.13 (January 30, 2024)
   - feat: Get Account endpoint
 
