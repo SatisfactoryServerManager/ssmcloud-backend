@@ -1,6 +1,9 @@
 ---
 name: Build SSM Cloud Backend
-on: push
+on: 
+  push:
+    tags-ignore:
+      - '**'
 jobs:
   build-linux:
     runs-on: ubuntu-latest
