@@ -9,6 +9,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/kataras/jwt v0.1.12
 	github.com/machinebox/graphql v0.2.2
+	github.com/mircearoata/pubgrub-go v0.3.3
 	github.com/mrhid6/go-mongoose v0.0.8
 	github.com/pquerna/otp v1.4.0
 	github.com/satisfactorymodding/ficsit-resolver v0.0.2
@@ -34,7 +35,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
 	github.com/leodido/go-urn v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mircearoata/pubgrub-go v0.3.3 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect

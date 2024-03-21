@@ -83,6 +83,7 @@ type AgentMapData struct {
 type AgentMapDataPlayer struct {
 	Username string   `json:"username" bson:"username"`
 	Location Vector3F `json:"location" bson:"location"`
+	Online   bool     `json:"online" bson:"online"`
 }
 
 type AgentMapDataBuilding struct {

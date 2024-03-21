@@ -5,6 +5,12 @@ import (
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
 )
 
+type Vector3f struct {
+	X float32 `json:"x"`
+	Y float32 `json:"y"`
+	Z float32 `json:"z"`
+}
+
 type Middleware_Session_JWT struct {
 	SessionID string `json:"sessionId"`
 	AccountID string `json:"accountId"`
@@ -74,6 +80,15 @@ type API_CreateAccountUser_PostData struct {
 
 type API_AcceptInvite_PostData struct {
 	Password string `json:"password"`
+}
+
+type API_UpdatePlayers_PostData struct {
+	Players []API_UpdatePlayers_Player_PostData `json:"players"`
+}
+
+type API_UpdatePlayers_Player_PostData struct {
+	Name     string          `json:"name"`
+	Location models.Vector3F `json:"location"`
 }
 
 type FicsitAPI_Response_GetMods struct {

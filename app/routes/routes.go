@@ -3,6 +3,7 @@ package routes
 import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/routes/account"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/routes/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/routes/ssmmod"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,6 +20,7 @@ type routes struct {
 	AgentGroup *gin.RouterGroup
 
 	// Mod Groups e.g. anything that the SSM mod can access
+	SSMModGroup *gin.RouterGroup
 }
 
 func (obj *routes) SetupAPIGroups() {
@@ -29,6 +31,9 @@ func (obj *routes) SetupAPIGroups() {
 	obj.AccountAgentGroup = obj.AccountGroup.Group("agents")
 
 	obj.AgentGroup = obj.MainGroup.Group("agent")
+
+	obj.SSMModGroup = obj.MainGroup.Group("ssmmod")
+
 }
 
 func (obj *routes) AddV1Routes() {
@@ -116,6 +121,14 @@ func (obj *routes) AddAgentRoutes() {
 
 	obj.AgentGroup.GET("/config", agent.API_GetAgentConfig)
 	obj.AgentGroup.PUT("/config", agent.API_UpdateAgentConfig)
+}
+
+func (obj *routes) AddSSMModReoutes() {
+	obj.SSMModGroup.Use(Middleware_AgentAPIKey())
+
+	obj.SSMModGroup.POST("/players", ssmmod.API_UpdatePlayers)
+	obj.SSMModGroup.POST("/buildings", ssmmod.API_UpdateBuildings)
+
 }
 
 var (
