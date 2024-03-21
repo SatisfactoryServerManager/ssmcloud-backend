@@ -2,15 +2,21 @@ package routes
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/gin-gonic/gin"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 func API_Ping(c *gin.Context) {
-	c.JSON(200, gin.H{"success": true})
+
+	hostname, _ := os.Hostname()
+	configData, _ := config.GetConfigData()
+
+	c.JSON(200, gin.H{"success": true, "node": hostname, "version": configData.Version})
 }
 
 func API_Mods(c *gin.Context) {
