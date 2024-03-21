@@ -1,3 +1,6 @@
+## 1.0.17 (March 21, 2024)
+  - feat: additional info on api endpoint
+
 ## 1.0.16 (March 21, 2024)
   - feat: ssm mod api endpoints
 
