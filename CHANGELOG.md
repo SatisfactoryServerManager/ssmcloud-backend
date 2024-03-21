@@ -1,3 +1,6 @@
+## 1.0.19 (March 21, 2024)
+  - fix: Routes
+
 ## 1.0.18 (March 21, 2024)
   - fix: Routes
 
