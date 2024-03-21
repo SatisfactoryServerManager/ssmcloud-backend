@@ -1,3 +1,6 @@
+## 1.0.16 (March 21, 2024)
+  - feat: ssm mod api endpoints
+
 ## 1.0.15 (March 21, 2024)
   - ci: dont run on tags
 
