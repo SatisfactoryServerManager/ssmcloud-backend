@@ -78,6 +78,8 @@ func (obj *routes) AddAccountUsersRoutes() {
 
 func (obj *routes) AddAccountAgentRoutes() {
 
+	obj.AccountAgentGroup.GET("/:agentid/mapdata", account.API_GetAgentMapData)
+
 	obj.AccountAgentGroup.Use(Middleware_DecodeJWT())
 	obj.AccountAgentGroup.Use(Middleware_VerifySession())
 

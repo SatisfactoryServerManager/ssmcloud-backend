@@ -267,6 +267,42 @@ func GetAgentById(accountIdStr string, agentIdStr string) (models.Agents, error)
 	return models.Agents{}, errors.New("error cant find agent on the account")
 }
 
+func GetAgentByIdNoAccount(agentIdStr string) (models.Agents, error) {
+
+	agents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &agents); err != nil {
+		return models.Agents{}, err
+	}
+
+	if len(agentIdStr) < 8 {
+		return models.Agents{}, errors.New("invalid agent id")
+	}
+
+	if len(agentIdStr) == 8 {
+		for _, agent := range agents {
+			if strings.HasSuffix(agent.ID.Hex(), agentIdStr) {
+				return agent, nil
+			}
+		}
+	} else {
+
+		agentId, err := primitive.ObjectIDFromHex(agentIdStr)
+
+		if err != nil {
+			return models.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
+		}
+
+		for _, agent := range agents {
+			if agent.ID.Hex() == agentId.Hex() {
+				return agent, nil
+			}
+		}
+	}
+
+	return models.Agents{}, errors.New("error cant find agent")
+}
+
 func GetAgentTasks(accountIdStr string, agentIdStr string) ([]models.AgentTask, error) {
 
 	tasks := make([]models.AgentTask, 0)
