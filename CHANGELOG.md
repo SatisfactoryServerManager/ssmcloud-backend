@@ -1,3 +1,6 @@
+## 1.0.15 (March 21, 2024)
+  - ci: dont run on tags
+
 ## 1.0.14 (March 18, 2024)
   - feat: accept invite
   - feat: Get user by invite code

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+chown -R ssm:ssm /opt/SSM
+chown -R ssm:ssm /home/ssm
+
 #Define cleanup procedure
 cleanup() {
     echo "Container stopped, performing cleanup..."
