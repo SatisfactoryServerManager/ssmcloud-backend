@@ -46,7 +46,7 @@ func API_CreateNewAgent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_GetAgentMapData(c *gin.Context){
+func API_GetAgentMapData(c *gin.Context) {
 	AgentID := c.Param("agentid")
 
 	agent, err := services.GetAgentByIdNoAccount(AgentID)
