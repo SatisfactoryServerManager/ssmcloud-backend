@@ -45,6 +45,8 @@ func (obj *routes) AddV1Routes() {
 	obj.AddAccountAgentRoutes()
 
 	obj.AddAgentRoutes()
+
+	obj.AddSSMModRoutes()
 }
 
 func (obj *routes) AddAccountRoutes() {
@@ -123,7 +125,7 @@ func (obj *routes) AddAgentRoutes() {
 	obj.AgentGroup.PUT("/config", agent.API_UpdateAgentConfig)
 }
 
-func (obj *routes) AddSSMModReoutes() {
+func (obj *routes) AddSSMModRoutes() {
 	obj.SSMModGroup.Use(Middleware_AgentAPIKey())
 
 	obj.SSMModGroup.POST("/players", ssmmod.API_UpdatePlayers)
