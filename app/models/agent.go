@@ -209,6 +209,8 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 		ID:        primitive.NewObjectID(),
 		AgentName: agentName,
 		APIKey:    apiKey,
+		Tasks:     make([]AgentTask, 0),
+		Logs:      make(primitive.A, 0),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
