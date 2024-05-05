@@ -1,3 +1,6 @@
+## 1.0.21 (May 05, 2024)
+  - fix: Cleanup up account files
+
 ## 1.0.20 (March 29, 2024)
   - fix: Fixes to create agent
   - fix: Fixed indentation
