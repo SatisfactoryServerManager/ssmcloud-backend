@@ -1,3 +1,6 @@
+## 1.0.24 (May 08, 2024)
+  - fix: Fixed missing upload save route
+
 ## 1.0.23 (May 08, 2024)
   - fix: Fixed missing agent route
 
