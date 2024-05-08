@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get -qq update -y &&\
     apt-get -qq install apt-utils wget curl -y &&\
     mkdir /opt/SSM &&\
-    useradd -m -s /bin/bash ssm 
+    useradd -m -u 9999 -s /bin/bash ssm 
 
 COPY entry.sh /
 COPY release/* /opt/SSM/
