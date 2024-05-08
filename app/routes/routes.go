@@ -125,6 +125,8 @@ func (obj *routes) AddAgentRoutes() {
 
 	obj.AgentGroup.GET("/config", agent.API_GetAgentConfig)
 	obj.AgentGroup.PUT("/config", agent.API_UpdateAgentConfig)
+
+	obj.AgentGroup.GET("/saves/download/:filename", agent.API_DownloadAgentSave)
 }
 
 func (obj *routes) AddSSMModRoutes() {

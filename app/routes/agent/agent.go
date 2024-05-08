@@ -1,12 +1,17 @@
 package agent
 
 import (
+	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/gin-gonic/gin"
+	"github.com/mrhid6/go-mongoose/mongoose"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 func API_UpdateAgentStatus(c *gin.Context) {
@@ -171,4 +176,48 @@ func API_UpdateAgentConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func API_DownloadAgentSave(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+	SaveFileName := c.Param("filename")
+
+	theAgent, err := services.GetAgentByAPIKey(AgentAPIKey)
+	if err != nil {
+		err = fmt.Errorf("error finding agent with error: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	var theAccount models.Accounts
+	if err := mongoose.FindOne(bson.M{"agents": theAgent.ID}, &theAccount); err != nil {
+		err = fmt.Errorf("error finding agent account with error: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	var theSave models.AgentSave
+	for _, save := range theAgent.Saves {
+		if save.FileName == SaveFileName {
+			theSave = save
+			break
+		}
+	}
+
+	if theSave.FileName == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "save file not found", "success": false})
+		c.Abort()
+		return
+	}
+
+	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), theAgent.ID.Hex(), "saves")
+	newFileLocation := filepath.Join(newFilePath, theSave.FileName)
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Content-Disposition", "attachment; filename="+theSave.FileName)
+	c.Header("Content-Type", "application/octet-stream")
+	c.File(newFileLocation)
 }
