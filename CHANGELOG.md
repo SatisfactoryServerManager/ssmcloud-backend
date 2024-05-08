@@ -1,3 +1,6 @@
+## 1.0.22 (May 08, 2024)
+  - fix: Fixed docker user
+
 ## 1.0.21 (May 05, 2024)
   - fix: Cleanup up account files
 
