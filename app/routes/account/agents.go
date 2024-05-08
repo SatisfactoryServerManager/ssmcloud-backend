@@ -375,3 +375,33 @@ func API_DownloadAgentLog(c *gin.Context) {
 	c.Header("Content-Type", "application/octet-stream")
 	c.File(newFileLocation)
 }
+
+func API_UploadAgentSave(c *gin.Context) {
+
+	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+	AccountID := JWTData.AccountID
+	AgentID := c.Param("agentid")
+
+	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
+
+	if _, err := services.GetAccount(AccountID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theAgent, err := services.GetAgentById(AccountID, AgentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	if err := services.UploadedAgentSave(theAgent.APIKey, FileIdentity); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}

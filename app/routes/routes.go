@@ -103,6 +103,11 @@ func (obj *routes) AddAccountAgentRoutes() {
 	obj.AccountAgentGroup.GET("/:agentid/download/backup/:uuid", account.API_DownloadAgentBackup)
 	obj.AccountAgentGroup.GET("/:agentid/download/save/:uuid", account.API_DownloadAgentSave)
 	obj.AccountAgentGroup.GET("/:agentid/download/log/:type", account.API_DownloadAgentLog)
+
+	uploadGroup := obj.AccountAgentGroup.Group("upload")
+	uploadGroup.Use(Middleware_UploadFile())
+
+	uploadGroup.POST("/:agentid/save", account.API_UploadAgentSave)
 }
 
 func (obj *routes) AddAgentRoutes() {
