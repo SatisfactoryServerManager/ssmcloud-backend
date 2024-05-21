@@ -8,6 +8,7 @@ func InitAllServices() {
 	InitStorageService()
 	InitModService()
 	InitAgentService()
+	InitAccountService();
 }
 
 func ShutdownAllServices() error {

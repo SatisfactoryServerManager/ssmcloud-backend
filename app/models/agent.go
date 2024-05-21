@@ -1,6 +1,7 @@
 package models
 
 import (
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -187,6 +188,27 @@ func (obj *Agents) PurgeTasks() error {
 
 	dbUpdate := bson.D{{"$set", bson.D{
 		{"tasks", newTaskList},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (obj *Agents) CheckBackups(basePath string) error {
+	newBackupsList := make([]AgentBackup, 0)
+	for _, backup := range obj.Backups {
+		backupFile := filepath.Join(basePath, "backups", backup.FileName)
+		if utils.CheckFileExists(backupFile) {
+			newBackupsList = append(newBackupsList, backup)
+		}
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"backups", newBackupsList},
 		{"updatedAt", time.Now()},
 	}}}
 

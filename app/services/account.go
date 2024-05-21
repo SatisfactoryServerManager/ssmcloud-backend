@@ -3,12 +3,15 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/mail"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/kataras/jwt"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
@@ -16,6 +19,85 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func InitAccountService() {
+
+	if err := CleanupAccountFiles(); err != nil {
+		fmt.Println(err)
+	}
+
+	uptimeticker := time.NewTicker(30 * time.Second)
+
+	go func() {
+		for {
+			select {
+			case <-uptimeticker.C:
+
+				if err := CleanupAccountFiles(); err != nil {
+					fmt.Println(err)
+				}
+			case <-_quit:
+				uptimeticker.Stop()
+				log.Println("Stopped account service")
+				return
+			}
+		}
+	}()
+}
+
+func CleanupAccountFiles() error {
+	directory := filepath.Join(config.DataDir, "account_data")
+
+	// Get current time
+	now := time.Now()
+
+	// Calculate one month ago
+	oneMonthAgo := now.AddDate(0, -1, 0)
+
+	// Walk through the directory
+	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// Check if it's a file and if it's exactly one month old
+		if !info.IsDir() && info.ModTime().Before(oneMonthAgo) {
+			// Remove the file
+			err := os.Remove(path)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Removed file: %s\n", path)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	accounts := make([]models.Accounts, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &accounts); err != nil {
+		return err
+	}
+
+	for _, account := range accounts {
+		agents, err := GetAllAgents(account.ID.Hex())
+		if err != nil {
+			return err
+		}
+
+		for idx := range agents {
+			agent := &agents[idx]
+			agentDataPath := filepath.Join(directory, account.ID.Hex(), agent.ID.Hex())
+			if err := agent.CheckBackups(agentDataPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
 
 func LoginAccountUser(email string, password string) (string, error) {
 

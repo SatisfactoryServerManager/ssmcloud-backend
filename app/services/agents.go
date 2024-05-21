@@ -37,10 +37,6 @@ func InitAgentService() {
 		fmt.Println(err)
 	}
 
-	if err := CleanupAccountFiles(); err != nil {
-		fmt.Println(err)
-	}
-
 	uptimeticker := time.NewTicker(30 * time.Second)
 
 	go func() {
@@ -56,10 +52,6 @@ func InitAgentService() {
 				if err := CheckAgentModsConfigs(); err != nil {
 					fmt.Println(err)
 				}
-
-				if err := CleanupAccountFiles(); err != nil {
-					fmt.Println(err)
-				}
 			case <-_quit:
 				uptimeticker.Stop()
 				log.Println("Stopped Process Orders Ticker")
@@ -73,34 +65,7 @@ func ShutdownAgentService() error {
 	return nil
 }
 
-func CleanupAccountFiles() error {
-	directory := filepath.Join(config.DataDir, "account_data")
 
-	// Get current time
-    now := time.Now()
-
-    // Calculate one month ago
-    oneMonthAgo := now.AddDate(0, -1, 0)
-
-    // Walk through the directory
-    err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
-        if err != nil {
-            return err
-        }
-        // Check if it's a file and if it's exactly one month old
-        if !info.IsDir() && info.ModTime().Before(oneMonthAgo) {
-            // Remove the file
-            err := os.Remove(path)
-            if err != nil {
-                return err
-            }
-            fmt.Printf("Removed file: %s\n", path)
-        }
-        return nil
-    })
-
-    return err
-}
 
 func CheckAllAgentsLastComms() error {
 
