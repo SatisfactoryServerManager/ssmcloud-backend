@@ -1,3 +1,6 @@
+## 1.0.25 (May 21, 2024)
+  - feat: Purge backups that have been removed from disk
+
 ## 1.0.24 (May 08, 2024)
   - fix: Fixed missing upload save route
 
