@@ -1,3 +1,6 @@
+## 1.0.26 (June 13, 2024)
+  - feat: Agent stats
+
 ## 1.0.25 (May 21, 2024)
   - feat: Purge backups that have been removed from disk
 

@@ -86,7 +86,7 @@ func (config *Config) SetDefaultValues() {
 
 	godotenv.Load(".env.local")
 
-	config.ConfigData.Version = "v1.0.25"
+	config.ConfigData.Version = "v1.0.26"
 
 	config.ConfigData.Database.Host = os.Getenv("DB_HOST")
 	config.ConfigData.Database.DB = os.Getenv("DB_DB")
