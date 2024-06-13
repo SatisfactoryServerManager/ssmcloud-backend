@@ -30,6 +30,8 @@ type Agents struct {
 	Logs       primitive.A `json:"-" bson:"logs" mson:"collection=agentlogs"`
 	LogObjects []AgentLogs `json:"logs" bson:"-"`
 
+	Stats []AgentStat `json:"stats" bson:"stats"`
+
 	ModConfig AgentModConfig `json:"modConfig" bson:"modConfig"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
@@ -153,6 +155,12 @@ type AgentLogs struct {
 	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt"`
 }
 
+type AgentStat struct {
+	Type      string    `json:"type" bson:"type"`
+	Value     string    `json:"value" bson:"value"`
+	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
+}
+
 func (obj *Agents) PopulateModConfig() {
 
 	for idx := range obj.ModConfig.SelectedMods {
@@ -260,6 +268,8 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 	newAgent.ModConfig.InstalledSMLVersion = "0.0.0"
 	newAgent.ModConfig.LatestSMLVersion = "0.0.0"
 	newAgent.ModConfig.SelectedMods = make([]AgentModConfigSelectedMod, 0)
+
+	newAgent.Stats = make([]AgentStat, 0)
 
 	return newAgent
 }

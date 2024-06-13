@@ -65,8 +65,6 @@ func ShutdownAgentService() error {
 	return nil
 }
 
-
-
 func CheckAllAgentsLastComms() error {
 
 	allAgents := make([]models.Agents, 0)
@@ -616,6 +614,50 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
+	if agent.Stats == nil {
+		agent.Stats = make([]models.AgentStat, 0)
+	}
+
+	CPUStat := models.AgentStat{
+		Type:      "CPU",
+		Value:     fmt.Sprintf("%f", cpu),
+		CreatedAt: time.Now(),
+	}
+
+	RAMStat := models.AgentStat{
+		Type:      "RAM",
+		Value:     fmt.Sprintf("%f", mem),
+		CreatedAt: time.Now(),
+	}
+
+	runningStatVal := "1"
+	if !running {
+		runningStatVal = "-1"
+	}
+	RunningStat := models.AgentStat{
+		Type:      "Running",
+		Value:     runningStatVal,
+		CreatedAt: time.Now(),
+	}
+
+	agent.Stats = append(agent.Stats, CPUStat)
+	agent.Stats = append(agent.Stats, RAMStat)
+	agent.Stats = append(agent.Stats, RunningStat)
+
+	now := time.Now()
+	expiry := now.AddDate(0, -1, 0)
+
+	newStats := make([]models.AgentStat, 0)
+	for idx := range agent.Stats {
+		stat := agent.Stats[idx]
+
+		if stat.CreatedAt.After(expiry) {
+			newStats = append(newStats, stat)
+		}
+	}
+
+	agent.Stats = newStats
+
 	agent.Status.Online = online
 	agent.Status.Installed = installed
 	agent.Status.Running = running
@@ -626,6 +668,7 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 
 	dbUpdate := bson.D{{"$set", bson.D{
 		{"status", agent.Status},
+		{"stats", agent.Stats},
 		{"updatedAt", time.Now()},
 	}}}
 
