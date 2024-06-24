@@ -645,7 +645,7 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 	agent.Stats = append(agent.Stats, RunningStat)
 
 	now := time.Now()
-	expiry := now.AddDate(0, 0, -14)
+	expiry := now.AddDate(0, 0, -3)
 
 	newStats := make([]models.AgentStat, 0)
 	for idx := range agent.Stats {
