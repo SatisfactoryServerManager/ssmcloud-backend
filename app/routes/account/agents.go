@@ -3,6 +3,7 @@ package account
 import (
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
@@ -64,12 +65,23 @@ func API_GetAgentByID(c *gin.Context) {
 	AccountID := JWTData.AccountID
 
 	AgentID := c.Param("agentid")
+	Populate := strings.Split(c.Query("populate"), ",")
 
 	agent, err := services.GetAgentById(AccountID, AgentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return
+	}
+
+	for _, popStr := range Populate {
+		if popStr == "stats" {
+			if err := agent.PopulateStats(); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+				c.Abort()
+				return
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "agent": agent})

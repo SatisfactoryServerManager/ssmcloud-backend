@@ -1,3 +1,6 @@
+## 1.0.30 (August 14, 2024)
+
+
 ## 1.0.29 (August 14, 2024)
   - feat: Better handling of agent stats
 
