@@ -30,7 +30,8 @@ type Agents struct {
 	Logs       primitive.A `json:"-" bson:"logs" mson:"collection=agentlogs"`
 	LogObjects []AgentLogs `json:"logs" bson:"-"`
 
-	Stats []AgentStat `json:"stats" bson:"stats"`
+	Stats       primitive.A `json:"-" bson:"stats" mson:"collection=agentstats"`
+	StatObjects []AgentStat `json:"stats" bson:"-"`
 
 	ModConfig AgentModConfig `json:"modConfig" bson:"modConfig"`
 
@@ -156,9 +157,11 @@ type AgentLogs struct {
 }
 
 type AgentStat struct {
-	Type      string    `json:"type" bson:"type"`
-	Value     string    `json:"value" bson:"value"`
-	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
+	ID        primitive.ObjectID `json:"_id" bson:"_id"`
+	Running   bool               `json:"running" bson:"running"`
+	CPU       float64            `json:"cpu" bson:"cpu"`
+	MEM       float32            `json:"mem" bson:"mem"`
+	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
 }
 
 func (obj *Agents) PopulateModConfig() {
@@ -178,6 +181,20 @@ func (obj *Agents) PopulateLogs() error {
 
 	if obj.LogObjects == nil {
 		obj.LogObjects = make([]AgentLogs, 0)
+	}
+
+	return nil
+}
+
+func (obj *Agents) PopulateStats() error {
+	err := mongoose.PopulateObjectArray(obj, "Stats", &obj.StatObjects)
+
+	if err != nil {
+		return err
+	}
+
+	if obj.StatObjects == nil {
+		obj.StatObjects = make([]AgentStat, 0)
 	}
 
 	return nil
@@ -231,6 +248,73 @@ func (obj *AgentModConfigSelectedMod) PopulateMod() {
 	mongoose.PopulateObject(obj, "Mod", &obj.ModObject)
 }
 
+func (obj *Agents) CreateStat(running bool, cpu float64, mem float32) error {
+	newStat := AgentStat{
+		ID:        primitive.NewObjectID(),
+		CPU:       cpu,
+		MEM:       mem,
+		Running:   running,
+		CreatedAt: time.Now(),
+	}
+
+	_, err := mongoose.InsertOne(&newStat)
+	if err != nil {
+		return err
+	}
+
+	obj.Stats = append(obj.Stats, newStat.ID)
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"stats", obj.Stats},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (obj *Agents) PurgeStats() error {
+	if err := obj.PopulateStats(); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	expiry := now.AddDate(0, 0, -3)
+
+	newStats := make(primitive.A, 0)
+	deleteStats := make([]AgentStat, 0)
+
+	for idx := range obj.StatObjects {
+		stat := obj.StatObjects[idx]
+
+		if stat.CreatedAt.After(expiry) {
+			newStats = append(newStats, stat.ID)
+		} else {
+			deleteStats = append(deleteStats, stat)
+		}
+	}
+
+	obj.Stats = newStats
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"stats", obj.Stats},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+    for _,stat := range deleteStats {
+        if _,err:= mongoose.DeleteOne(bson.M{"_id": stat.ID}, stat); err != nil{
+            return err;
+        }
+    }
+
+	return nil
+}
+
 func NewAgent(agentName string, port int, memory int64) Agents {
 
 	apiKey := "API-AGT-" + strings.ToUpper(utils.RandStringBytes(24))
@@ -241,6 +325,7 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 		APIKey:    apiKey,
 		Tasks:     make([]AgentTask, 0),
 		Logs:      make(primitive.A, 0),
+		Stats:     make(primitive.A, 0),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -268,8 +353,6 @@ func NewAgent(agentName string, port int, memory int64) Agents {
 	newAgent.ModConfig.InstalledSMLVersion = "0.0.0"
 	newAgent.ModConfig.LatestSMLVersion = "0.0.0"
 	newAgent.ModConfig.SelectedMods = make([]AgentModConfigSelectedMod, 0)
-
-	newAgent.Stats = make([]AgentStat, 0)
 
 	return newAgent
 }
