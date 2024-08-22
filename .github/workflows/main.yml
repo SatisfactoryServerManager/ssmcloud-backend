@@ -76,10 +76,6 @@ jobs:
             - name: Get version
               id: versionnum
               run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
-            - name: Install Octopus CLI
-              uses: OctopusDeploy/install-octopus-cli-action@v1
-              with:
-                  version: latest
             - name: Run a runbook in Octopus Deploy 🐙
               uses: OctopusDeploy/run-runbook-action@v3
               env:

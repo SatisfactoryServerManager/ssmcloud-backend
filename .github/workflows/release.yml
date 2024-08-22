@@ -121,12 +121,8 @@ jobs:
             - name: Get version
               id: versionnum
               run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
-            - name: Install Octopus CLI
-              uses: OctopusDeploy/install-octopus-cli-action@v1
-              with:
-                  version: latest
             - name: Create and deploy release
-              uses: OctopusDeploy/create-release-action@v1
+              uses: OctopusDeploy/create-release-action@v3
               with:
                   api_key: ${{ secrets.OCTOPUSSERVERAPIKEY }}
                   server: ${{ secrets.OCTOPUSSERVERURL }}
@@ -135,3 +131,13 @@ jobs:
                   release_number: ${{ steps.versionnum.outputs.version }}
                   deploy_to: Dev
                   progress: false
+            - name: Deploy Release
+              uses: OctopusDeploy/deploy-release-action@v3
+              with:
+                  api_key: ${{ secrets.OCTOPUSSERVERAPIKEY }}
+                  server: ${{ secrets.OCTOPUSSERVERURL }}
+                  space: ${{ secrets.OCTOPUSSERVER_SPACE }}
+                  project: "ssmcloud-frontend"
+                  release_number: ${{ steps.versionnum.outputs.version }}
+                  environments: |
+                      Dev
