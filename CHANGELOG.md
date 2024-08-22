@@ -1,3 +1,6 @@
+## 1.0.34 (August 22, 2024)
+
+
 ## 1.0.33 (August 22, 2024)
   - ci: Updated CI
 

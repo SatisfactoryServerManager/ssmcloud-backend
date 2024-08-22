@@ -137,7 +137,7 @@ jobs:
                   api_key: ${{ secrets.OCTOPUSSERVERAPIKEY }}
                   server: ${{ secrets.OCTOPUSSERVERURL }}
                   space: ${{ secrets.OCTOPUSSERVER_SPACE }}
-                  project: "ssmcloud-frontend"
+                  project: "ssmcloud-backend"
                   release_number: ${{ steps.versionnum.outputs.version }}
                   environments: |
                       Dev
