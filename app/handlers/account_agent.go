@@ -1,4 +1,4 @@
-package account
+package handlers
 
 import (
 	"net/http"
@@ -6,13 +6,16 @@ import (
 	"strings"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/gin-gonic/gin"
 )
 
-func API_GetAllAgents(c *gin.Context) {
+type AccountAgentHandler struct{}
+
+func (h *AccountAgentHandler) API_GetAllAgents(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 
@@ -26,7 +29,7 @@ func API_GetAllAgents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "agents": agents})
 }
 
-func API_CreateNewAgent(c *gin.Context) {
+func (h *AccountAgentHandler) API_CreateNewAgent(c *gin.Context) {
 
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
@@ -47,7 +50,7 @@ func API_CreateNewAgent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_GetAgentMapData(c *gin.Context) {
+func (h *AccountAgentHandler) API_GetAgentMapData(c *gin.Context) {
 	AgentID := c.Param("agentid")
 
 	agent, err := services.GetAgentByIdNoAccount(AgentID)
@@ -60,7 +63,7 @@ func API_GetAgentMapData(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": agent.MapData})
 }
 
-func API_GetAgentByID(c *gin.Context) {
+func (h *AccountAgentHandler) API_GetAgentByID(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 
@@ -87,7 +90,7 @@ func API_GetAgentByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "agent": agent})
 }
 
-func API_GetAgentTasks(c *gin.Context) {
+func (h *AccountAgentHandler) API_GetAgentTasks(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 
@@ -103,7 +106,7 @@ func API_GetAgentTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "tasks": tasks})
 }
 
-func API_NewAgentTask(c *gin.Context) {
+func (h *AccountAgentHandler) API_NewAgentTask(c *gin.Context) {
 
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
@@ -127,7 +130,7 @@ func API_NewAgentTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_DeleteAgent(c *gin.Context) {
+func (h *AccountAgentHandler) API_DeleteAgent(c *gin.Context) {
 
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
@@ -144,7 +147,7 @@ func API_DeleteAgent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_AgentInstallMod(c *gin.Context) {
+func (h *AccountAgentHandler) API_AgentInstallMod(c *gin.Context) {
 
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
@@ -167,7 +170,7 @@ func API_AgentInstallMod(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_AgentUpdateMod(c *gin.Context) {
+func (h *AccountAgentHandler) API_AgentUpdateMod(c *gin.Context) {
 
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
@@ -190,7 +193,7 @@ func API_AgentUpdateMod(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_AgentUninstallMod(c *gin.Context) {
+func (h *AccountAgentHandler) API_AgentUninstallMod(c *gin.Context) {
 
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
@@ -213,7 +216,7 @@ func API_AgentUninstallMod(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_GetAgentLogs(c *gin.Context) {
+func (h *AccountAgentHandler) API_GetAgentLogs(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	AgentID := c.Param("agentid")
@@ -228,7 +231,7 @@ func API_GetAgentLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "logs": logs})
 }
 
-func API_UpdateAgentConfigs(c *gin.Context) {
+func (h *AccountAgentHandler) API_UpdateAgentConfigs(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	AgentID := c.Param("agentid")
@@ -250,7 +253,7 @@ func API_UpdateAgentConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_DownloadAgentBackup(c *gin.Context) {
+func (h *AccountAgentHandler) API_DownloadAgentBackup(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	AgentID := c.Param("agentid")
@@ -294,7 +297,7 @@ func API_DownloadAgentBackup(c *gin.Context) {
 	c.File(newFileLocation)
 }
 
-func API_DownloadAgentSave(c *gin.Context) {
+func (h *AccountAgentHandler) API_DownloadAgentSave(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	AgentID := c.Param("agentid")
@@ -338,7 +341,7 @@ func API_DownloadAgentSave(c *gin.Context) {
 	c.File(newFileLocation)
 }
 
-func API_DownloadAgentLog(c *gin.Context) {
+func (h *AccountAgentHandler) API_DownloadAgentLog(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	AgentID := c.Param("agentid")
@@ -388,7 +391,7 @@ func API_DownloadAgentLog(c *gin.Context) {
 	c.File(newFileLocation)
 }
 
-func API_UploadAgentSave(c *gin.Context) {
+func (h *AccountAgentHandler) API_UploadAgentSave(c *gin.Context) {
 
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
@@ -416,4 +419,39 @@ func API_UploadAgentSave(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func NewAccountAgentHandler(router *gin.RouterGroup) {
+	handler := AccountAgentHandler{}
+
+	router.GET("/:agentid/mapdata", handler.API_GetAgentMapData)
+
+	router.Use(middleware.Middleware_DecodeJWT())
+	router.Use(middleware.Middleware_VerifySession())
+
+	router.GET("/", handler.API_GetAllAgents)
+	router.POST("/", handler.API_CreateNewAgent)
+
+	router.GET("/:agentid", handler.API_GetAgentByID)
+	router.DELETE("/:agentid", handler.API_DeleteAgent)
+
+	router.PUT("/:agentid/configs", handler.API_UpdateAgentConfigs)
+
+	router.GET("/:agentid/logs", handler.API_GetAgentLogs)
+
+	router.GET("/:agentid/tasks", handler.API_GetAgentTasks)
+	router.POST("/:agentid/tasks", handler.API_NewAgentTask)
+
+	router.POST("/:agentid/mods/install", handler.API_AgentInstallMod)
+	router.POST("/:agentid/mods/update", handler.API_AgentUpdateMod)
+	router.POST("/:agentid/mods/uninstall", handler.API_AgentUninstallMod)
+
+	router.GET("/:agentid/download/backup/:uuid", handler.API_DownloadAgentBackup)
+	router.GET("/:agentid/download/save/:uuid", handler.API_DownloadAgentSave)
+	router.GET("/:agentid/download/log/:type", handler.API_DownloadAgentLog)
+
+	uploadGroup := router.Group("upload")
+	uploadGroup.Use(middleware.Middleware_UploadFile())
+
+	uploadGroup.POST("/:agentid/save", handler.API_UploadAgentSave)
 }

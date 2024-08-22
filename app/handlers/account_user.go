@@ -1,14 +1,17 @@
-package account
+package handlers
 
 import (
 	"net/http"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/gin-gonic/gin"
 )
 
-func API_GetAllUsers(c *gin.Context) {
+type AccountUserHandler struct{}
+
+func (h *AccountUserHandler) API_GetAllUsers(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 
@@ -23,7 +26,7 @@ func API_GetAllUsers(c *gin.Context) {
 
 }
 
-func API_GetMyUser(c *gin.Context) {
+func (h *AccountUserHandler) API_GetMyUser(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	UserID := JWTData.UserID
@@ -38,7 +41,7 @@ func API_GetMyUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "user": user})
 }
 
-func API_GetUserByInviteCode(c *gin.Context) {
+func (h *AccountUserHandler) API_GetUserByInviteCode(c *gin.Context) {
 	inviteCode := c.Param("invitecode")
 
 	if inviteCode == "" {
@@ -57,7 +60,7 @@ func API_GetUserByInviteCode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "user": user})
 }
 
-func API_GenerateUserTwoFASecret(c *gin.Context) {
+func (h *AccountUserHandler) API_GenerateUserTwoFASecret(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	UserID := JWTData.UserID
@@ -72,7 +75,7 @@ func API_GenerateUserTwoFASecret(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "secret": secret})
 }
 
-func API_ValidateUserTwoFACode(c *gin.Context) {
+func (h *AccountUserHandler) API_ValidateUserTwoFACode(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 	UserID := JWTData.UserID
@@ -94,7 +97,7 @@ func API_ValidateUserTwoFACode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_CreateAccountUser(c *gin.Context) {
+func (h *AccountUserHandler) API_CreateAccountUser(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
 
@@ -114,7 +117,7 @@ func API_CreateAccountUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_AcceptUserInvite(c *gin.Context) {
+func (h *AccountUserHandler) API_AcceptUserInvite(c *gin.Context) {
 	inviteCode := c.Param("invitecode")
 
 	if inviteCode == "" {
@@ -137,4 +140,21 @@ func API_AcceptUserInvite(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func NewAccountUserHandler(router *gin.RouterGroup) {
+	handler := AccountUserHandler{}
+
+	router.GET("/byinvitecode/:invitecode", handler.API_GetUserByInviteCode)
+	router.POST("/acceptinvite/:invitecode", handler.API_AcceptUserInvite)
+
+	router.Use(middleware.Middleware_DecodeJWT())
+	router.Use(middleware.Middleware_VerifySession())
+
+	router.GET("/", handler.API_GetAllUsers)
+	router.POST("/", handler.API_CreateAccountUser)
+	router.GET("/me", handler.API_GetMyUser)
+	router.POST("/me/twofa/generate", handler.API_GenerateUserTwoFASecret)
+	router.POST("/me/twofa/validate", handler.API_ValidateUserTwoFACode)
+
 }

@@ -1,4 +1,4 @@
-package agent
+package handlers
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
@@ -14,7 +15,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func API_UpdateAgentStatus(c *gin.Context) {
+type AgentHandler struct{}
+
+func (h *AgentHandler) API_UpdateAgentStatus(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	var PostData app.API_AgentStatus_PutData
@@ -34,7 +37,7 @@ func API_UpdateAgentStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_UploadAgentSave(c *gin.Context) {
+func (h *AgentHandler) API_UploadAgentSave(c *gin.Context) {
 
 	AgentAPIKey := c.GetString("AgentKey")
 	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
@@ -49,7 +52,7 @@ func API_UploadAgentSave(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_UploadAgentBackup(c *gin.Context) {
+func (h *AgentHandler) API_UploadAgentBackup(c *gin.Context) {
 
 	AgentAPIKey := c.GetString("AgentKey")
 	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
@@ -64,7 +67,7 @@ func API_UploadAgentBackup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_UploadAgentLog(c *gin.Context) {
+func (h *AgentHandler) API_UploadAgentLog(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
 
@@ -78,7 +81,7 @@ func API_UploadAgentLog(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_GetModConfig(c *gin.Context) {
+func (h *AgentHandler) API_GetModConfig(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	config, err := services.GetAgentModConfig(AgentAPIKey)
@@ -91,7 +94,7 @@ func API_GetModConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
 }
 
-func API_UpdateModConfig(c *gin.Context) {
+func (h *AgentHandler) API_UpdateModConfig(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	var PostData models.AgentModConfig
@@ -111,7 +114,7 @@ func API_UpdateModConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_GetAgentTasks(c *gin.Context) {
+func (h *AgentHandler) API_GetAgentTasks(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	tasks, err := services.GetAgentTasksApi(AgentAPIKey)
@@ -124,7 +127,7 @@ func API_GetAgentTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": tasks})
 }
 
-func API_UpdateTaskItem(c *gin.Context) {
+func (h *AgentHandler) API_UpdateTaskItem(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	TaskID := c.Param("taskid")
 
@@ -145,7 +148,7 @@ func API_UpdateTaskItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_GetAgentConfig(c *gin.Context) {
+func (h *AgentHandler) API_GetAgentConfig(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	config, err := services.GetAgentConfig(AgentAPIKey)
@@ -158,7 +161,7 @@ func API_GetAgentConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
 }
 
-func API_UpdateAgentConfig(c *gin.Context) {
+func (h *AgentHandler) API_UpdateAgentConfig(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	var PostData app.API_AgentConfig_PutData
@@ -178,7 +181,7 @@ func API_UpdateAgentConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func API_DownloadAgentSave(c *gin.Context) {
+func (h *AgentHandler) API_DownloadAgentSave(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	SaveFileName := c.Param("filename")
 
@@ -220,4 +223,31 @@ func API_DownloadAgentSave(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename="+theSave.FileName)
 	c.Header("Content-Type", "application/octet-stream")
 	c.File(newFileLocation)
+}
+
+func NewAgentHandler(router *gin.RouterGroup) {
+
+	handler := AgentHandler{}
+
+	router.Use(middleware.Middleware_AgentAPIKey())
+
+	router.PUT("/status", handler.API_UpdateAgentStatus)
+
+	router.GET("/modconfig", handler.API_GetModConfig)
+	router.PUT("/modconfig", handler.API_UpdateModConfig)
+
+	router.GET("/tasks", handler.API_GetAgentTasks)
+	router.PUT("/tasks/:taskid", handler.API_UpdateTaskItem)
+
+	router.GET("/config", handler.API_GetAgentConfig)
+	router.PUT("/config", handler.API_UpdateAgentConfig)
+
+	uploadGroup := router.Group("upload")
+	uploadGroup.Use(middleware.Middleware_UploadFile())
+
+	uploadGroup.POST("/save", handler.API_UploadAgentSave)
+	uploadGroup.POST("/backup", handler.API_UploadAgentBackup)
+	uploadGroup.POST("/log", handler.API_UploadAgentLog)
+
+	router.GET("/saves/download/:filename", handler.API_DownloadAgentSave)
 }

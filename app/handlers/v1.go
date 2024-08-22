@@ -1,4 +1,4 @@
-package routes
+package handlers
 
 import (
 	"net/http"
@@ -11,7 +11,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func API_Ping(c *gin.Context) {
+type V1Handler struct{}
+
+func (h *V1Handler) API_Ping(c *gin.Context) {
 
 	hostname, _ := os.Hostname()
 	configData, _ := config.GetConfigData()
@@ -19,7 +21,7 @@ func API_Ping(c *gin.Context) {
 	c.JSON(200, gin.H{"success": true, "node": hostname, "version": configData.Version})
 }
 
-func API_Mods(c *gin.Context) {
+func (h *V1Handler) API_Mods(c *gin.Context) {
 
 	mods := make([]models.Mods, 0)
 
@@ -30,4 +32,15 @@ func API_Mods(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"success": true, "mods": mods})
+}
+
+func NewV1Handler(router *gin.RouterGroup) {
+	handler := V1Handler{}
+
+	router.GET("/ping", handler.API_Ping)
+	router.GET("/mods", handler.API_Mods)
+
+	NewAgentHandler(router.Group("agents"))
+	NewAccountHandler(router.Group("account"))
+	NewSSMModHandler(router.Group("ssmmod"))
 }

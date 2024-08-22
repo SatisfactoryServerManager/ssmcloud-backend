@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/routes"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/handlers"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
+	"github.com/gin-gonic/gin"
 	"github.com/mrhid6/go-mongoose/mongoose"
 )
 
@@ -40,11 +41,14 @@ func main() {
 
 	PrintConnectionString(dbConnection)
 
-	routes.InitRoutes()
+	MainRouter := gin.Default()
+	apiGroup := MainRouter.Group("api").Group("v1")
+
+	handlers.NewV1Handler(apiGroup)
 
 	srv := &http.Server{
 		Addr:    ConfigData.HTTPBind,
-		Handler: routes.Routes.Router,
+		Handler: MainRouter,
 	}
 
 	go func() {
