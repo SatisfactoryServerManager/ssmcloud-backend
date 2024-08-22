@@ -1,3 +1,6 @@
+## 1.0.31 (August 22, 2024)
+  - feat: New handler system
+
 ## 1.0.30 (August 14, 2024)
 
 
