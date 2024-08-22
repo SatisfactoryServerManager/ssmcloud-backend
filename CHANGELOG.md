@@ -1,3 +1,6 @@
+## 1.0.32 (August 22, 2024)
+  - chore: update deps
+
 ## 1.0.31 (August 22, 2024)
   - feat: New handler system
 
