@@ -1,3 +1,6 @@
+## 1.0.33 (August 22, 2024)
+  - ci: Updated CI
+
 ## 1.0.32 (August 22, 2024)
   - chore: update deps
 
