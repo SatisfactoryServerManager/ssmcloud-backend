@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"strconv"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/joblock"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	"github.com/machinebox/graphql"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
@@ -20,36 +21,33 @@ import (
 
 var (
 	graphqlClient *graphql.Client
+	updateModsJob joblock.JobLockTask
 )
 
 func InitModService() {
 
 	graphqlClient = graphql.NewClient("https://api.ficsit.app/v2/query")
 
-	uptimeticker := time.NewTicker(10 * time.Minute)
-
-	if err := UpdateModsInDB(); err != nil {
-		fmt.Println(err)
+	updateModsJob = joblock.JobLockTask{
+		Name:     "updateModsJob",
+		Interval: 10 * time.Minute,
+		Timeout:  1 * time.Minute,
+		Arg: func() {
+			if err := UpdateModsInDB(); err != nil {
+				fmt.Println(err)
+			}
+		},
 	}
 
-	go func() {
-		for {
-			select {
-			case <-uptimeticker.C:
-				if err := UpdateModsInDB(); err != nil {
-					fmt.Println(err)
-				}
-			case <-_quit:
-				uptimeticker.Stop()
-				log.Println("Stopped Process Orders Ticker")
-				return
-			}
-		}
-	}()
+	ctx := context.Background()
+	if err := updateModsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
 }
 
 func ShutdownModService() error {
-
+	updateModsJob.UnLock(context.TODO())
+	logger.GetDebugLogger().Println("Shutdown Mod Service")
 	return nil
 }
 
@@ -191,6 +189,7 @@ func GetModsFromAPI(offset int) ([]models.Mods, error) {
 
 func UpdateModsInDB() error {
 
+	logger.GetDebugLogger().Println("Running Update Mods Job")
 	apiMods, err := GetAllModsFromAPI()
 	if err != nil {
 		return err
@@ -225,6 +224,8 @@ func UpdateModsInDB() error {
 		}
 
 	}
+
+	logger.GetDebugLogger().Println("Finished Update Mods Job")
 
 	return nil
 }

@@ -1,8 +1,15 @@
 package models
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
 	"time"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
+	"github.com/gtuk/discordwebhook"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -25,6 +32,9 @@ type Accounts struct {
 	AuditObjects []AccountAudit `json:"audit" bson:"-"`
 
 	State AccountState `json:"state" bson:"state"`
+
+	Integrations       primitive.A           `json:"-" bson:"integrations" mson:"collection=accountintegrations"`
+	IntegrationObjects []AccountIntegrations `json:"integrations" bson:"-"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
@@ -50,6 +60,55 @@ type AccountAudit struct {
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 }
 
+type IntegrationType int64
+
+const (
+	IntegrationWebhook IntegrationType = 0
+	IntegrationDiscord IntegrationType = 1
+)
+
+type IntegrationEventType int64
+
+const (
+	IntegrationEventTypeAgentOnline  IntegrationEventType = 0
+	IntegrationEventTypeAgentOffline IntegrationEventType = 1
+	IntegrationEventTypePlayerJoined IntegrationEventType = 2
+	IntegrationEventTypePlayerLeft   IntegrationEventType = 3
+)
+
+type AccountIntegrations struct {
+	ID         primitive.ObjectID        `json:"_id" bson:"_id"`
+	Type       IntegrationType           `json:"type" bson:"type"`
+	Url        string                    `json:"url" bson:"url"`
+	EventTypes []IntegrationEventType    `json:"eventTypes" bson:"eventTypes"`
+	Events     []AccountIntegrationEvent `json:"events" bson:"events"`
+	CreatedAt  time.Time                 `json:"createdAt" bson:"createdAt"`
+	UpdatedAt  time.Time                 `json:"updatedAt" bson:"updatedAt"`
+}
+
+type AccountIntegrationEvent struct {
+	ID        primitive.ObjectID   `json:"_id" bson:"_id"`
+	Type      IntegrationEventType `json:"type" bson:"type"`
+	Retries   int                  `json:"retries" bson:"retries"`
+	Status    string               `json:"status" bson:"status"`
+	Data      interface{}          `json:"data" bson:"data"`
+	Completed bool                 `json:"completed" bson:"completed"`
+	CreatedAt time.Time            `json:"createdAt" bson:"createdAt"`
+	UpdatedAt time.Time            `json:"updatedAt" bson:"updatedAt"`
+}
+
+func (obj *Accounts) PopulateFromURLQuery(populateStrings []string) error {
+	for _, popStr := range populateStrings {
+		if popStr == "integrations" {
+			if err := obj.PopulateIntegrations(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (obj *Accounts) PopulateSessions() error {
 
 	err := mongoose.PopulateObjectArray(obj, "Sessions", &obj.SessionObjects)
@@ -60,6 +119,21 @@ func (obj *Accounts) PopulateSessions() error {
 
 	if obj.SessionObjects == nil {
 		obj.SessionObjects = make([]AccountSessions, 0)
+	}
+
+	return nil
+}
+
+func (obj *Accounts) PopulateIntegrations() error {
+
+	err := mongoose.PopulateObjectArray(obj, "Integrations", &obj.IntegrationObjects)
+
+	if err != nil {
+		return err
+	}
+
+	if obj.IntegrationObjects == nil {
+		obj.IntegrationObjects = make([]AccountIntegrations, 0)
 	}
 
 	return nil
@@ -142,4 +216,231 @@ func (obj *Accounts) AddAudit(auditType string, message string) error {
 	}
 
 	return nil
+}
+
+func (obj *Accounts) CreateIntegrationEvent(eventType IntegrationEventType, data interface{}) error {
+	if err := obj.PopulateIntegrations(); err != nil {
+		return err
+	}
+
+	for idx := range obj.IntegrationObjects {
+		integration := &obj.IntegrationObjects[idx]
+
+		containsEventType := false
+		for _, testEventType := range integration.EventTypes {
+			if testEventType == eventType {
+				containsEventType = true
+				break
+			}
+		}
+
+		if containsEventType {
+
+			switch v := data.(type) {
+			case EventDataAgentOnline:
+				v.EventData.IntegrationId = integration.ID
+				data = v
+			case EventDataAgentOffline:
+				v.EventData.IntegrationId = integration.ID
+				data = v
+			}
+
+			if err := integration.AddEvent(eventType, data); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (obj *Accounts) ProcessIntegrationEvents() error {
+	if err := obj.PopulateIntegrations(); err != nil {
+		return err
+	}
+
+	for idx := range obj.IntegrationObjects {
+		integration := &obj.IntegrationObjects[idx]
+		if err := integration.ProcessEvents(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (obj *AccountIntegrations) AddEvent(eventType IntegrationEventType, data interface{}) error {
+
+	newEvent := AccountIntegrationEvent{
+		ID:        primitive.NewObjectID(),
+		Type:      eventType,
+		UpdatedAt: time.Now(),
+		CreatedAt: time.Now(),
+	}
+
+	switch v := data.(type) {
+	case EventDataAgentOnline:
+		v.EventData.EventId = newEvent.ID
+        data = v;
+	case EventDataAgentOffline:
+		v.EventData.EventId = newEvent.ID
+        data = v;
+	}
+
+	newEvent.Data = data
+
+	obj.Events = append(obj.Events, newEvent)
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"events", obj.Events},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (obj *AccountIntegrations) ProcessEvents() error {
+
+	for idx := range obj.Events {
+		event := &obj.Events[idx]
+
+		if event.Completed {
+			continue
+		}
+
+		if obj.Type == IntegrationWebhook {
+			if err := ProcessWebhookEvent(obj.Url, event); err != nil {
+				event.Status = "failed"
+				event.Retries += 1
+			} else {
+				event.Completed = true
+				event.Status = "delivered"
+			}
+		} else if obj.Type == IntegrationDiscord {
+			if err := ProcessDiscordEvent(obj.Url, event); err != nil {
+				event.Status = "failed"
+				event.Retries += 1
+			} else {
+				event.Completed = true
+				event.Status = "delivered"
+			}
+		}
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"events", obj.Events},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ProcessWebhookEvent(url string, event *AccountIntegrationEvent) error {
+
+	// Marshal the data into JSON
+	jsonBytes, err := json.Marshal(event.Data)
+	if err != nil {
+		return err
+	}
+
+	// Prepare the webhook request
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the webhook request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func(Body io.ReadCloser) {
+		if err := Body.Close(); err != nil {
+			logger.GetErrorLogger().Printf("error closing response body: %s", err)
+		}
+	}(resp.Body)
+
+	// Determine the status based on the response code
+	status := "failed"
+	if resp.StatusCode == http.StatusOK {
+		status = "delivered"
+	}
+
+	if status == "failed" {
+		return errors.New(status)
+	}
+
+	return nil
+}
+
+func ProcessDiscordEvent(url string, event *AccountIntegrationEvent) error {
+
+	EventNameStr := "SSM Event"
+	fields := make([]discordwebhook.Field, 0)
+	imageUrl := "https://ssmcloud.hostxtra.co.uk/public/images/ssm_logo256.png"
+
+	eventTimeStr := ""
+
+	switch event.Type {
+	case IntegrationEventTypeAgentOnline:
+		EventNameStr = "Agent Online"
+		data := EventDataAgentOnline{}
+		MarshalToEventData(event.Data, &data)
+
+		fieldName := "AgentName"
+		fieldValue := data.AgentName
+		inline := true
+
+		fields = append(fields, discordwebhook.Field{Name: &fieldName, Value: &fieldValue, Inline: &inline})
+		eventTimeStr = data.EventData.EventTime.Format("2006-01-02 15:04:05")
+	case IntegrationEventTypeAgentOffline:
+		EventNameStr = "Agent Offline"
+		data := EventDataAgentOffline{}
+		MarshalToEventData(event.Data, &data)
+
+		fieldName := "AgentName"
+		fieldValue := data.AgentName
+		inline := true
+
+		fields = append(fields, discordwebhook.Field{Name: &fieldName, Value: &fieldValue, Inline: &inline})
+		eventTimeStr = data.EventData.EventTime.Format("2006-01-02 15:04:05")
+	}
+
+	footer := discordwebhook.Footer{
+		Text: &eventTimeStr,
+	}
+
+	embed := discordwebhook.Embed{
+		Title:  &EventNameStr,
+		Fields: &fields,
+		Footer: &footer,
+	}
+
+	username := "SSM Cloud"
+	message := discordwebhook.Message{
+		Username:  &username,
+		Embeds:    &[]discordwebhook.Embed{embed},
+		AvatarUrl: &imageUrl,
+	}
+
+	if err := discordwebhook.SendMessage(url, message); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func MarshalToEventData(data interface{}, output interface{}) {
+	bodyBytes, _ := json.Marshal(data)
+	json.Unmarshal(bodyBytes, output)
 }

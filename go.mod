@@ -10,7 +10,7 @@ require (
 	github.com/kataras/jwt v0.1.12
 	github.com/machinebox/graphql v0.2.2
 	github.com/mircearoata/pubgrub-go v0.3.3
-	github.com/mrhid6/go-mongoose v0.0.8
+	github.com/mrhid6/go-mongoose v0.0.9
 	github.com/pquerna/otp v1.4.0
 	github.com/satisfactorymodding/ficsit-resolver v0.0.2
 	go.mongodb.org/mongo-driver v1.15.0
@@ -30,6 +30,7 @@ require (
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/gtuk/discordwebhook v1.2.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect

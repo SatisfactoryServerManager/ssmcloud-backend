@@ -164,6 +164,18 @@ type AgentStat struct {
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
 }
 
+func (obj *Agents) PopulateFromURLQuery(populateStrings []string) error {
+	for _, popStr := range populateStrings {
+		if popStr == "stats" {
+			if err := obj.PopulateStats(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (obj *Agents) PopulateModConfig() {
 
 	for idx := range obj.ModConfig.SelectedMods {
@@ -306,11 +318,11 @@ func (obj *Agents) PurgeStats() error {
 		return err
 	}
 
-    for _,stat := range deleteStats {
-        if _,err:= mongoose.DeleteOne(bson.M{"_id": stat.ID}, stat); err != nil{
-            return err;
-        }
-    }
+	for _, stat := range deleteStats {
+		if _, err := mongoose.DeleteOne(bson.M{"_id": stat.ID}, stat); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

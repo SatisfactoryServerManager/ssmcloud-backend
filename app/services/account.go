@@ -1,9 +1,9 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/mail"
 	"os"
 	"path/filepath"
@@ -11,7 +11,9 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/joblock"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	"github.com/kataras/jwt"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
@@ -20,29 +22,48 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	accountCleanupJob           joblock.JobLockTask
+	accountIntegrationEventsJob joblock.JobLockTask
+)
+
 func InitAccountService() {
 
-	if err := CleanupAccountFiles(); err != nil {
-		fmt.Println(err)
+	accountCleanupJob = joblock.JobLockTask{
+		Name:     "accountCleanupJob",
+		Interval: 30 * time.Second,
+		Timeout:  10 * time.Second,
+		Arg: func() {
+			if err := CleanupAccountFiles(); err != nil {
+				fmt.Println(err)
+			}
+		},
 	}
 
-	uptimeticker := time.NewTicker(30 * time.Second)
-
-	go func() {
-		for {
-			select {
-			case <-uptimeticker.C:
-
-				if err := CleanupAccountFiles(); err != nil {
-					fmt.Println(err)
-				}
-			case <-_quit:
-				uptimeticker.Stop()
-				log.Println("Stopped account service")
-				return
+	accountIntegrationEventsJob = joblock.JobLockTask{
+		Name:     "accountIntegrationEventsJob",
+		Interval: 5 * time.Second,
+		Timeout:  10 * time.Second,
+		Arg: func() {
+			if err := ProcessAccountIntegrationEvents(); err != nil {
+				fmt.Println(err)
 			}
-		}
-	}()
+		},
+	}
+
+	ctx := context.Background()
+	if err := accountCleanupJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
+	if err := accountIntegrationEventsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
+}
+
+func ShutdownAccountService() error {
+	accountCleanupJob.UnLock(context.TODO())
+	logger.GetDebugLogger().Println("Shutdown Account Service")
+	return nil
 }
 
 func CleanupAccountFiles() error {
@@ -93,6 +114,25 @@ func CleanupAccountFiles() error {
 			if err := agent.CheckBackups(agentDataPath); err != nil {
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+func ProcessAccountIntegrationEvents() error {
+
+	accounts := make([]models.Accounts, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &accounts); err != nil {
+		return err
+	}
+
+	for idx := range accounts {
+		account := &accounts[idx]
+
+		if err := account.ProcessIntegrationEvents(); err != nil {
+			logger.GetErrorLogger().Printf("failed to process integration events for account %s with error %s\n", account.AccountName, err.Error())
 		}
 	}
 
@@ -328,6 +368,21 @@ func GetAccount(accountIdStr string) (models.Accounts, error) {
 
 	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
 		return theAccount, fmt.Errorf("error finding session with error: %s", err.Error())
+	}
+
+	return theAccount, nil
+}
+
+func GetAccountByAgentId(agentIdStr string) (models.Accounts, error) {
+	var theAccount models.Accounts
+	agentId, err := primitive.ObjectIDFromHex(agentIdStr)
+
+	if err != nil {
+		return theAccount, fmt.Errorf("error converting query string to object id with error: %s", err.Error())
+	}
+
+	if err := mongoose.FindOne(bson.M{"agents": agentId}, &theAccount); err != nil {
+		return theAccount, fmt.Errorf("error finding account with error: %s", err.Error())
 	}
 
 	return theAccount, nil

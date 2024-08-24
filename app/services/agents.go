@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -14,8 +13,10 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/joblock"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
@@ -23,45 +24,66 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+var (
+	checkAllAgentsLastCommsJob joblock.JobLockTask
+	purgeAgentTasksJob         joblock.JobLockTask
+	checkAgentModsConfigsJob   joblock.JobLockTask
+)
+
 func InitAgentService() {
 
-	if err := CheckAllAgentsLastComms(); err != nil {
-		fmt.Println(err)
-	}
-
-	if err := PurgeAgentTasks(); err != nil {
-		fmt.Println(err)
-	}
-
-	if err := CheckAgentModsConfigs(); err != nil {
-		fmt.Println(err)
-	}
-
-	uptimeticker := time.NewTicker(30 * time.Second)
-
-	go func() {
-		for {
-			select {
-			case <-uptimeticker.C:
-				if err := CheckAllAgentsLastComms(); err != nil {
-					fmt.Println(err)
-				}
-				if err := PurgeAgentTasks(); err != nil {
-					fmt.Println(err)
-				}
-				if err := CheckAgentModsConfigs(); err != nil {
-					fmt.Println(err)
-				}
-			case <-_quit:
-				uptimeticker.Stop()
-				log.Println("Stopped Process Orders Ticker")
-				return
+	checkAllAgentsLastCommsJob = joblock.JobLockTask{
+		Name:     "checkAllAgentsLastCommsJob",
+		Interval: 30 * time.Second,
+		Timeout:  1 * time.Minute,
+		Arg: func() {
+			if err := CheckAllAgentsLastComms(); err != nil {
+				fmt.Println(err)
 			}
-		}
-	}()
+		},
+	}
+	purgeAgentTasksJob = joblock.JobLockTask{
+		Name:     "purgeAgentTasksJob",
+		Interval: 30 * time.Second,
+		Timeout:  1 * time.Minute,
+		Arg: func() {
+			if err := PurgeAgentTasks(); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
+	checkAgentModsConfigsJob = joblock.JobLockTask{
+		Name:     "checkAgentModsConfigsJob",
+		Interval: 30 * time.Second,
+		Timeout:  1 * time.Minute,
+		Arg: func() {
+			if err := CheckAgentModsConfigs(); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
+	ctx := context.Background()
+	if err := checkAllAgentsLastCommsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
+	if err := purgeAgentTasksJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
+	if err := checkAgentModsConfigsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
 }
 
 func ShutdownAgentService() error {
+	ctx := context.Background()
+
+	checkAllAgentsLastCommsJob.UnLock(ctx)
+	purgeAgentTasksJob.UnLock(ctx)
+	checkAgentModsConfigsJob.UnLock(ctx)
+
+	logger.GetDebugLogger().Println("Shutdown Agent Service")
 	return nil
 }
 
@@ -91,6 +113,23 @@ func CheckAllAgentsLastComms() error {
 
 				if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
 					return err
+				}
+
+				account, err := GetAccountByAgentId(agent.ID.Hex())
+				if err != nil {
+					return fmt.Errorf("error finding account with error: %s", err.Error())
+				}
+
+				data := models.EventDataAgentOffline{
+					EventData: models.EventData{
+						EventType: "agent.offline",
+						EventTime: time.Now(),
+					},
+					AgentName: agent.AgentName,
+				}
+
+				if err := account.CreateIntegrationEvent(models.IntegrationEventTypeAgentOffline, data); err != nil {
+					return fmt.Errorf("error creating integration event with error: %s", err.Error())
 				}
 			}
 		}
@@ -612,6 +651,39 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	account, err := GetAccountByAgentId(agent.ID.Hex())
+	if err != nil {
+		return fmt.Errorf("error finding account with error: %s", err.Error())
+	}
+
+	if !agent.Status.Online && online {
+
+		data := models.EventDataAgentOnline{
+			EventData: models.EventData{
+				EventType: "agent.online",
+				EventTime: time.Now(),
+			},
+			AgentName: agent.AgentName,
+		}
+
+		if err := account.CreateIntegrationEvent(models.IntegrationEventTypeAgentOnline, data); err != nil {
+			return fmt.Errorf("error creating integration event with error: %s", err.Error())
+		}
+	} else if agent.Status.Online && !online {
+
+		data := models.EventDataAgentOffline{
+			EventData: models.EventData{
+				EventType: "agent.offline",
+				EventTime: time.Now(),
+			},
+			AgentName: agent.AgentName,
+		}
+
+		if err := account.CreateIntegrationEvent(models.IntegrationEventTypeAgentOffline, data); err != nil {
+			return fmt.Errorf("error creating integration event with error: %s", err.Error())
+		}
 	}
 
 	if err := agent.CreateStat(running, cpu, mem); err != nil {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
@@ -76,6 +77,14 @@ func (h *AccountHandler) API_GetAccount(c *gin.Context) {
 		return
 	}
 
+	Populate := strings.Split(c.Query("populate"), ",")
+
+	if err := account.PopulateFromURLQuery(Populate); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"success": true, "account": account})
 }
 
@@ -111,7 +120,6 @@ func (h *AccountHandler) API_GetAccountAudit(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "audit": filteredAudits})
 }
 
-
 func reverseArray(arr []models.AccountAudit) []models.AccountAudit {
 	for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
 		arr[i], arr[j] = arr[j], arr[i]
@@ -130,13 +138,11 @@ func NewAccountHandler(router *gin.RouterGroup) {
 
 	router.Use(middleware.Middleware_DecodeJWT())
 	router.Use(middleware.Middleware_VerifySession())
-	
 
 	router.GET("/", handler.API_GetAccount)
 	router.GET("/session", handler.API_AccountSession)
 	router.GET("/audit", handler.API_GetAccountAudit)
 
-	
 	NewAccountAgentHandler(agentGroup)
-    NewAccountUserHandler(userGroup);
+	NewAccountUserHandler(userGroup)
 }
