@@ -1,3 +1,6 @@
+## 1.0.35 (August 24, 2024)
+  - feat: Integrations work
+
 ## 1.0.34 (August 22, 2024)
 
 
