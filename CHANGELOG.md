@@ -1,3 +1,6 @@
+## 1.0.40 (August 25, 2024)
+  - fix: Check existing api key on user
+
 ## 1.0.39 (August 25, 2024)
   - feat: User api key endpoints
 
