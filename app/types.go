@@ -37,6 +37,10 @@ type API_AccountUserTwoFACode_PostData struct {
 	Token string `json:"token"`
 }
 
+type API_AccountUserApiKey_PostData struct {
+	APIKey string `json:"apikey"`
+}
+
 type API_AccountAgentTask_PostData struct {
 	Action string      `json:"action"`
 	Data   interface{} `json:"data"`

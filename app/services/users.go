@@ -222,3 +222,58 @@ func AcceptInviteCode(inviteCode string, password string) error {
 
 	return nil
 }
+
+func CreateUserAPIKey(accountIdStr string, userIdStr string, apiKey string) error {
+	theUser, err := GetMyUser(accountIdStr, userIdStr)
+
+	if err != nil {
+		return err
+	}
+
+	newApiKey := models.UserAPIKey{
+		Key:      apiKey,
+		ShortKey: apiKey[len(apiKey)-6:],
+	}
+
+	theUser.APIKeys = append(theUser.APIKeys, newApiKey)
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"apiKeys", theUser.APIKeys},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&theUser, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteUserAPIKey(accountIdStr string, userIdStr string, shortApiKey string) error {
+	theUser, err := GetMyUser(accountIdStr, userIdStr)
+
+	if err != nil {
+		return err
+	}
+
+    newKeyArray := make([]models.UserAPIKey, 0);
+
+    for _, key:= range theUser.APIKeys{
+        if key.ShortKey != shortApiKey{
+            newKeyArray = append(newKeyArray, key);
+        }
+    }
+
+	theUser.APIKeys = newKeyArray
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"apiKeys", theUser.APIKeys},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&theUser, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
