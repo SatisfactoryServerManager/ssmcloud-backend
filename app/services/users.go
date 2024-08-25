@@ -230,6 +230,19 @@ func CreateUserAPIKey(accountIdStr string, userIdStr string, apiKey string) erro
 		return err
 	}
 
+	containsKey := false
+
+	for _, key := range theUser.APIKeys {
+		if key.Key == apiKey {
+			containsKey = true
+			break
+		}
+	}
+
+	if containsKey {
+		return fmt.Errorf("error api key already exists on user account")
+	}
+
 	newApiKey := models.UserAPIKey{
 		Key:      apiKey,
 		ShortKey: apiKey[len(apiKey)-6:],
@@ -256,13 +269,13 @@ func DeleteUserAPIKey(accountIdStr string, userIdStr string, shortApiKey string)
 		return err
 	}
 
-    newKeyArray := make([]models.UserAPIKey, 0);
+	newKeyArray := make([]models.UserAPIKey, 0)
 
-    for _, key:= range theUser.APIKeys{
-        if key.ShortKey != shortApiKey{
-            newKeyArray = append(newKeyArray, key);
-        }
-    }
+	for _, key := range theUser.APIKeys {
+		if key.ShortKey != shortApiKey {
+			newKeyArray = append(newKeyArray, key)
+		}
+	}
 
 	theUser.APIKeys = newKeyArray
 
