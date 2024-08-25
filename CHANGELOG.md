@@ -1,3 +1,6 @@
+## 1.0.37 (August 25, 2024)
+  - feat: Store event response data
+
 ## 1.0.36 (August 25, 2024)
   - feat: Integrations endpoints
 
