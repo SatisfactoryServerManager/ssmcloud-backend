@@ -1,3 +1,6 @@
+## 1.0.36 (August 25, 2024)
+  - feat: Integrations endpoints
+
 ## 1.0.35 (August 24, 2024)
   - feat: Integrations work
 
