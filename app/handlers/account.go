@@ -132,6 +132,7 @@ func NewAccountHandler(router *gin.RouterGroup) {
 
 	userGroup := router.Group("users")
 	agentGroup := router.Group("agents")
+	integrationsGroup := router.Group("integrations")
 
 	router.POST("/login", handler.API_AccountLogin)
 	router.POST("/signup", handler.API_AccountSignUp)
@@ -145,4 +146,5 @@ func NewAccountHandler(router *gin.RouterGroup) {
 
 	NewAccountAgentHandler(agentGroup)
 	NewAccountUserHandler(userGroup)
+	NewAccountIntegrationsHandler(integrationsGroup)
 }

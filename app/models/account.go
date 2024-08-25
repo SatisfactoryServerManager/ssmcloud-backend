@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -269,6 +270,105 @@ func (obj *Accounts) ProcessIntegrationEvents() error {
 	return nil
 }
 
+func (obj *Accounts) AddIntegration(newIntegration AccountIntegrations) error {
+	if newIntegration.ID.IsZero() {
+		newIntegration.ID = primitive.NewObjectID()
+		newIntegration.CreatedAt = time.Now()
+		newIntegration.UpdatedAt = time.Now()
+		newIntegration.Events = make([]AccountIntegrationEvent, 0)
+	}
+
+	if _, err := mongoose.InsertOne(&newIntegration); err != nil {
+		return err
+	}
+
+	obj.Integrations = append(obj.Integrations, newIntegration.ID)
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"integrations", obj.Integrations},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (obj *Accounts) UpdateIntegration(updatedIntegration AccountIntegrations) error {
+	if err := obj.PopulateIntegrations(); err != nil {
+		return err
+	}
+
+	exists := false
+
+	for _, integration := range obj.IntegrationObjects {
+		if integration.ID.Hex() == updatedIntegration.ID.Hex() {
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		return fmt.Errorf("error integration doesn't exist on account")
+	}
+
+	dbIntegration := AccountIntegrations{}
+	if err := mongoose.FindOne(bson.M{"_id": updatedIntegration.ID}, &dbIntegration); err != nil {
+		return err
+	}
+
+	dbIntegration.Type = updatedIntegration.Type
+	dbIntegration.EventTypes = updatedIntegration.EventTypes
+	dbIntegration.Url = updatedIntegration.Url
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"type", dbIntegration.Type},
+		{"eventTypes", dbIntegration.EventTypes},
+		{"url", dbIntegration.Url},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(dbIntegration, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (obj *Accounts) DeleteIntegration(integrationId primitive.ObjectID) error {
+
+	if err := obj.PopulateIntegrations(); err != nil {
+		return err
+	}
+
+	newArray := make(primitive.A, 0)
+
+	for _, integration := range obj.IntegrationObjects {
+		if integration.ID.Hex() != integrationId.Hex() {
+			newArray = append(newArray, integration.ID)
+		}
+	}
+
+	obj.Integrations = newArray
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"integrations", obj.Integrations},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	if _, err := mongoose.DeleteOne(bson.M{"_id": integrationId}, AccountIntegrations{}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (obj *AccountIntegrations) AddEvent(eventType IntegrationEventType, data interface{}) error {
 
 	newEvent := AccountIntegrationEvent{
@@ -281,10 +381,10 @@ func (obj *AccountIntegrations) AddEvent(eventType IntegrationEventType, data in
 	switch v := data.(type) {
 	case EventDataAgentOnline:
 		v.EventData.EventId = newEvent.ID
-        data = v;
+		data = v
 	case EventDataAgentOffline:
 		v.EventData.EventId = newEvent.ID
-        data = v;
+		data = v
 	}
 
 	newEvent.Data = data
