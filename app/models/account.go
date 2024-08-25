@@ -88,14 +88,16 @@ type AccountIntegrations struct {
 }
 
 type AccountIntegrationEvent struct {
-	ID        primitive.ObjectID   `json:"_id" bson:"_id"`
-	Type      IntegrationEventType `json:"type" bson:"type"`
-	Retries   int                  `json:"retries" bson:"retries"`
-	Status    string               `json:"status" bson:"status"`
-	Data      interface{}          `json:"data" bson:"data"`
-	Completed bool                 `json:"completed" bson:"completed"`
-	CreatedAt time.Time            `json:"createdAt" bson:"createdAt"`
-	UpdatedAt time.Time            `json:"updatedAt" bson:"updatedAt"`
+	ID           primitive.ObjectID   `json:"_id" bson:"_id"`
+	Type         IntegrationEventType `json:"type" bson:"type"`
+	Retries      int                  `json:"retries" bson:"retries"`
+	Status       string               `json:"status" bson:"status"`
+	Data         interface{}          `json:"data" bson:"data"`
+	ResponseData interface{}          `json:"responseData" bson:"responseData"`
+	Completed    bool                 `json:"completed" bson:"completed"`
+	Failed       bool                 `json:"failed" bson:"failed"`
+	CreatedAt    time.Time            `json:"createdAt" bson:"createdAt"`
+	UpdatedAt    time.Time            `json:"updatedAt" bson:"updatedAt"`
 }
 
 func (obj *Accounts) PopulateFromURLQuery(populateStrings []string) error {
@@ -412,21 +414,41 @@ func (obj *AccountIntegrations) ProcessEvents() error {
 			continue
 		}
 
+		if event.Failed {
+			continue
+		}
+
 		if obj.Type == IntegrationWebhook {
-			if err := ProcessWebhookEvent(obj.Url, event); err != nil {
+			resp, err := ProcessWebhookEvent(obj.Url, event)
+			if err != nil {
 				event.Status = "failed"
 				event.Retries += 1
+				event.ResponseData = resp
+
+				if event.Retries >= 10 {
+					event.Failed = true
+					event.Status = "failed - max retries"
+				}
 			} else {
 				event.Completed = true
 				event.Status = "delivered"
+				event.ResponseData = resp
 			}
 		} else if obj.Type == IntegrationDiscord {
 			if err := ProcessDiscordEvent(obj.Url, event); err != nil {
 				event.Status = "failed"
+
 				event.Retries += 1
+				event.ResponseData = err.Error()
+
+				if event.Retries >= 10 {
+					event.Failed = true
+					event.Status = "failed - max retries"
+				}
 			} else {
 				event.Completed = true
 				event.Status = "delivered"
+				event.ResponseData = "success"
 			}
 		}
 	}
@@ -443,18 +465,18 @@ func (obj *AccountIntegrations) ProcessEvents() error {
 	return nil
 }
 
-func ProcessWebhookEvent(url string, event *AccountIntegrationEvent) error {
+func ProcessWebhookEvent(url string, event *AccountIntegrationEvent) (string, error) {
 
 	// Marshal the data into JSON
 	jsonBytes, err := json.Marshal(event.Data)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Prepare the webhook request
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBytes))
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -462,8 +484,15 @@ func ProcessWebhookEvent(url string, event *AccountIntegrationEvent) error {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	bodyString := string(bodyBytes)
+
 	defer func(Body io.ReadCloser) {
 		if err := Body.Close(); err != nil {
 			logger.GetErrorLogger().Printf("error closing response body: %s", err)
@@ -477,10 +506,10 @@ func ProcessWebhookEvent(url string, event *AccountIntegrationEvent) error {
 	}
 
 	if status == "failed" {
-		return errors.New(status)
+		return bodyString, errors.New(status)
 	}
 
-	return nil
+	return bodyString, nil
 }
 
 func ProcessDiscordEvent(url string, event *AccountIntegrationEvent) error {
