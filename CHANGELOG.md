@@ -1,3 +1,6 @@
+## 1.0.38 (August 25, 2024)
+  - feat: discord response
+
 ## 1.0.37 (August 25, 2024)
   - feat: Store event response data
 
