@@ -1,3 +1,6 @@
+## 1.0.39 (August 25, 2024)
+  - feat: User api key endpoints
+
 ## 1.0.38 (August 25, 2024)
   - feat: discord response
 
