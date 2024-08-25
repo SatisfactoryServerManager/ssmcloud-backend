@@ -439,7 +439,7 @@ func (obj *AccountIntegrations) ProcessEvents() error {
 				event.Status = "failed"
 
 				event.Retries += 1
-				event.ResponseData = err.Error()
+				event.ResponseData = fmt.Sprintf(`{"success":false,"error":%s`, err.Error())
 
 				if event.Retries >= 10 {
 					event.Failed = true
@@ -448,7 +448,7 @@ func (obj *AccountIntegrations) ProcessEvents() error {
 			} else {
 				event.Completed = true
 				event.Status = "delivered"
-				event.ResponseData = "success"
+				event.ResponseData = `{"success":true}`
 			}
 		}
 	}
