@@ -301,11 +301,15 @@ func AccountSignup(accountName string, email string, password string) error {
 	}
 
 	newAccount := models.Accounts{
-		ID:          primitive.NewObjectID(),
-		AccountName: accountName,
-		Sessions:    primitive.A{},
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:           primitive.NewObjectID(),
+		AccountName:  accountName,
+		Sessions:     primitive.A{},
+		Users:        primitive.A{},
+		Integrations: primitive.A{},
+		Audit:        primitive.A{},
+		Agents:       primitive.A{},
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)

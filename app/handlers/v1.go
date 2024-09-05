@@ -40,7 +40,7 @@ func NewV1Handler(router *gin.RouterGroup) {
 	router.GET("/ping", handler.API_Ping)
 	router.GET("/mods", handler.API_Mods)
 
-	NewAgentHandler(router.Group("agents"))
+	NewAgentHandler(router.Group("agent"))
 	NewAccountHandler(router.Group("account"))
 	NewSSMModHandler(router.Group("ssmmod"))
 }
