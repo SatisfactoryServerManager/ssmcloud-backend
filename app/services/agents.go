@@ -462,7 +462,7 @@ func InstallMod(accountIdStr string, agentIdStr string, modReference string, ver
 		return err
 	}
 
-	depResolver := resolver.NewDependencyResolver(SSMProvider{}, "https://api.ficsit.app")
+	depResolver := resolver.NewDependencyResolver(SSMProvider{})
 
 	constraints := make(map[string]string, 0)
 
@@ -472,7 +472,7 @@ func InstallMod(accountIdStr string, agentIdStr string, modReference string, ver
 	requiredTargets = append(requiredTargets, resolver.TargetNameWindowsServer)
 	requiredTargets = append(requiredTargets, resolver.TargetNameLinuxServer)
 
-	resolved, err := depResolver.ResolveModDependencies(context.Background(), constraints, nil, math.MaxInt, requiredTargets)
+	resolved, err := depResolver.ResolveModDependencies(constraints, nil, math.MaxInt, requiredTargets)
 
 	if err != nil {
 		return err

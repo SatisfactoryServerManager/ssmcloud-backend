@@ -2,7 +2,6 @@ package app
 
 import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
-	resolver "github.com/satisfactorymodding/ficsit-resolver"
 )
 
 type Vector3f struct {
@@ -101,12 +100,4 @@ type FicsitAPI_Response_GetMods struct {
 
 type FicsitAPI_Response_GetMods_Mods struct {
 	Mods []models.Mods `json:"mods"`
-}
-
-type FicsitAPI_Response_GetSMLVersions struct {
-	GetSMLVersions FicsitAPI_Response_GetSMLVersions_SMLVersions `json:"getSMLVersions"`
-}
-
-type FicsitAPI_Response_GetSMLVersions_SMLVersions struct {
-	SMLVersions []resolver.SMLVersion `json:"sml_versions"`
 }

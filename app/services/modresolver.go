@@ -3,45 +3,13 @@ package services
 import (
 	"context"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
-	"github.com/machinebox/graphql"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 type SSMProvider struct{}
-
-func (p SSMProvider) SMLVersions(_ context.Context) ([]resolver.SMLVersion, error) {
-
-	graphqlClient = graphql.NewClient("https://api.ficsit.app/v2/query")
-	smlVersions := make([]resolver.SMLVersion, 0)
-
-	graphqlRequest := graphql.NewRequest(`
-	{
-  getSMLVersions{
-    sml_versions {
-      id,
-      version,
-      satisfactory_version
-      targets{
-        targetName,
-        link
-      }
-    }
-  }
-}
-`)
-
-	var graphqlResponse app.FicsitAPI_Response_GetSMLVersions
-	if err := graphqlClient.Run(context.Background(), graphqlRequest, &graphqlResponse); err != nil {
-		return smlVersions, err
-	}
-
-	return graphqlResponse.GetSMLVersions.SMLVersions, nil
-
-}
 
 func (p SSMProvider) ModVersionsWithDependencies(_ context.Context, modID string) ([]resolver.ModVersion, error) {
 
@@ -75,7 +43,6 @@ func (p SSMProvider) ModVersionsWithDependencies(_ context.Context, modID string
 				TargetName: resolver.TargetName(target.TargetName),
 				Hash:       target.Hash,
 				Size:       target.Size,
-				VersionID:  target.VersionID,
 			}
 
 			modVersion.Targets = append(modVersion.Targets, modVersionTarget)
