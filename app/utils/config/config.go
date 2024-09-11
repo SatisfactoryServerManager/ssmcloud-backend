@@ -94,7 +94,11 @@ func (config *Config) SetDefaultValues() {
 	config.ConfigData.Database.User = os.Getenv("DB_USER")
 	config.ConfigData.Database.Pass = os.Getenv("DB_PASS")
 
-	config.ConfigData.HTTPBind = ":3000"
+	if os.Getenv("HOST_PORT") != "" {
+		config.ConfigData.HTTPBind = os.Getenv("HOST_PORT")
+	} else {
+		config.ConfigData.HTTPBind = ":3000"
+	}
 }
 
 func (config *Config) SaveConfigData() error {
