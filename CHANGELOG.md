@@ -1,3 +1,8 @@
+## 1.0.42 (September 12, 2024)
+  - feat: Handle new create server workflow
+  - fix: Fix host port env
+  - fix: deps
+
 ## 1.0.41 (September 05, 2024)
   - fix: Fixed endpoints
 
