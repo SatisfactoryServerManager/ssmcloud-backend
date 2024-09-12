@@ -1,3 +1,6 @@
+## 1.0.44 (September 12, 2024)
+  - fix: Fixes to agent purge tasks
+
 ## 1.0.43 (September 12, 2024)
 
 
