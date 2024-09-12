@@ -261,7 +261,7 @@ func CreateAgent(accountIdStr string, agentName string, port int, memory int64) 
 		return fmt.Errorf("error agent with same name %s already exists on your account", agentName)
 	}
 
-	newAgent := models.NewAgent(agentName, port, memory)
+	newAgent := models.NewAgent(agentName, port, memory, "")
 
 	if _, err := mongoose.InsertOne(&newAgent); err != nil {
 		return fmt.Errorf("error inserting new agent with error: %s", err.Error())
@@ -281,6 +281,88 @@ func CreateAgent(accountIdStr string, agentName string, port int, memory int64) 
 	theAccount.AddAudit("CREATE_AGENT", fmt.Sprintf("New agent created (%s)", agentName))
 
 	return nil
+}
+
+func CreateAgentWorkflow(accountIdStr string, PostData models.API_AccountCreateAgent_PostData) (string, error) {
+	var theAccount models.Accounts
+
+	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
+
+	if err != nil {
+		return "", fmt.Errorf("error converting accountid to object id with error: %s", err.Error())
+	}
+
+	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
+		return "", fmt.Errorf("error finding account from session with error: %s", err.Error())
+	}
+
+	if err := theAccount.PopulateAgents(); err != nil {
+		return "", fmt.Errorf("error populating account agents with error: %s", err.Error())
+	}
+
+	exists := false
+
+	for _, agent := range theAccount.AgentObjects {
+		if agent.AgentName == PostData.AgentName {
+			exists = true
+			break
+		}
+	}
+
+	if exists {
+		return "", fmt.Errorf("error agent with same name %s already exists on your account", PostData.AgentName)
+	}
+
+	PostData.AccountId = theAccount.ID
+
+	createAgentAction := models.WorkflowAction{
+		Type: "create-agent",
+	}
+
+	waitForOnlineAction := models.WorkflowAction{
+		Type: "wait-for-online",
+	}
+
+	installServerAction := models.WorkflowAction{
+		Type: "install-server",
+	}
+
+	waitForInstalledAction := models.WorkflowAction{
+		Type: "wait-for-installed",
+	}
+
+	startServerAction := models.WorkflowAction{
+		Type: "start-server",
+	}
+
+	waitForRunningAction := models.WorkflowAction{
+		Type: "wait-for-running",
+	}
+
+	claimServerAction := models.WorkflowAction{
+		Type: "claim-server",
+	}
+
+	workflow := models.Workflows{
+		ID:   primitive.NewObjectID(),
+		Type: "create-agent",
+		Data: PostData,
+		Actions: []models.WorkflowAction{
+			createAgentAction,
+			waitForOnlineAction,
+			installServerAction,
+			waitForInstalledAction,
+			startServerAction,
+			waitForRunningAction,
+			claimServerAction,
+		},
+	}
+
+	if _, err := mongoose.InsertOne(&workflow); err != nil {
+		return "", err
+	}
+
+	return workflow.ID.Hex(), nil
 }
 
 func GetAgentById(accountIdStr string, agentIdStr string) (models.Agents, error) {

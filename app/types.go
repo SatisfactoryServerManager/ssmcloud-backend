@@ -26,11 +26,6 @@ type API_AccountSignup_PostData struct {
 	Password    string `json:"password"`
 	AccountName string `json:"accountName"`
 }
-type API_AccountCreateAgent_PostData struct {
-	AgentName string `json:"agentName"`
-	Port      int    `json:"port"`
-	Memory    int64  `json:"memory"`
-}
 
 type API_AccountUserTwoFACode_PostData struct {
 	Token string `json:"token"`

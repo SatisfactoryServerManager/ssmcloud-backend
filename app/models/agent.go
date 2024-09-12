@@ -213,6 +213,11 @@ func (obj *Agents) PopulateStats() error {
 }
 
 func (obj *Agents) PurgeTasks() error {
+
+	if len(obj.Tasks) == 0 {
+		return nil
+	}
+
 	newTaskList := make([]AgentTask, 0)
 	for _, task := range obj.Tasks {
 
@@ -223,13 +228,16 @@ func (obj *Agents) PurgeTasks() error {
 		newTaskList = append(newTaskList, task)
 	}
 
-	dbUpdate := bson.D{{"$set", bson.D{
-		{"tasks", newTaskList},
-		{"updatedAt", time.Now()},
-	}}}
+	if len(obj.Tasks) != len(newTaskList) {
 
-	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
-		return err
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"tasks", newTaskList},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -327,9 +335,11 @@ func (obj *Agents) PurgeStats() error {
 	return nil
 }
 
-func NewAgent(agentName string, port int, memory int64) Agents {
+func NewAgent(agentName string, port int, memory int64, apiKey string) Agents {
 
-	apiKey := "API-AGT-" + strings.ToUpper(utils.RandStringBytes(24))
+	if apiKey == "" {
+		apiKey = "API-AGT-" + strings.ToUpper(utils.RandStringBytes(24))
+	}
 
 	newAgent := Agents{
 		ID:        primitive.NewObjectID(),

@@ -25,6 +25,7 @@ import (
 var (
 	accountCleanupJob           joblock.JobLockTask
 	accountIntegrationEventsJob joblock.JobLockTask
+	accountWorkflowJob          joblock.JobLockTask
 )
 
 func InitAccountService() {
@@ -51,11 +52,25 @@ func InitAccountService() {
 		},
 	}
 
+	accountWorkflowJob = joblock.JobLockTask{
+		Name:     "accountWorkflowJob",
+		Interval: 10 * time.Second,
+		Timeout:  10 * time.Second,
+		Arg: func() {
+			if err := ProcessAccountWorkflows(); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
 	ctx := context.Background()
 	if err := accountCleanupJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
 	}
 	if err := accountIntegrationEventsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
+	if err := accountWorkflowJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
 	}
 }
@@ -134,6 +149,34 @@ func ProcessAccountIntegrationEvents() error {
 		if err := account.ProcessIntegrationEvents(); err != nil {
 			logger.GetErrorLogger().Printf("failed to process integration events for account %s with error %s\n", account.AccountName, err.Error())
 		}
+	}
+
+	return nil
+}
+
+func ProcessAccountWorkflows() error {
+
+	workflows := make([]models.Workflows, 0)
+
+	if err := mongoose.FindAll(bson.M{"status": ""}, &workflows); err != nil {
+		return err
+	}
+
+	if len(workflows) == 0 {
+		return nil
+	}
+
+	fmt.Println("Process Account Workflows")
+
+	for idx := range workflows {
+		workflow := &workflows[idx]
+		workflow.ValidateStatus()
+
+		if workflow.Status != "" {
+			continue
+		}
+
+		workflow.ProcessCurrentAction()
 	}
 
 	return nil
