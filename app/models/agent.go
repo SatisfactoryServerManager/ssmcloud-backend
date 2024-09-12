@@ -244,6 +244,11 @@ func (obj *Agents) PurgeTasks() error {
 }
 
 func (obj *Agents) CheckBackups(basePath string) error {
+
+	if len(obj.Backups) == 0 {
+		return nil
+	}
+
 	newBackupsList := make([]AgentBackup, 0)
 	for _, backup := range obj.Backups {
 		backupFile := filepath.Join(basePath, "backups", backup.FileName)
@@ -252,13 +257,16 @@ func (obj *Agents) CheckBackups(basePath string) error {
 		}
 	}
 
-	dbUpdate := bson.D{{"$set", bson.D{
-		{"backups", newBackupsList},
-		{"updatedAt", time.Now()},
-	}}}
+	if len(obj.Backups) != len(newBackupsList) {
 
-	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
-		return err
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"backups", newBackupsList},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -300,6 +308,10 @@ func (obj *Agents) PurgeStats() error {
 		return err
 	}
 
+	if len(obj.Stats) == 0 {
+		return nil
+	}
+
 	now := time.Now()
 	expiry := now.AddDate(0, 0, -3)
 
@@ -316,19 +328,21 @@ func (obj *Agents) PurgeStats() error {
 		}
 	}
 
-	obj.Stats = newStats
+	if len(obj.Stats) != len(newStats) || len(deleteStats) > 0 {
+		obj.Stats = newStats
 
-	dbUpdate := bson.D{{"$set", bson.D{
-		{"stats", obj.Stats},
-	}}}
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"stats", obj.Stats},
+		}}}
 
-	if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
-		return err
-	}
-
-	for _, stat := range deleteStats {
-		if _, err := mongoose.DeleteOne(bson.M{"_id": stat.ID}, stat); err != nil {
+		if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
 			return err
+		}
+
+		for _, stat := range deleteStats {
+			if _, err := mongoose.DeleteOne(bson.M{"_id": stat.ID}, stat); err != nil {
+				return err
+			}
 		}
 	}
 
