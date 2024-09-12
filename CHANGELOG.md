@@ -1,3 +1,6 @@
+## 1.0.43 (September 12, 2024)
+
+
 ## 1.0.42 (September 12, 2024)
   - feat: Handle new create server workflow
   - fix: Fix host port env

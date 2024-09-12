@@ -24,9 +24,9 @@ jobs:
                   files: release/linux/ssmcloud-backend
                   recursive: false
                   dest: SSMCloud-Backend-Linux-amd64.zip
-            - uses: actions/upload-artifact@v1
+            - uses: actions/upload-artifact@v4
               with:
-                  name: ssm-build
+                  name: ssm-build-linux
                   path: ${{ github.workspace }}/SSMCloud-Backend-Linux-amd64.zip
             - name: Get version
               id: versionnum
@@ -63,9 +63,9 @@ jobs:
                   files: release/windows/ssmcloud-backend.exe
                   recursive: false
                   dest: SSMCloud-Backend-Windows-x64.zip
-            - uses: actions/upload-artifact@v1
+            - uses: actions/upload-artifact@v4
               with:
-                  name: ssm-build
+                  name: ssm-build-win64
                   path: ${{ github.workspace }}/SSMCloud-Backend-Windows-x64.zip
     deploy:
         needs:
