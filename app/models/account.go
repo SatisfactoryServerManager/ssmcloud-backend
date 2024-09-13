@@ -51,6 +51,7 @@ type AccountSessions struct {
 type AccountState struct {
 	Inactive       bool      `json:"inactive" bson:"inactive"`
 	InactivityDate time.Time `json:"inactivityDate" bson:"inactivityDate"`
+	DeleteDate     time.Time `json:"deleteDate" bson:"deleteDate"`
 }
 
 type AccountAudit struct {

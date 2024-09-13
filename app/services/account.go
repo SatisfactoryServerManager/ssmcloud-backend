@@ -26,6 +26,7 @@ var (
 	accountCleanupJob           joblock.JobLockTask
 	accountIntegrationEventsJob joblock.JobLockTask
 	accountWorkflowJob          joblock.JobLockTask
+	inactiveAccountsJob         joblock.JobLockTask
 )
 
 func InitAccountService() {
@@ -63,6 +64,17 @@ func InitAccountService() {
 		},
 	}
 
+	inactiveAccountsJob = joblock.JobLockTask{
+		Name:     "inactiveAccountsJob",
+		Interval: 10 * time.Minute,
+		Timeout:  10 * time.Second,
+		Arg: func() {
+			if err := CheckForInactiveAccounts(); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
 	ctx := context.Background()
 	if err := accountCleanupJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
@@ -71,6 +83,9 @@ func InitAccountService() {
 		fmt.Printf("%v\n", err.Error())
 	}
 	if err := accountWorkflowJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
+	if err := inactiveAccountsJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
 	}
 }
@@ -182,6 +197,71 @@ func ProcessAccountWorkflows() error {
 	return nil
 }
 
+func CheckForInactiveAccounts() error {
+	allAccounts := make([]models.Accounts, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &allAccounts); err != nil {
+		return err
+	}
+
+	inactivityTimeLimit := time.Now().AddDate(0, -2, 0)
+
+	for idx := range allAccounts {
+		account := &allAccounts[idx]
+
+		lastActiveTime := time.Time{}
+
+		if err := account.PopulateAgents(); err != nil {
+			return err
+		}
+
+		if err := account.PopulateUsers(); err != nil {
+			return err
+		}
+
+		for _, agent := range account.AgentObjects {
+			if agent.Status.LastCommDate.After(lastActiveTime) {
+				lastActiveTime = agent.Status.LastCommDate
+			}
+		}
+
+		for _, user := range account.UserObjects {
+			if user.LastActive.After(lastActiveTime) {
+				lastActiveTime = user.LastActive
+			}
+		}
+
+		if lastActiveTime.Before(inactivityTimeLimit) && !account.State.Inactive {
+			account.State.Inactive = true
+			account.State.InactivityDate = time.Now()
+			account.State.DeleteDate = time.Now().AddDate(0, 1, 0)
+
+			dbUpdate := bson.D{{"$set", bson.D{
+				{"state", account.State},
+				{"updatedAt", time.Now()},
+			}}}
+			if err := mongoose.UpdateDataByID(*account, dbUpdate); err != nil {
+				return err
+			}
+		} else if lastActiveTime.After(inactivityTimeLimit) && account.State.Inactive {
+			account.State.Inactive = false
+			account.State.InactivityDate = time.Time{}
+			account.State.DeleteDate = time.Time{}
+
+			dbUpdate := bson.D{{"$set", bson.D{
+				{"state", account.State},
+				{"updatedAt", time.Now()},
+			}}}
+			if err := mongoose.UpdateDataByID(*account, dbUpdate); err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
 func LoginAccountUser(email string, password string) (string, error) {
 
 	var theUser models.Users
@@ -204,6 +284,10 @@ func LoginAccountUser(email string, password string) (string, error) {
 	if err := bcrypt.CompareHashAndPassword([]byte(theUser.Password), []byte(password)); err != nil {
 		theAccount.AddAudit("LOGIN_FAILURE", fmt.Sprintf("Login failed using %s", theUser.Email))
 		return "", errors.New("invalid user details")
+	}
+
+	if theAccount.State.Inactive {
+		return "", fmt.Errorf("error account is marked as inactive due to inactivity")
 	}
 
 	var existingSession models.AccountSessions
@@ -286,6 +370,7 @@ func LoginAccountUser(email string, password string) (string, error) {
 
 	dbUpdate = bson.D{{"$set", bson.D{
 		{"updatedAt", time.Now()},
+		{"lastActive", time.Now()},
 	}}}
 	if err := mongoose.UpdateDataByID(&theUser, dbUpdate); err != nil {
 		return "", err
