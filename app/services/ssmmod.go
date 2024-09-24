@@ -65,3 +65,71 @@ func UpdateAgentPlayers(agentApiKey string, PostData app.API_UpdatePlayers_PostD
 
 	return nil
 }
+
+func UpdateAgentBuildings(agentApiKey string, PostData app.API_UpdateBuildings_PostData) error {
+	theAgent, err := GetAgentByAPIKey(agentApiKey)
+
+	if err != nil {
+		return err
+	}
+
+	newBuildingsArray := make([]models.AgentMapDataBuilding, 0)
+
+	// Update Existing Players
+	for idx := range theAgent.MapData.Buildings {
+		theBuilding := &theAgent.MapData.Buildings[idx]
+
+		foundInApiData := false
+
+		for _, apiBuilding := range PostData.Buildings {
+
+			if theBuilding.Name == apiBuilding.Name {
+				theBuilding.Location = apiBuilding.Location
+				theBuilding.Rotation = apiBuilding.Rotation
+				theBuilding.BoundingBox = apiBuilding.BoundingBox
+				foundInApiData = true
+			}
+		}
+
+		if foundInApiData {
+			newBuildingsArray = append(newBuildingsArray, *theBuilding)
+		}
+	}
+
+    theAgent.MapData.Buildings = newBuildingsArray;
+
+	for _, apiBuilding := range PostData.Buildings {
+		foundBuilding := false
+		for idx := range theAgent.MapData.Buildings {
+			theBuilding := &theAgent.MapData.Buildings[idx]
+
+			if theBuilding.Name == apiBuilding.Name {
+				foundBuilding = true
+				break
+			}
+		}
+
+		if !foundBuilding {
+			newBuilding := models.AgentMapDataBuilding{
+				Name:        apiBuilding.Name,
+				Class:       apiBuilding.Class,
+				Location:    apiBuilding.Location,
+				Rotation:    apiBuilding.Rotation,
+				BoundingBox: apiBuilding.BoundingBox,
+			}
+
+			theAgent.MapData.Buildings = append(theAgent.MapData.Buildings, newBuilding)
+		}
+	}
+
+	dbUpdate := bson.D{{"$set", bson.D{
+		{"mapData.buildings", theAgent.MapData.Buildings},
+		{"updatedAt", time.Now()},
+	}}}
+
+	if err := mongoose.UpdateDataByID(&theAgent, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}

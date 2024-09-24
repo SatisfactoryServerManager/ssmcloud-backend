@@ -89,6 +89,18 @@ type API_UpdatePlayers_Player_PostData struct {
 	Location models.Vector3F `json:"location"`
 }
 
+type API_UpdateBuildings_PostData struct {
+	Buildings []API_UpdateBuildings_Building_PostData `json:"buildings"`
+}
+
+type API_UpdateBuildings_Building_PostData struct {
+	Name        string             `json:"name"`
+	Location    models.Vector3F    `json:"location"`
+	Class       string             `json:"class"`
+	Rotation    float32            `json:"rotation"`
+	BoundingBox models.BoundingBox `json:"boundingBox"`
+}
+
 type FicsitAPI_Response_GetMods struct {
 	GetMods FicsitAPI_Response_GetMods_Mods `json:"getMods"`
 }

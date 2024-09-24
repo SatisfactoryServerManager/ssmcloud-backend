@@ -32,6 +32,22 @@ func (h *SSMModHandler) API_UpdatePlayers(c *gin.Context) {
 }
 
 func (h *SSMModHandler) API_UpdateBuildings(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	var PostData app.API_UpdateBuildings_PostData
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := services.UpdateAgentBuildings(AgentAPIKey, PostData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 

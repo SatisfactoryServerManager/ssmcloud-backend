@@ -5,3 +5,8 @@ type Vector3F struct {
 	Y float32 `json:"y" bson:"y"`
 	Z float32 `json:"z" bson:"z"`
 }
+
+type BoundingBox struct {
+	Min Vector3F `json:"min" bson:"min"`
+	Max Vector3F `json:"max" bson:"max"`
+}
