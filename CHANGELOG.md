@@ -1,3 +1,6 @@
+## 1.0.47 (September 24, 2024)
+  - feat: Map buildings
+
 ## 1.0.46 (September 24, 2024)
 
 
