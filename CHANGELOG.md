@@ -1,3 +1,10 @@
+## 1.0.46 (September 24, 2024)
+
+
+## 1.0.45 (September 24, 2024)
+  - feat: map building data
+  - feat: Inactive account check
+
 ## 1.0.44 (September 12, 2024)
   - fix: Fixes to agent purge tasks
 
