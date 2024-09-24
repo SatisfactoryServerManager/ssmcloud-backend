@@ -92,6 +92,10 @@ func InitAccountService() {
 
 func ShutdownAccountService() error {
 	accountCleanupJob.UnLock(context.TODO())
+	accountIntegrationEventsJob.UnLock(context.TODO())
+	accountWorkflowJob.UnLock(context.TODO())
+	inactiveAccountsJob.UnLock(context.TODO())
+
 	logger.GetDebugLogger().Println("Shutdown Account Service")
 	return nil
 }

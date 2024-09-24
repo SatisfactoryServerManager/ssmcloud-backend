@@ -36,7 +36,6 @@ func GetAllUsers(accountIdStr string) ([]models.Users, error) {
 	}
 
 	return theAccount.UserObjects, nil
-
 }
 
 func GetMyUser(accountIdStr string, userIdStr string) (models.Users, error) {

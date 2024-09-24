@@ -91,9 +91,15 @@ type AgentMapDataPlayer struct {
 }
 
 type AgentMapDataBuilding struct {
-	Type     string   `json:"type" bson:"type"`
-	Location Vector3F `json:"location" bson:"location"`
-	Rotation float32  `json:"rotation" bson:"rotation"`
+	Class       string                           `json:"class" bson:"class"`
+	Location    Vector3F                         `json:"location" bson:"location"`
+	Rotation    float32                          `json:"rotation" bson:"rotation"`
+	BoundingBox AgentMapDataBuilding_BoundingBox `json:"boundingBox" bson:"boundingBox"`
+}
+
+type AgentMapDataBuilding_BoundingBox struct {
+	Min Vector3F `json:"min" bson:"min"`
+	Max Vector3F `json:"max" bson:"max"`
 }
 
 // Save Data
