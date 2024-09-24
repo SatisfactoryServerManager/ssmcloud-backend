@@ -1,3 +1,6 @@
+## 1.0.48 (September 24, 2024)
+  - feat: Delete data after 7 days
+
 ## 1.0.47 (September 24, 2024)
   - feat: Map buildings
 
