@@ -107,7 +107,7 @@ func CleanupAccountFiles() error {
 	now := time.Now()
 
 	// Calculate one month ago
-	oneMonthAgo := now.AddDate(0, -1, 0)
+	oneMonthAgo := now.AddDate(0, 0, -7)
 
 	// Walk through the directory
 	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
