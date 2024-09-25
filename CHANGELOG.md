@@ -1,3 +1,6 @@
+## 1.0.49 (September 25, 2024)
+  - fix: Fixed error when changing server config
+
 ## 1.0.48 (September 24, 2024)
   - feat: Delete data after 7 days
 

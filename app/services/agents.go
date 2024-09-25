@@ -511,8 +511,6 @@ func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent mode
 		return err
 	}
 
-	fmt.Println(updatedAgent)
-
 	var updatedConfigs bson.D
 
 	if !reflect.DeepEqual(agent.Config, updatedAgent.Config) {
@@ -526,6 +524,10 @@ func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent mode
 	if !reflect.DeepEqual(agent.ServerConfig, updatedAgent.ServerConfig) {
 		agent.ServerConfig = updatedAgent.ServerConfig
 		updatedConfigs = append(updatedConfigs, bson.E{"serverConfig", agent.ServerConfig})
+	}
+
+	if len(updatedConfigs) == 0 {
+		return nil
 	}
 
 	dbUpdate := bson.D{{"$set", updatedConfigs}}
