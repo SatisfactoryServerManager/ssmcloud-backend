@@ -31,6 +31,8 @@ var (
 
 func InitAccountService() {
 
+	configData, _ := config.GetConfigData()
+
 	accountCleanupJob = joblock.JobLockTask{
 		Name:     "accountCleanupJob",
 		Interval: 30 * time.Second,
@@ -76,8 +78,11 @@ func InitAccountService() {
 	}
 
 	ctx := context.Background()
-	if err := accountCleanupJob.Run(ctx); err != nil {
-		fmt.Printf("%v\n", err.Error())
+	if !configData.Flags.DisablePurgeAccountData {
+
+		if err := accountCleanupJob.Run(ctx); err != nil {
+			fmt.Printf("%v\n", err.Error())
+		}
 	}
 	if err := accountIntegrationEventsJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())

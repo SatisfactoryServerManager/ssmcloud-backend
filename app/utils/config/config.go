@@ -36,6 +36,9 @@ type ConfigData struct {
 		User string `json:"username"`
 		Pass string `json:"password"`
 	} `json:"db"`
+	Flags struct {
+		DisablePurgeAccountData bool `json:"disablePurgeAccountData"`
+	}
 }
 
 func (config *Config) LoadConfigData() error {
@@ -99,6 +102,8 @@ func (config *Config) SetDefaultValues() {
 	} else {
 		config.ConfigData.HTTPBind = ":3000"
 	}
+
+	config.ConfigData.Flags.DisablePurgeAccountData = os.Getenv("FLAG_DISABLEPURGEACCOUNTDATA") == "true"
 }
 
 func (config *Config) SaveConfigData() error {
