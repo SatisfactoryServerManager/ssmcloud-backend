@@ -1,3 +1,7 @@
+## 1.0.51 (September 26, 2024)
+  - feat: cleanup agent save model
+  - feat: Check save files
+
 ## 1.0.50 (September 26, 2024)
   - feat: Save sync work
   - Merge branch 'main' of github.com:SatisfactoryServerManager/ssmcloud-backend
