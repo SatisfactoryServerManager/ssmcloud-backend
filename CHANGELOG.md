@@ -1,3 +1,6 @@
+## 1.0.52 (September 26, 2024)
+  - feat: Post sync save
+
 ## 1.0.51 (September 26, 2024)
   - feat: cleanup agent save model
   - feat: Check save files
