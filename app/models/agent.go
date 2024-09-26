@@ -101,10 +101,11 @@ type AgentMapDataBuilding struct {
 // Save Data
 
 type AgentSave struct {
-	UUID        string `json:"uuid" bson:"uuid"`
-	FileName    string `json:"fileName" bson:"fileName"`
-	SessionName string `json:"sessionName" bson:"sessionName"`
-	Size        int64  `json:"size" bson:"size"`
+	UUID        string    `json:"uuid" bson:"uuid"`
+	FileName    string    `json:"fileName" bson:"fileName"`
+	SessionName string    `json:"sessionName" bson:"sessionName"`
+	Size        int64     `json:"size" bson:"size"`
+	ModTime     time.Time `json:"modTime" bson:"modTime"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`

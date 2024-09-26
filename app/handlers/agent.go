@@ -225,6 +225,19 @@ func (h *AgentHandler) API_DownloadAgentSave(c *gin.Context) {
 	c.File(newFileLocation)
 }
 
+func (h *AgentHandler) API_GetSyncSaves(c *gin.Context) {
+    AgentAPIKey := c.GetString("AgentKey")
+
+    saves, err := services.GetAgentSaves(AgentAPIKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+    c.JSON(http.StatusOK, gin.H{"success": true, "data":gin.H{"saves":saves}})
+}
+
 func NewAgentHandler(router *gin.RouterGroup) {
 
 	handler := AgentHandler{}
@@ -241,6 +254,8 @@ func NewAgentHandler(router *gin.RouterGroup) {
 
 	router.GET("/config", handler.API_GetAgentConfig)
 	router.PUT("/config", handler.API_UpdateAgentConfig)
+
+	router.GET("/save/sync", handler.API_GetSyncSaves)
 
 	uploadGroup := router.Group("upload")
 	uploadGroup.Use(middleware.Middleware_UploadFile())

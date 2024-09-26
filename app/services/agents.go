@@ -1155,6 +1155,19 @@ func GetAgentConfig(agentAPIKey string) (app.API_AgentConfig_ResData, error) {
 	return config, nil
 }
 
+func GetAgentSaves(agentAPIKey string) ([]models.AgentSave, error) {
+	saves := make([]models.AgentSave, 0)
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return saves, fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	saves = agent.Saves
+
+	return saves, nil
+
+}
+
 func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
