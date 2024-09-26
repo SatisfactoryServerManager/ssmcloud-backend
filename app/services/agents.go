@@ -17,6 +17,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
+	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
@@ -28,6 +29,7 @@ var (
 	checkAllAgentsLastCommsJob joblock.JobLockTask
 	purgeAgentTasksJob         joblock.JobLockTask
 	checkAgentModsConfigsJob   joblock.JobLockTask
+	checkAgentVersionsJob      joblock.JobLockTask
 )
 
 func InitAgentService() {
@@ -64,6 +66,17 @@ func InitAgentService() {
 		},
 	}
 
+	checkAgentVersionsJob = joblock.JobLockTask{
+		Name:     "checkAgentVersionsJob",
+		Interval: 1 * time.Minute,
+		Timeout:  1 * time.Minute,
+		Arg: func() {
+			if err := CheckAgentVersions(); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
 	ctx := context.Background()
 	if err := checkAllAgentsLastCommsJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
@@ -74,6 +87,9 @@ func InitAgentService() {
 	if err := checkAgentModsConfigsJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
 	}
+	if err := checkAgentVersionsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
 }
 
 func ShutdownAgentService() error {
@@ -82,6 +98,7 @@ func ShutdownAgentService() error {
 	checkAllAgentsLastCommsJob.UnLock(ctx)
 	purgeAgentTasksJob.UnLock(ctx)
 	checkAgentModsConfigsJob.UnLock(ctx)
+	checkAgentVersionsJob.UnLock(ctx)
 
 	logger.GetDebugLogger().Println("Shutdown Agent Service")
 	return nil
@@ -197,6 +214,51 @@ func CheckAgentModsConfigs() error {
 
 		if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func CheckAgentVersions() error {
+
+	ctx := context.Background()
+
+	client := github.NewClient(nil)
+	opt := &github.ListOptions{Page: 1, PerPage: 10}
+	releases, _, err := client.Repositories.ListReleases(ctx, "SatisfactoryServerManager", "SSMAgent", opt)
+
+	if err != nil {
+		return err
+	}
+
+	if len(releases) == 0 {
+		return fmt.Errorf("error releases returned empty array")
+	}
+
+	LatestVersion := releases[0].TagName
+
+	allAgents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+		return err
+	}
+
+	for idx := range allAgents {
+		agent := &allAgents[idx]
+
+		if agent.LatestAgentVersion != *LatestVersion {
+			agent.LatestAgentVersion = *LatestVersion
+
+			dbUpdate := bson.D{{"$set", bson.D{
+				{"latestAgentVersion", agent.LatestAgentVersion},
+				{"updatedAt", time.Now()},
+			}}}
+
+			if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
+				return fmt.Errorf("error updating account agents with error: %s", err.Error())
+			}
+
 		}
 	}
 

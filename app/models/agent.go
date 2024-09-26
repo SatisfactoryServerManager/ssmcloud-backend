@@ -35,6 +35,8 @@ type Agents struct {
 
 	ModConfig AgentModConfig `json:"modConfig" bson:"modConfig"`
 
+	LatestAgentVersion string `json:"latestAgentVersion" bson:"latestAgentVersion"`
+
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
