@@ -803,7 +803,7 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 	return nil
 }
 
-func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity) error {
+func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity, updateModTime bool) error {
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
@@ -852,6 +852,10 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity) err
 			CreatedAt: time.Now(),
 		}
 
+		if updateModTime {
+			newAgentSave.ModTime = time.Now()
+		}
+
 		agent.Saves = append(agent.Saves, newAgentSave)
 	} else {
 		for idx := range agent.Saves {
@@ -859,6 +863,10 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity) err
 			if save.FileName == fileIdentity.FileName {
 				save.Size = fi.Size()
 				save.UpdatedAt = time.Now()
+
+				if updateModTime {
+					save.ModTime = time.Now()
+				}
 			}
 		}
 	}
@@ -1166,6 +1174,60 @@ func GetAgentSaves(agentAPIKey string) ([]models.AgentSave, error) {
 
 	return saves, nil
 
+}
+
+func PostAgentSyncSaves(agentAPIKey string, saves []models.AgentSave) error {
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	newSavesList := make([]models.AgentSave, 0)
+
+	hasChanged := false
+
+	// Check for new save info
+	for updateIdx := range saves {
+		updatedSave := &saves[updateIdx]
+
+		found := false
+
+		for agentSaveIdx := range agent.Saves {
+			agentSave := &agent.Saves[agentSaveIdx]
+
+			if updatedSave.FileName == agentSave.FileName {
+
+				if agentSave.ModTime != updatedSave.ModTime {
+					agentSave.Size = updatedSave.Size
+					agentSave.ModTime = updatedSave.ModTime
+					hasChanged = true
+				}
+
+				newSavesList = append(newSavesList, *agentSave)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			newSavesList = append(newSavesList, *updatedSave)
+			hasChanged = true
+		}
+	}
+
+	if hasChanged {
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"saves", newSavesList},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {

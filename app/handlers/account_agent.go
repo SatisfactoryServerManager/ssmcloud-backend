@@ -417,7 +417,7 @@ func (h *AccountAgentHandler) API_UploadAgentSave(c *gin.Context) {
 		return
 	}
 
-	if err := services.UploadedAgentSave(theAgent.APIKey, FileIdentity); err != nil {
+	if err := services.UploadedAgentSave(theAgent.APIKey, FileIdentity, true); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return

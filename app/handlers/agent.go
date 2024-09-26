@@ -42,7 +42,7 @@ func (h *AgentHandler) API_UploadAgentSave(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
 
-	err := services.UploadedAgentSave(AgentAPIKey, FileIdentity)
+	err := services.UploadedAgentSave(AgentAPIKey, FileIdentity, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -226,16 +226,40 @@ func (h *AgentHandler) API_DownloadAgentSave(c *gin.Context) {
 }
 
 func (h *AgentHandler) API_GetSyncSaves(c *gin.Context) {
-    AgentAPIKey := c.GetString("AgentKey")
+	AgentAPIKey := c.GetString("AgentKey")
 
-    saves, err := services.GetAgentSaves(AgentAPIKey)
+	saves, err := services.GetAgentSaves(AgentAPIKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return
 	}
 
-    c.JSON(http.StatusOK, gin.H{"success": true, "data":gin.H{"saves":saves}})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"saves": saves}})
+}
+
+func (h *AgentHandler) API_PostSyncSaves(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	type postdata struct {
+		Saves []models.AgentSave `json:"saves"`
+	}
+
+	var PostData postdata
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := services.PostAgentSyncSaves(AgentAPIKey, PostData.Saves)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 func NewAgentHandler(router *gin.RouterGroup) {
@@ -256,6 +280,7 @@ func NewAgentHandler(router *gin.RouterGroup) {
 	router.PUT("/config", handler.API_UpdateAgentConfig)
 
 	router.GET("/save/sync", handler.API_GetSyncSaves)
+	router.POST("/save/sync", handler.API_PostSyncSaves)
 
 	uploadGroup := router.Group("upload")
 	uploadGroup.Use(middleware.Middleware_UploadFile())
