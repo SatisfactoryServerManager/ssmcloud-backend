@@ -246,6 +246,35 @@ func (obj *Agents) PurgeTasks() error {
 	return nil
 }
 
+func (obj *Agents) CheckSaves(basePath string) error {
+
+	if len(obj.Backups) == 0 {
+		return nil
+	}
+
+	newSavesList := make([]AgentSave, 0)
+	for _, save := range obj.Saves {
+		saveFile := filepath.Join(basePath, "saves", save.FileName)
+		if utils.CheckFileExists(saveFile) {
+			newSavesList = append(newSavesList, save)
+		}
+	}
+
+	if len(obj.Saves) != len(newSavesList) {
+
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"saves", newSavesList},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (obj *Agents) CheckBackups(basePath string) error {
 
 	if len(obj.Backups) == 0 {

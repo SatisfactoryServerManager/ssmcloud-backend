@@ -153,6 +153,10 @@ func CleanupAccountFiles() error {
 			if err := agent.CheckBackups(agentDataPath); err != nil {
 				return err
 			}
+
+			if err := agent.CheckSaves(agentDataPath); err != nil {
+				return err
+			}
 		}
 	}
 
