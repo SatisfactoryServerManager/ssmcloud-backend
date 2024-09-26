@@ -1,3 +1,6 @@
+## 1.0.53 (September 26, 2024)
+  - feat: Get latest agent version from github
+
 ## 1.0.52 (September 26, 2024)
   - feat: Post sync save
 
