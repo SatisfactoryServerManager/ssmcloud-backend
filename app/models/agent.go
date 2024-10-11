@@ -35,6 +35,8 @@ type Agents struct {
 
 	ModConfig AgentModConfig `json:"modConfig" bson:"modConfig"`
 
+	LatestAgentVersion string `json:"latestAgentVersion" bson:"latestAgentVersion"`
+
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
@@ -101,10 +103,10 @@ type AgentMapDataBuilding struct {
 // Save Data
 
 type AgentSave struct {
-	UUID        string `json:"uuid" bson:"uuid"`
-	FileName    string `json:"fileName" bson:"fileName"`
-	SessionName string `json:"sessionName" bson:"sessionName"`
-	Size        int64  `json:"size" bson:"size"`
+	UUID     string    `json:"uuid" bson:"uuid"`
+	FileName string    `json:"fileName" bson:"fileName"`
+	Size     int64     `json:"size" bson:"size"`
+	ModTime  time.Time `json:"modTime" bson:"modTime"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
@@ -232,6 +234,35 @@ func (obj *Agents) PurgeTasks() error {
 
 		dbUpdate := bson.D{{"$set", bson.D{
 			{"tasks", newTaskList},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (obj *Agents) CheckSaves(basePath string) error {
+
+	if len(obj.Backups) == 0 {
+		return nil
+	}
+
+	newSavesList := make([]AgentSave, 0)
+	for _, save := range obj.Saves {
+		saveFile := filepath.Join(basePath, "saves", save.FileName)
+		if utils.CheckFileExists(saveFile) {
+			newSavesList = append(newSavesList, save)
+		}
+	}
+
+	if len(obj.Saves) != len(newSavesList) {
+
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"saves", newSavesList},
 			{"updatedAt", time.Now()},
 		}}}
 

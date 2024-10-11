@@ -1,3 +1,18 @@
+## 1.0.53 (September 26, 2024)
+  - feat: Get latest agent version from github
+
+## 1.0.52 (September 26, 2024)
+  - feat: Post sync save
+
+## 1.0.51 (September 26, 2024)
+  - feat: cleanup agent save model
+  - feat: Check save files
+
+## 1.0.50 (September 26, 2024)
+  - feat: Save sync work
+  - Merge branch 'main' of github.com:SatisfactoryServerManager/ssmcloud-backend
+  - feat: Flag config setting
+
 ## 1.0.49 (September 25, 2024)
   - fix: Fixed error when changing server config
 

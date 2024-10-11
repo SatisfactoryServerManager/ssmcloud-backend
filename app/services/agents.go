@@ -17,6 +17,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
+	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
@@ -28,6 +29,7 @@ var (
 	checkAllAgentsLastCommsJob joblock.JobLockTask
 	purgeAgentTasksJob         joblock.JobLockTask
 	checkAgentModsConfigsJob   joblock.JobLockTask
+	checkAgentVersionsJob      joblock.JobLockTask
 )
 
 func InitAgentService() {
@@ -64,6 +66,17 @@ func InitAgentService() {
 		},
 	}
 
+	checkAgentVersionsJob = joblock.JobLockTask{
+		Name:     "checkAgentVersionsJob",
+		Interval: 1 * time.Minute,
+		Timeout:  1 * time.Minute,
+		Arg: func() {
+			if err := CheckAgentVersions(); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
 	ctx := context.Background()
 	if err := checkAllAgentsLastCommsJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
@@ -74,6 +87,9 @@ func InitAgentService() {
 	if err := checkAgentModsConfigsJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
 	}
+	if err := checkAgentVersionsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
 }
 
 func ShutdownAgentService() error {
@@ -82,6 +98,7 @@ func ShutdownAgentService() error {
 	checkAllAgentsLastCommsJob.UnLock(ctx)
 	purgeAgentTasksJob.UnLock(ctx)
 	checkAgentModsConfigsJob.UnLock(ctx)
+	checkAgentVersionsJob.UnLock(ctx)
 
 	logger.GetDebugLogger().Println("Shutdown Agent Service")
 	return nil
@@ -197,6 +214,51 @@ func CheckAgentModsConfigs() error {
 
 		if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func CheckAgentVersions() error {
+
+	ctx := context.Background()
+
+	client := github.NewClient(nil)
+	opt := &github.ListOptions{Page: 1, PerPage: 10}
+	releases, _, err := client.Repositories.ListReleases(ctx, "SatisfactoryServerManager", "SSMAgent", opt)
+
+	if err != nil {
+		return err
+	}
+
+	if len(releases) == 0 {
+		return fmt.Errorf("error releases returned empty array")
+	}
+
+	LatestVersion := releases[0].TagName
+
+	allAgents := make([]models.Agents, 0)
+
+	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+		return err
+	}
+
+	for idx := range allAgents {
+		agent := &allAgents[idx]
+
+		if agent.LatestAgentVersion != *LatestVersion {
+			agent.LatestAgentVersion = *LatestVersion
+
+			dbUpdate := bson.D{{"$set", bson.D{
+				{"latestAgentVersion", agent.LatestAgentVersion},
+				{"updatedAt", time.Now()},
+			}}}
+
+			if err := mongoose.UpdateDataByID(agent, dbUpdate); err != nil {
+				return fmt.Errorf("error updating account agents with error: %s", err.Error())
+			}
+
 		}
 	}
 
@@ -785,7 +847,7 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 	return nil
 }
 
-func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity) error {
+func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity, updateModTime bool) error {
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
@@ -834,6 +896,10 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity) err
 			CreatedAt: time.Now(),
 		}
 
+		if updateModTime {
+			newAgentSave.ModTime = time.Now()
+		}
+
 		agent.Saves = append(agent.Saves, newAgentSave)
 	} else {
 		for idx := range agent.Saves {
@@ -841,6 +907,10 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity StorageFileIdentity) err
 			if save.FileName == fileIdentity.FileName {
 				save.Size = fi.Size()
 				save.UpdatedAt = time.Now()
+
+				if updateModTime {
+					save.ModTime = time.Now()
+				}
 			}
 		}
 	}
@@ -1133,6 +1203,73 @@ func GetAgentConfig(agentAPIKey string) (app.API_AgentConfig_ResData, error) {
 	config.ServerConfig = agent.ServerConfig
 
 	return config, nil
+}
+
+func GetAgentSaves(agentAPIKey string) ([]models.AgentSave, error) {
+	saves := make([]models.AgentSave, 0)
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return saves, fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	saves = agent.Saves
+
+	return saves, nil
+
+}
+
+func PostAgentSyncSaves(agentAPIKey string, saves []models.AgentSave) error {
+	agent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	newSavesList := make([]models.AgentSave, 0)
+
+	hasChanged := false
+
+	// Check for new save info
+	for updateIdx := range saves {
+		updatedSave := &saves[updateIdx]
+
+		found := false
+
+		for agentSaveIdx := range agent.Saves {
+			agentSave := &agent.Saves[agentSaveIdx]
+
+			if updatedSave.FileName == agentSave.FileName {
+
+				if agentSave.ModTime != updatedSave.ModTime {
+					agentSave.Size = updatedSave.Size
+					agentSave.ModTime = updatedSave.ModTime
+					hasChanged = true
+				}
+
+				newSavesList = append(newSavesList, *agentSave)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			newSavesList = append(newSavesList, *updatedSave)
+			hasChanged = true
+		}
+	}
+
+	if hasChanged {
+		dbUpdate := bson.D{{"$set", bson.D{
+			{"saves", newSavesList},
+			{"updatedAt", time.Now()},
+		}}}
+
+		if err := mongoose.UpdateDataByID(&agent, dbUpdate); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {

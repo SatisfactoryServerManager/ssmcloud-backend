@@ -36,6 +36,9 @@ type ConfigData struct {
 		User string `json:"username"`
 		Pass string `json:"password"`
 	} `json:"db"`
+	Flags struct {
+		DisablePurgeAccountData bool `json:"disablePurgeAccountData"`
+	}
 }
 
 func (config *Config) LoadConfigData() error {
@@ -86,7 +89,7 @@ func (config *Config) SetDefaultValues() {
 
 	godotenv.Load(".env.local")
 
-	config.ConfigData.Version = "v1.0.49"
+	config.ConfigData.Version = "v1.0.53"
 
 	config.ConfigData.Database.Host = os.Getenv("DB_HOST")
 	config.ConfigData.Database.DB = os.Getenv("DB_DB")
@@ -99,6 +102,8 @@ func (config *Config) SetDefaultValues() {
 	} else {
 		config.ConfigData.HTTPBind = ":3000"
 	}
+
+	config.ConfigData.Flags.DisablePurgeAccountData = os.Getenv("FLAG_DISABLEPURGEACCOUNTDATA") == "true"
 }
 
 func (config *Config) SaveConfigData() error {
