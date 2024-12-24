@@ -1,3 +1,7 @@
+## 1.0.55 (December 24, 2024)
+  - Merge branch 'main' of github.com:SatisfactoryServerManager/ssmcloud-backend
+  - chore: Deps updated
+
 ## 1.0.54 (October 11, 2024)
   - Merge branch 'main' of github.com:SatisfactoryServerManager/ssmcloud-backend
   - feat: Updates to mods
