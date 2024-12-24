@@ -167,7 +167,6 @@ func GetModsFromAPI(offset int) ([]models.Mods, error) {
 								size
                                 link
                               },
-                            sml_version,
                             dependencies {
                                 mod_id
                                 condition

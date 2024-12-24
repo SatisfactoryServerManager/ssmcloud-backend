@@ -126,9 +126,7 @@ type AgentBackup struct {
 // Mod Data
 
 type AgentModConfig struct {
-	LatestSMLVersion    string                      `json:"lastestSMLVersion" bson:"lastestSMLVersion"`
-	InstalledSMLVersion string                      `json:"installedSMLVersion" bson:"installedSMLVersion"`
-	SelectedMods        []AgentModConfigSelectedMod `json:"selectedMods" bson:"selectedMods"`
+	SelectedMods []AgentModConfigSelectedMod `json:"selectedMods" bson:"selectedMods"`
 }
 
 type AgentModConfigSelectedMod struct {
@@ -419,8 +417,6 @@ func NewAgent(agentName string, port int, memory int64, apiKey string) Agents {
 	newAgent.Backups = make([]AgentBackup, 0)
 	newAgent.Tasks = make([]AgentTask, 0)
 
-	newAgent.ModConfig.InstalledSMLVersion = "0.0.0"
-	newAgent.ModConfig.LatestSMLVersion = "0.0.0"
 	newAgent.ModConfig.SelectedMods = make([]AgentModConfigSelectedMod, 0)
 
 	return newAgent

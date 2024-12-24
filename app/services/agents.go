@@ -629,24 +629,6 @@ func InstallMod(accountIdStr string, agentIdStr string, modReference string, ver
 	for k := range mods {
 		mod := mods[k]
 
-		if k == "SML" {
-
-			smlConstraint, err := semver.NewConstraint(">" + agent.ModConfig.InstalledSMLVersion)
-			if err != nil {
-				return err
-			}
-
-			smlVersion, err := semver.NewVersion(mod.Version)
-			if err != nil {
-				return err
-			}
-
-			if smlConstraint.Contains(smlVersion) {
-				agent.ModConfig.LatestSMLVersion = smlVersion.RawString()
-			}
-			continue
-		}
-
 		exists := false
 		for idx := range agent.ModConfig.SelectedMods {
 			selectedMod := &agent.ModConfig.SelectedMods[idx]
@@ -1126,8 +1108,6 @@ func UpdateAgentModConfig(agentAPIKey string, newConfig models.AgentModConfig) e
 	}
 
 	agent.PopulateModConfig()
-
-	agent.ModConfig.InstalledSMLVersion = newConfig.InstalledSMLVersion
 
 	for idx := range agent.ModConfig.SelectedMods {
 		agentMod := &agent.ModConfig.SelectedMods[idx]

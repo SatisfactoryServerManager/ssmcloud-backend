@@ -1,3 +1,7 @@
+## 1.0.54 (October 11, 2024)
+  - Merge branch 'main' of github.com:SatisfactoryServerManager/ssmcloud-backend
+  - feat: Updates to mods
+
 ## 1.0.53 (September 26, 2024)
   - feat: Get latest agent version from github
 
