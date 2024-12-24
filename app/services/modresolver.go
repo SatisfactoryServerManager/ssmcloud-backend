@@ -22,7 +22,6 @@ func (p SSMProvider) ModVersionsWithDependencies(_ context.Context, modID string
 
 	for _, version := range dbMod.Versions {
 		modVersion := resolver.ModVersion{
-			ID:           version.ID,
 			Version:      version.Version,
 			Dependencies: make([]resolver.Dependency, 0),
 			Targets:      make([]resolver.Target, 0),
