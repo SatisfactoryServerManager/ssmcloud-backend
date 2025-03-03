@@ -9,10 +9,10 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v3
-            - name: Setup Go 1.23.x
+            - name: Setup Go 1.24.0
               uses: actions/setup-go@v4
               with:
-                  go-version: "1.23.x"
+                  go-version: "1.24.0"
             - name: Install dependencies
               run: go get .
             - name: Build
@@ -50,10 +50,10 @@ jobs:
         runs-on: self-hosted
         steps:
             - uses: actions/checkout@v3
-            - name: Setup Go 1.23.x
+            - name: Setup Go 1.24.0
               uses: actions/setup-go@v4
               with:
-                  go-version: "1.23.x"
+                  go-version: "1.24.0"
             - name: Install dependencies
               run: go get .
             - name: Build

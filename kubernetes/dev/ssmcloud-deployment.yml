@@ -1,54 +1,68 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ssmcloud-dev-backend
-  labels:
-    app: ssmcloud-dev-backend
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: ssmcloud-dev-backend
-  template:
-    metadata:
-      labels:
+    name: ssmcloud-dev-backend
+    labels:
         app: ssmcloud-dev-backend
-    spec:
-      volumes:
-        - name: ssmdata
-          persistentVolumeClaim:
-            claimName: ssmcloud-dev-backend-data-pvc
-      containers:
-        - env:
-            - name: DB_HOST
-              valueFrom:
-                secretKeyRef:
-                  key: mongodb_server
-                  name: ssmcloud-dev-backend-secret
-            - name: DB_DB
-              valueFrom:
-                secretKeyRef:
-                  key: mongodb_db
-                  name: ssmcloud-dev-backend-secret
-            - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  key: mongodb_user
-                  name: ssmcloud-dev-backend-secret
-            - name: DB_PASS
-              valueFrom:
-                secretKeyRef:
-                  key: mongodb_pass
-                  name: ssmcloud-dev-backend-secret
-            - name: JWT_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: jwt_key
-                  name: ssmcloud-dev-backend-secret
-          name: ssmcloud-dev-backend
-          image: mrhid6/ssmcloud-backend:latest
-          ports:
-            - containerPort: 3000
-          volumeMounts:
-            - mountPath: "/home/ssm/ssmcloud_data"
-              name: ssmdata
+spec:
+    replicas: 3
+    selector:
+        matchLabels:
+            app: ssmcloud-dev-backend
+    template:
+        metadata:
+            labels:
+                app: ssmcloud-dev-backend
+        spec:
+            volumes:
+                - name: ssmdata
+                  persistentVolumeClaim:
+                      claimName: ssmcloud-dev-backend-data-pvc
+            containers:
+                - env:
+                      - name: DB_HOST
+                        valueFrom:
+                            secretKeyRef:
+                                key: mongodb_server
+                                name: ssmcloud-dev-backend-secret
+                      - name: DB_DB
+                        valueFrom:
+                            secretKeyRef:
+                                key: mongodb_db
+                                name: ssmcloud-dev-backend-secret
+                      - name: DB_USER
+                        valueFrom:
+                            secretKeyRef:
+                                key: mongodb_user
+                                name: ssmcloud-dev-backend-secret
+                      - name: DB_PASS
+                        valueFrom:
+                            secretKeyRef:
+                                key: mongodb_pass
+                                name: ssmcloud-dev-backend-secret
+                      - name: JWT_KEY
+                        valueFrom:
+                            secretKeyRef:
+                                key: jwt_key
+                                name: ssmcloud-dev-backend-secret
+                      - name: STORAGE_MINIO_SECRETKEY
+                        valueFrom:
+                            secretKeyRef:
+                                key: minio_secretkey
+                                name: ssmcloud-dev-backend-secret
+                      - name: STORAGE_MINIO_ACCESSKEYID
+                        valueFrom:
+                            secretKeyRef:
+                                key: minio_accesskeyid
+                                name: ssmcloud-dev-backend-secret
+                      - name: STORAGE_MINIO_ENDPOINT
+                        value: ""
+                      - name: STORAGE_MINIO_USESSL
+                        value: "true"
+                  name: ssmcloud-dev-backend
+                  image: mrhid6/ssmcloud-backend:latest
+                  ports:
+                      - containerPort: 3000
+                  volumeMounts:
+                      - mountPath: "/home/ssm/ssmcloud_data"
+                        name: ssmdata

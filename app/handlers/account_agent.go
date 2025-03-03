@@ -1,15 +1,16 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -292,14 +293,34 @@ func (h *AccountAgentHandler) API_DownloadAgentBackup(c *gin.Context) {
 		return
 	}
 
-	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), theAgent.ID.Hex(), "backups")
-	newFileLocation := filepath.Join(newFilePath, theBackup.FileName)
+	objectPath := fmt.Sprintf("%s/%s/backups/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theBackup.FileName)
 
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Transfer-Encoding", "binary")
+	object, err := repositories.GetAgentFile(objectPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	defer object.Close()
+
+	objectInfo, err := object.Stat()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
 	c.Header("Content-Disposition", "attachment; filename="+theBackup.FileName)
 	c.Header("Content-Type", "application/octet-stream")
-	c.File(newFileLocation)
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+
+	extraHeaders := map[string]string{
+		"Content-Disposition": "attachment; filename=" + theBackup.FileName,
+	}
+
+	c.DataFromReader(http.StatusOK, objectInfo.Size, "application/octet-stream", object, extraHeaders)
 }
 
 func (h *AccountAgentHandler) API_DownloadAgentSave(c *gin.Context) {
@@ -336,14 +357,35 @@ func (h *AccountAgentHandler) API_DownloadAgentSave(c *gin.Context) {
 		return
 	}
 
-	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), theAgent.ID.Hex(), "saves")
-	newFileLocation := filepath.Join(newFilePath, theSave.FileName)
+	objectPath := fmt.Sprintf("%s/%s/saves/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theSave.FileName)
 
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Transfer-Encoding", "binary")
+	object, err := repositories.GetAgentFile(objectPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	defer object.Close()
+
+	objectInfo, err := object.Stat()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
 	c.Header("Content-Disposition", "attachment; filename="+theSave.FileName)
 	c.Header("Content-Type", "application/octet-stream")
-	c.File(newFileLocation)
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+
+	extraHeaders := map[string]string{
+		"Content-Disposition": "attachment; filename=" + theSave.FileName,
+	}
+
+	c.DataFromReader(http.StatusOK, objectInfo.Size, "application/octet-stream", object, extraHeaders)
+
 }
 
 func (h *AccountAgentHandler) API_DownloadAgentLog(c *gin.Context) {
@@ -366,34 +408,42 @@ func (h *AccountAgentHandler) API_DownloadAgentLog(c *gin.Context) {
 		return
 	}
 
-	if err := theAgent.PopulateLogs(); err != nil {
+	theLog, err := theAgent.GetLogOfType(Type)
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return
 	}
 
-	var theLog models.AgentLogs
-	for _, log := range theAgent.LogObjects {
-		if log.Type == Type {
-			theLog = log
-			break
-		}
-	}
+	objectPath := fmt.Sprintf("%s/%s/logs/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theLog.FileName)
 
-	if theLog.ID.IsZero() {
-		c.JSON(http.StatusNotFound, gin.H{"error": "log file not found", "success": false})
+	object, err := repositories.GetAgentFile(objectPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return
 	}
 
-	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), theAgent.ID.Hex(), "logs")
-	newFileLocation := filepath.Join(newFilePath, theLog.FileName)
+	defer object.Close()
 
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Transfer-Encoding", "binary")
+	objectInfo, err := object.Stat()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
 	c.Header("Content-Disposition", "attachment; filename="+theLog.FileName)
 	c.Header("Content-Type", "application/octet-stream")
-	c.File(newFileLocation)
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+
+	extraHeaders := map[string]string{
+		"Content-Disposition": "attachment; filename=" + theLog.FileName,
+	}
+
+	c.DataFromReader(http.StatusOK, objectInfo.Size, "application/octet-stream", object, extraHeaders)
 }
 
 func (h *AccountAgentHandler) API_UploadAgentSave(c *gin.Context) {
@@ -402,7 +452,7 @@ func (h *AccountAgentHandler) API_UploadAgentSave(c *gin.Context) {
 	AccountID := JWTData.AccountID
 	AgentID := c.Param("agentid")
 
-	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
+	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
 
 	if _, err := services.GetAccount(AccountID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})

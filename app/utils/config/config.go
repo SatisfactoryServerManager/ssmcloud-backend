@@ -36,8 +36,17 @@ type ConfigData struct {
 		User string `json:"username"`
 		Pass string `json:"password"`
 	} `json:"db"`
+	Storage struct {
+		Minio struct {
+			Endpoint    string `json:"endpoint"`
+			AccessKeyId string `json:"accessKeyId"`
+			SecretKey   string `json:"secretKey"`
+			UseSSL      bool   `json:"useSSL"`
+		} `json:"minio"`
+	} `json:"storage"`
 	Flags struct {
 		DisablePurgeAccountData bool `json:"disablePurgeAccountData"`
+		UseMinioStorage         bool `json:"useMinioStorage"`
 	}
 }
 
@@ -104,6 +113,14 @@ func (config *Config) SetDefaultValues() {
 	}
 
 	config.ConfigData.Flags.DisablePurgeAccountData = os.Getenv("FLAG_DISABLEPURGEACCOUNTDATA") == "true"
+	config.ConfigData.Flags.UseMinioStorage = os.Getenv("FLAG_USEMINIOSTORAGE") == "true"
+
+    if config.ConfigData.Flags.UseMinioStorage {
+        config.ConfigData.Storage.Minio.Endpoint = os.Getenv("STORAGE_MINIO_ENDPOINT")
+        config.ConfigData.Storage.Minio.AccessKeyId = os.Getenv("STORAGE_MINIO_ACCESSKEYID")
+        config.ConfigData.Storage.Minio.SecretKey = os.Getenv("STORAGE_MINIO_SECRETKEY")
+        config.ConfigData.Storage.Minio.UseSSL = os.Getenv("STORAGE_MINIO_USESSL") == "true"
+    }
 }
 
 func (config *Config) SaveConfigData() error {

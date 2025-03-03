@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/handlers"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
@@ -36,6 +37,9 @@ func main() {
 	if err := mongoose.TestConnection(); err != nil {
 		panic(err)
 	}
+
+    err = repositories.CreateSSMBucket();
+    utils.CheckError(err);
 
 	services.InitAllServices()
 

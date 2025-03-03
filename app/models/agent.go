@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -106,6 +107,7 @@ type AgentSave struct {
 	UUID     string    `json:"uuid" bson:"uuid"`
 	FileName string    `json:"fileName" bson:"fileName"`
 	Size     int64     `json:"size" bson:"size"`
+	FileUrl  string    `json:"fileUrl" bson:"fileUrl"`
 	ModTime  time.Time `json:"modTime" bson:"modTime"`
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
@@ -115,10 +117,10 @@ type AgentSave struct {
 // Backup Data
 
 type AgentBackup struct {
-	UUID     string `json:"uuid" bson:"uuid"`
-	FileName string `json:"fileName" bson:"fileName"`
-	Size     int64  `json:"size" bson:"size"`
-
+	UUID      string    `json:"uuid" bson:"uuid"`
+	FileName  string    `json:"fileName" bson:"fileName"`
+	Size      int64     `json:"size" bson:"size"`
+	FileUrl   string    `json:"fileUrl" bson:"fileUrl"`
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
@@ -154,6 +156,7 @@ type AgentLogs struct {
 	FileName  string             `json:"fileName" bson:"fileName"`
 	Type      string             `json:"type" bson:"type"`
 	Snippet   string             `json:"snippet" bson:"snippet"`
+	FileURL   string             `json:"fileUrl" bson:"fileUrl"`
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt"`
 }
@@ -198,6 +201,26 @@ func (obj *Agents) PopulateLogs() error {
 	}
 
 	return nil
+}
+
+func (obj *Agents) GetLogOfType(logType string) (*AgentLogs, error) {
+	if err := obj.PopulateLogs(); err != nil {
+		return nil, err
+	}
+
+	var theLog AgentLogs
+	for _, log := range obj.LogObjects {
+		if log.Type == logType {
+			theLog = log
+			break
+		}
+	}
+
+	if theLog.ID.IsZero() {
+		return nil, fmt.Errorf("cant find log of type: %s", logType)
+	}
+
+	return &theLog, nil
 }
 
 func (obj *Agents) PopulateStats() error {

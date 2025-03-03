@@ -9,6 +9,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/gin-gonic/gin"
 	"github.com/mrhid6/go-mongoose/mongoose"
@@ -40,7 +41,7 @@ func (h *AgentHandler) API_UpdateAgentStatus(c *gin.Context) {
 func (h *AgentHandler) API_UploadAgentSave(c *gin.Context) {
 
 	AgentAPIKey := c.GetString("AgentKey")
-	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
+	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
 
 	err := services.UploadedAgentSave(AgentAPIKey, FileIdentity, false)
 	if err != nil {
@@ -55,7 +56,7 @@ func (h *AgentHandler) API_UploadAgentSave(c *gin.Context) {
 func (h *AgentHandler) API_UploadAgentBackup(c *gin.Context) {
 
 	AgentAPIKey := c.GetString("AgentKey")
-	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
+	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
 
 	err := services.UploadedAgentBackup(AgentAPIKey, FileIdentity)
 	if err != nil {
@@ -69,7 +70,7 @@ func (h *AgentHandler) API_UploadAgentBackup(c *gin.Context) {
 
 func (h *AgentHandler) API_UploadAgentLog(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
-	FileIdentity := c.Keys["FileIdentity"].(services.StorageFileIdentity)
+	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
 
 	err := services.UploadedAgentLog(AgentAPIKey, FileIdentity)
 	if err != nil {
