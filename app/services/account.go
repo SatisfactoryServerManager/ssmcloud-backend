@@ -37,7 +37,6 @@ func InitAccountService() {
 		Name:     "accountCleanupJob",
 		Interval: 30 * time.Second,
 		Timeout:  10 * time.Second,
-        Debug: true,
 		Arg: func() {
 			if err := CleanupAccountFiles(); err != nil {
 				fmt.Println(err)
