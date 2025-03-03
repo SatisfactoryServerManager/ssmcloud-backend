@@ -9,6 +9,7 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -128,11 +129,14 @@ func GetAgentFile(objectPath string) (*minio.Object, error) {
 }
 
 func HasAgentFile(objectPath string) bool {
-	object, err := GetAgentFile(objectPath)
+
+	minioClient, err := GetMinioClient()
+
 	if err != nil {
+		logger.GetErrorLogger().Println(err.Error())
 		return false
 	}
-	defer object.Close()
 
-	return true
+	_, err = minioClient.StatObject(context.Background(), bucketName, objectPath, minio.StatObjectOptions{})
+	return err == nil
 }

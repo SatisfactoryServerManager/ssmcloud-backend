@@ -280,6 +280,8 @@ func (obj *Agents) CheckSaves(baseObjectPath string) error {
 
 		if repositories.HasAgentFile(objectPath) {
 			newSavesList = append(newSavesList, save)
+		} else {
+			fmt.Printf("cant find save file: %s", objectPath)
 		}
 	}
 
@@ -310,6 +312,8 @@ func (obj *Agents) CheckBackups(baseObjectPath string) error {
 
 		if repositories.HasAgentFile(objectPath) {
 			newBackupsList = append(newBackupsList, backup)
+		} else {
+			fmt.Printf("cant find backup file: %s", objectPath)
 		}
 	}
 
