@@ -1,3 +1,6 @@
+## 1.0.56 (March 03, 2025)
+  - feat: Use minio storage
+
 ## 1.0.55 (December 24, 2024)
   - Merge branch 'main' of github.com:SatisfactoryServerManager/ssmcloud-backend
   - chore: Deps updated
