@@ -3,7 +3,9 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"mime"
 	"os"
+	"path/filepath"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
@@ -63,6 +65,11 @@ func CreateSSMBucket() error {
 	return nil
 }
 
+func getMimeTypeByExtension(file string) string {
+	ext := filepath.Ext(file)
+	return mime.TypeByExtension(ext)
+}
+
 func UploadAgentFile(fileIdentity types.StorageFileIdentity, objectPath string) (string, error) {
 
 	minioClient, err := GetMinioClient()
@@ -89,7 +96,7 @@ func UploadAgentFile(fileIdentity types.StorageFileIdentity, objectPath string) 
 		objectPath,
 		file,
 		fileStat.Size(),
-		minio.PutObjectOptions{ContentType: "text/plain"},
+		minio.PutObjectOptions{ContentType: getMimeTypeByExtension(fileIdentity.FileName)},
 	)
 
 	if err != nil {

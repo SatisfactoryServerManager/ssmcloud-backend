@@ -311,16 +311,13 @@ func (h *AccountAgentHandler) API_DownloadAgentBackup(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Disposition", "attachment; filename="+theBackup.FileName)
-	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Transfer-Encoding", "binary")
+	// Set headers to force file download
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theBackup.FileName))
+	c.Header("Content-Type", objectInfo.ContentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
 
-	extraHeaders := map[string]string{
-		"Content-Disposition": "attachment; filename=" + theBackup.FileName,
-	}
-
-	c.DataFromReader(http.StatusOK, objectInfo.Size, "application/octet-stream", object, extraHeaders)
+	// Stream the file to the response
+	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
 }
 
 func (h *AccountAgentHandler) API_DownloadAgentSave(c *gin.Context) {
@@ -375,16 +372,13 @@ func (h *AccountAgentHandler) API_DownloadAgentSave(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Disposition", "attachment; filename="+theSave.FileName)
-	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Transfer-Encoding", "binary")
+	// Set headers to force file download
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theSave.FileName))
+	c.Header("Content-Type", objectInfo.ContentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
 
-	extraHeaders := map[string]string{
-		"Content-Disposition": "attachment; filename=" + theSave.FileName,
-	}
-
-	c.DataFromReader(http.StatusOK, objectInfo.Size, "application/octet-stream", object, extraHeaders)
+	// Stream the file to the response
+	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
 
 }
 
@@ -434,16 +428,13 @@ func (h *AccountAgentHandler) API_DownloadAgentLog(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Disposition", "attachment; filename="+theLog.FileName)
-	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Transfer-Encoding", "binary")
+	// Set headers to force file download
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theLog.FileName))
+	c.Header("Content-Type", objectInfo.ContentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
 
-	extraHeaders := map[string]string{
-		"Content-Disposition": "attachment; filename=" + theLog.FileName,
-	}
-
-	c.DataFromReader(http.StatusOK, objectInfo.Size, "application/octet-stream", object, extraHeaders)
+	// Stream the file to the response
+	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
 }
 
 func (h *AccountAgentHandler) API_UploadAgentSave(c *gin.Context) {
