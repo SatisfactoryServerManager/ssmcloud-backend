@@ -2,10 +2,10 @@ package models
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
@@ -268,28 +268,29 @@ func (obj *Agents) PurgeTasks() error {
 	return nil
 }
 
-func (obj *Agents) CheckSaves(basePath string) error {
+func (obj *Agents) CheckSaves(baseObjectPath string) error {
 
-	if len(obj.Backups) == 0 {
+	if len(obj.Saves) == 0 {
 		return nil
 	}
 
 	newSavesList := make([]AgentSave, 0)
 	for _, save := range obj.Saves {
-		saveFile := filepath.Join(basePath, "saves", save.FileName)
-		if utils.CheckFileExists(saveFile) {
+		objectPath := fmt.Sprintf("%s/saves/%s", baseObjectPath, save.FileName)
+
+		if repositories.HasAgentFile(objectPath) {
 			newSavesList = append(newSavesList, save)
 		}
 	}
 
 	if len(obj.Saves) != len(newSavesList) {
 
-		dbUpdate := bson.D{{"$set", bson.D{
-			{"saves", newSavesList},
-			{"updatedAt", time.Now()},
-		}}}
+		dbUpdate := bson.M{
+			"saves":     newSavesList,
+			"updatedAt": time.Now(),
+		}
 
-		if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		if err := mongoose.UpdateModelData(*obj, dbUpdate); err != nil {
 			return err
 		}
 	}
@@ -297,7 +298,7 @@ func (obj *Agents) CheckSaves(basePath string) error {
 	return nil
 }
 
-func (obj *Agents) CheckBackups(basePath string) error {
+func (obj *Agents) CheckBackups(baseObjectPath string) error {
 
 	if len(obj.Backups) == 0 {
 		return nil
@@ -305,20 +306,21 @@ func (obj *Agents) CheckBackups(basePath string) error {
 
 	newBackupsList := make([]AgentBackup, 0)
 	for _, backup := range obj.Backups {
-		backupFile := filepath.Join(basePath, "backups", backup.FileName)
-		if utils.CheckFileExists(backupFile) {
+		objectPath := fmt.Sprintf("%s/backups/%s", baseObjectPath, backup.FileName)
+
+		if repositories.HasAgentFile(objectPath) {
 			newBackupsList = append(newBackupsList, backup)
 		}
 	}
 
 	if len(obj.Backups) != len(newBackupsList) {
 
-		dbUpdate := bson.D{{"$set", bson.D{
-			{"backups", newBackupsList},
-			{"updatedAt", time.Now()},
-		}}}
+		dbUpdate := bson.M{
+			"backups":   newBackupsList,
+			"updatedAt": time.Now(),
+		}
 
-		if err := mongoose.UpdateDataByID(*obj, dbUpdate); err != nil {
+		if err := mongoose.UpdateModelData(*obj, dbUpdate); err != nil {
 			return err
 		}
 	}

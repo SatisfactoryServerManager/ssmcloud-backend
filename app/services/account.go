@@ -149,12 +149,12 @@ func CleanupAccountFiles() error {
 
 		for idx := range agents {
 			agent := &agents[idx]
-			agentDataPath := filepath.Join(directory, account.ID.Hex(), agent.ID.Hex())
-			if err := agent.CheckBackups(agentDataPath); err != nil {
+			objectPath := fmt.Sprintf("%s/%s", account.ID.Hex(), agent.ID.Hex())
+			if err := agent.CheckBackups(objectPath); err != nil {
 				return err
 			}
 
-			if err := agent.CheckSaves(agentDataPath); err != nil {
+			if err := agent.CheckSaves(objectPath); err != nil {
 				return err
 			}
 		}

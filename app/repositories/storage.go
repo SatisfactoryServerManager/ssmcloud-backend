@@ -126,3 +126,13 @@ func GetAgentFile(objectPath string) (*minio.Object, error) {
 
 	return object, nil
 }
+
+func HasAgentFile(objectPath string) bool {
+	object, err := GetAgentFile(objectPath)
+	if err != nil {
+		return false
+	}
+	defer object.Close()
+
+	return true
+}
