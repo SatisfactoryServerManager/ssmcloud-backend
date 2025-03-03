@@ -3,14 +3,13 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"path/filepath"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/gin-gonic/gin"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
@@ -216,14 +215,31 @@ func (h *AgentHandler) API_DownloadAgentSave(c *gin.Context) {
 		return
 	}
 
-	newFilePath := filepath.Join(config.DataDir, "account_data", theAccount.ID.Hex(), theAgent.ID.Hex(), "saves")
-	newFileLocation := filepath.Join(newFilePath, theSave.FileName)
+	objectPath := fmt.Sprintf("%s/%s/saves/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theSave.FileName)
 
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Transfer-Encoding", "binary")
-	c.Header("Content-Disposition", "attachment; filename="+theSave.FileName)
-	c.Header("Content-Type", "application/octet-stream")
-	c.File(newFileLocation)
+	object, err := repositories.GetAgentFile(objectPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	defer object.Close()
+
+	objectInfo, err := object.Stat()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	// Set headers to force file download
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theSave.FileName))
+	c.Header("Content-Type", objectInfo.ContentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
+
+	// Stream the file to the response
+	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
 }
 
 func (h *AgentHandler) API_GetSyncSaves(c *gin.Context) {
