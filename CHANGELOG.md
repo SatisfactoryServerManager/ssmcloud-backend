@@ -1,3 +1,6 @@
+## 1.0.59 (March 03, 2025)
+  - fix: Fixed account cleanup functions
+
 ## 1.0.58 (March 03, 2025)
   - feat: Download save agent endpoint
 
