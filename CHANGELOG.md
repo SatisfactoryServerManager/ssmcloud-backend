@@ -1,3 +1,7 @@
+## 1.0.60 (March 03, 2025)
+  - feat: Remove task debug
+  - fix: Fixed file cleanup
+
 ## 1.0.59 (March 03, 2025)
   - fix: Fixed account cleanup functions
 
