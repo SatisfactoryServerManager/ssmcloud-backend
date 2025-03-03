@@ -1,3 +1,6 @@
+## 1.0.57 (March 03, 2025)
+  - fix: Fixed content-types
+
 ## 1.0.56 (March 03, 2025)
   - feat: Use minio storage
 
