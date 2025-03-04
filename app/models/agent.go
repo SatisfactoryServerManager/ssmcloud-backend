@@ -313,7 +313,7 @@ func (obj *Agents) CheckBackups(baseObjectPath string) error {
 		if repositories.HasAgentFile(objectPath) {
 			newBackupsList = append(newBackupsList, backup)
 		} else {
-			fmt.Printf("cant find backup file: %s", objectPath)
+			fmt.Printf("cant find backup file: %s\n", objectPath)
 		}
 	}
 

@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"time"
 )
 
 func CheckError(err error) {
@@ -99,4 +100,9 @@ func ReadLastNBtyesFromFile(fname string, nbytes int64) (string, error) {
 
 	return string(buf), nil
 
+}
+
+func TrackTime(start time.Time, name string) {
+	elapsed := time.Since(start)
+	fmt.Printf("%s took %s\n", name, elapsed)
 }
