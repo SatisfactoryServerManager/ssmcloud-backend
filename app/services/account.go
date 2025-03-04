@@ -11,7 +11,9 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/joblock"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	"github.com/kataras/jwt"
@@ -27,6 +29,7 @@ var (
 	accountIntegrationEventsJob joblock.JobLockTask
 	accountWorkflowJob          joblock.JobLockTask
 	inactiveAccountsJob         joblock.JobLockTask
+	deleteInactiveAccountsJob   joblock.JobLockTask
 )
 
 func InitAccountService() {
@@ -77,10 +80,25 @@ func InitAccountService() {
 		},
 	}
 
+	deleteInactiveAccountsJob = joblock.JobLockTask{
+		Name:     "deleteInactiveAccountsJob",
+		Interval: 1 * time.Minute,
+		Timeout:  10 * time.Second,
+		Arg: func() {
+			if err := DeleteInactiveAccounts(); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
 	ctx := context.Background()
 	if !configData.Flags.DisablePurgeAccountData {
 
 		if err := accountCleanupJob.Run(ctx); err != nil {
+			fmt.Printf("%v\n", err.Error())
+		}
+
+		if err := deleteInactiveAccountsJob.Run(ctx); err != nil {
 			fmt.Printf("%v\n", err.Error())
 		}
 	}
@@ -268,6 +286,35 @@ func CheckForInactiveAccounts() error {
 			if err := mongoose.UpdateDataByID(*account, dbUpdate); err != nil {
 				return err
 			}
+		}
+
+	}
+
+	return nil
+}
+
+func DeleteInactiveAccounts() error {
+	defer utils.TrackTime(time.Now(), "DeleteInactiveAccounts")
+
+	var inactiveAccounts []models.Accounts
+	if err := mongoose.FindAll(bson.M{"state.inactive": true, "state.deleteDate": bson.M{"$lt": time.Now()}}, &inactiveAccounts); err != nil {
+		return err
+	}
+
+	logger.GetDebugLogger().Printf("Found %d inactive accounts ready to delete\n", len(inactiveAccounts))
+
+	for i := range inactiveAccounts {
+		account := &inactiveAccounts[i]
+
+		fmt.Printf("deleting account %s\n", account.AccountName)
+
+		fmt.Println("* deleting account storage")
+		if err := repositories.DeleteAccountFolder(account.ID.Hex()); err != nil {
+			return err
+		}
+
+		if err := account.AtomicDelete(); err != nil {
+			return err
 		}
 
 	}

@@ -3,6 +3,8 @@ package models
 import (
 	"time"
 
+	"github.com/mrhid6/go-mongoose/mongoose"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -35,4 +37,13 @@ type User2FAState struct {
 type UserAPIKey struct {
 	Key      string `json:"-" bson:"key"`
 	ShortKey string `json:"shortKey" bson:"shortKey"`
+}
+
+func (obj *Users) AtomicDelete() error {
+
+	if _, err := mongoose.DeleteOne(bson.M{"_id": obj.ID}, Users{}); err != nil {
+		return err
+	}
+
+	return nil
 }

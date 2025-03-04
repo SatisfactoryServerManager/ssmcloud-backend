@@ -169,6 +169,61 @@ type AgentStat struct {
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
 }
 
+func (obj *Agents) AtomicDelete() error {
+
+	if err := obj.PopulateLogs(); err != nil {
+		return err
+	}
+
+	if err := obj.PopulateStats(); err != nil {
+		return err
+	}
+
+	for i := range obj.LogObjects {
+		log := &obj.LogObjects[i]
+
+		fmt.Printf("** deleting agent log: %s\n", log.Type)
+		if err := log.AtomicDelete(); err != nil {
+			return err
+		}
+	}
+
+	for i := range obj.StatObjects {
+		stat := &obj.StatObjects[i]
+
+		fmt.Printf("** deleting agent stat: %s\n", stat.ID.Hex())
+		if err := stat.AtomicDelete(); err != nil {
+			return err
+		}
+	}
+
+	if _, err := mongoose.DeleteOne(bson.M{"_id": obj.ID}, Agents{}); err != nil {
+		return err
+	}
+
+	fmt.Printf("deleted agent: %s\n", obj.AgentName)
+
+	return nil
+}
+
+func (obj *AgentLogs) AtomicDelete() error {
+
+	if _, err := mongoose.DeleteOne(bson.M{"_id": obj.ID}, AgentLogs{}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (obj *AgentStat) AtomicDelete() error {
+
+	if _, err := mongoose.DeleteOne(bson.M{"_id": obj.ID}, AgentStat{}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (obj *Agents) PopulateFromURLQuery(populateStrings []string) error {
 	for _, popStr := range populateStrings {
 		if popStr == "stats" {

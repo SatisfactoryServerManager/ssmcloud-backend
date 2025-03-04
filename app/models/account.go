@@ -101,6 +101,82 @@ type AccountIntegrationEvent struct {
 	UpdatedAt    time.Time            `json:"updatedAt" bson:"updatedAt"`
 }
 
+func (obj *Accounts) AtomicDelete() error {
+	if err := obj.PopulateUsers(); err != nil {
+		return err
+	}
+
+	if err := obj.PopulateSessions(); err != nil {
+		return err
+	}
+
+	if err := obj.PopulateAgents(); err != nil {
+		return err
+	}
+
+	if err := obj.PopulateAudit(); err != nil {
+		return err
+	}
+
+	fmt.Printf("* account contains: users: %d, sessions: %d, audit: %d, agents: %d\n", len(obj.UserObjects), len(obj.SessionObjects), len(obj.AuditObjects), len(obj.AgentObjects))
+
+	for i := range obj.UserObjects {
+		user := &obj.UserObjects[i]
+		fmt.Printf("* deleting user: %s\n", user.Email)
+		if err := user.AtomicDelete(); err != nil {
+			return err
+		}
+	}
+
+	for i := range obj.SessionObjects {
+		session := &obj.SessionObjects[i]
+		fmt.Printf("* deleting session: %s\n", session.ID.Hex())
+		if err := session.AtomicDelete(); err != nil {
+			return err
+		}
+	}
+
+	for i := range obj.AuditObjects {
+		audit := &obj.AuditObjects[i]
+		fmt.Printf("* deleting audit: %s\n", audit.ID.Hex())
+		if err := audit.AtomicDelete(); err != nil {
+			return err
+		}
+	}
+	for i := range obj.AgentObjects {
+		agent := &obj.AgentObjects[i]
+		fmt.Printf("* deleting agent: %s\n", agent.AgentName)
+		if err := agent.AtomicDelete(); err != nil {
+			return err
+		}
+	}
+	if _, err := mongoose.DeleteOne(bson.M{"_id": obj.ID}, Accounts{}); err != nil {
+		return err
+	}
+
+	fmt.Printf("deleted account: %s\n", obj.AccountName)
+
+	return nil
+}
+
+func (obj *AccountSessions) AtomicDelete() error {
+
+	if _, err := mongoose.DeleteOne(bson.M{"_id": obj.ID}, AccountSessions{}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (obj *AccountAudit) AtomicDelete() error {
+
+	if _, err := mongoose.DeleteOne(bson.M{"_id": obj.ID}, AccountAudit{}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (obj *Accounts) PopulateFromURLQuery(populateStrings []string) error {
 	for _, popStr := range populateStrings {
 		if popStr == "integrations" {

@@ -140,3 +140,40 @@ func HasAgentFile(objectPath string) bool {
 	_, err = minioClient.StatObject(context.Background(), bucketName, objectPath, minio.StatObjectOptions{})
 	return err == nil
 }
+
+func DeleteAccountFolder(accountId string) error {
+
+	if accountId == "" {
+		return nil
+	}
+
+	minioClient, err := GetMinioClient()
+
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+
+	// List all objects under the given prefix (folder)
+	objectCh := minioClient.ListObjects(ctx, bucketName, minio.ListObjectsOptions{
+		Prefix:    accountId + "/", // Only list objects under this "folder"
+		Recursive: true,            // List recursively
+	})
+
+	// Iterate over the objects and delete them
+	for object := range objectCh {
+		if object.Err != nil {
+			return object.Err
+		}
+
+		// Delete each object
+		err := minioClient.RemoveObject(ctx, bucketName, object.Key, minio.RemoveObjectOptions{})
+		if err != nil {
+			return err
+		}
+		fmt.Println("Deleted:", object.Key)
+	}
+
+	return nil
+}
