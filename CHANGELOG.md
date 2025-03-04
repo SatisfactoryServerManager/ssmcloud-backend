@@ -1,3 +1,7 @@
+## 1.0.61 (March 04, 2025)
+  - feat: delete inactive accounts
+  - fix: fixed logging for file cleanup
+
 ## 1.0.60 (March 03, 2025)
   - feat: Remove task debug
   - fix: Fixed file cleanup
