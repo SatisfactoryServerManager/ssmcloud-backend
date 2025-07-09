@@ -1,3 +1,6 @@
+## 1.0.62 (July 09, 2025)
+  - feat: Update deps
+
 ## 1.0.61 (March 04, 2025)
   - feat: delete inactive accounts
   - fix: fixed logging for file cleanup
