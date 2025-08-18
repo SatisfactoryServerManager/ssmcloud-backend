@@ -1,3 +1,6 @@
+## 1.0.63 (August 18, 2025)
+  - chore: Bump deps
+
 ## 1.0.62 (July 09, 2025)
   - feat: Update deps
 
