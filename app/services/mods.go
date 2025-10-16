@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/joblock"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	"github.com/machinebox/graphql"
+	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -21,23 +22,24 @@ import (
 
 var (
 	graphqlClient *graphql.Client
-	updateModsJob joblock.JobLockTask
+	updateModsJob *joblock.JobLockTask
 )
 
 func InitModService() {
 
 	graphqlClient = graphql.NewClient("https://api.ficsit.app/v2/query")
 
-	updateModsJob = joblock.JobLockTask{
-		Name:     "updateModsJob",
-		Interval: 10 * time.Minute,
-		Timeout:  1 * time.Minute,
-		Arg: func() {
+	updateModsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"updateModsJob", func() {
 			if err := UpdateModsInDB(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		30*time.Second,
+		1*time.Minute,
+		false,
+	)
 
 	ctx := context.Background()
 	if err := updateModsJob.Run(ctx); err != nil {
@@ -211,14 +213,14 @@ func UpdateModsInDB() error {
 			}
 		}
 
-		dbUpdate := bson.D{{"$set", bson.D{
-			{"versions", apiMod.Versions},
-			{"downloads", apiMod.Downloads},
-			{"logoUrl", apiMod.LogoURL},
-			{"hidden", apiMod.Hidden},
-		}}}
+		dbUpdate := bson.M{
+			"versions":  apiMod.Versions,
+			"downloads": apiMod.Downloads,
+			"logoUrl":   apiMod.LogoURL,
+			"hidden":    apiMod.Hidden,
+		}
 
-		if err := mongoose.UpdateDataByID(&dbMod, dbUpdate); err != nil {
+		if err := mongoose.UpdateModelData(&dbMod, dbUpdate); err != nil {
 			return err
 		}
 

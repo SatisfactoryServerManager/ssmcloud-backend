@@ -1,7 +1,8 @@
 package app
 
 import (
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
+	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 )
 
 type Vector3f struct {
@@ -45,7 +46,7 @@ type API_AccountAgentMod_PostData struct {
 }
 
 type API_AccountAgentConfig_PutData struct {
-	UpdatedAgent models.Agents `json:"updatedAgent"`
+	UpdatedAgent modelsv1.Agents `json:"updatedAgent"`
 }
 
 type API_AgentStatus_PutData struct {
@@ -59,12 +60,12 @@ type API_AgentStatus_PutData struct {
 }
 
 type API_AgentTaskItem_PutData struct {
-	Item models.AgentTask `json:"item"`
+	Item modelsv1.AgentTask `json:"item"`
 }
 
 type API_AgentConfig_ResData struct {
-	Config       models.AgentConfig       `json:"config"`
-	ServerConfig models.AgentServerConfig `json:"serverConfig"`
+	Config       modelsv1.AgentConfig       `json:"config"`
+	ServerConfig modelsv1.AgentServerConfig `json:"serverConfig"`
 }
 
 type API_AgentConfig_PutData struct {
@@ -107,4 +108,24 @@ type FicsitAPI_Response_GetMods struct {
 
 type FicsitAPI_Response_GetMods_Mods struct {
 	Mods []models.Mods `json:"mods"`
+}
+
+type APIUpdateServerSettings struct {
+	ConfigSetting        string  `form:"_ConfigSetting" json:"configSetting"`
+	UpdateOnStart        string  `form:"inp_updateonstart" json:"updateOnStart"`
+	AutoRestart          string  `form:"inp_autorestart" json:"autoRestart"`
+	AutoPause            string  `form:"inp_autoPause" json:"autoPause"`
+	AutoSaveOnDisconnect string  `form:"inp_autoSaveOnDisconnect" json:"autoSaveOnDisconnect"`
+	AutoSaveInterval     int     `form:"inp_autoSaveInterval" json:"autoSaveInterval"`
+	SeasonalEvents       string  `form:"inp_seasonalEvents" json:"seasonalEvents"`
+	MaxPlayers           int     `form:"inp_maxplayers" json:"maxPlayers"`
+	WorkerThreads        int     `form:"inp_workerthreads" json:"workerThreads"`
+	Branch               string  `form:"inp_sfbranch" json:"branch"`
+	BackupInterval       float32 `form:"inp_backupinterval" json:"backupInterval"`
+	BackupKeep           int `form:"inp_backupkeep" json:"backupKeep"`
+}
+
+type APIUpdateServerSettingsRequest struct {
+	APIUpdateServerSettings
+	ID string `json:"agentId"`
 }

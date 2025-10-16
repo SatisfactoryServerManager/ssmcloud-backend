@@ -5,8 +5,9 @@ import (
 	"os"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
+	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
+	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
@@ -46,7 +47,7 @@ func (h *V1Handler) API_GetWorkflow(c *gin.Context) {
 		return
 	}
 
-	var theWorkflow models.Workflows
+	var theWorkflow modelsv1.Workflows
 
 	if err := mongoose.FindOne(bson.M{"_id": WorkflowId}, &theWorkflow); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
@@ -58,19 +59,20 @@ func (h *V1Handler) API_GetWorkflow(c *gin.Context) {
 }
 
 func NewV1Handler(router *gin.RouterGroup) {
+	group := router.Group("v1")
 	handler := V1Handler{}
 
-	AgentGroup := router.Group("agent")
-	AccountGroup := router.Group("account")
-	SSMModGroup := router.Group("ssmmod")
+	AgentGroup := group.Group("agent")
+	AccountGroup := group.Group("account")
+	SSMModGroup := group.Group("ssmmod")
 
-	router.GET("/ping", handler.API_Ping)
-	router.GET("/mods", handler.API_Mods)
+	group.GET("/ping", handler.API_Ping)
+	group.GET("/mods", handler.API_Mods)
 
-	router.Use(middleware.Middleware_DecodeJWT())
-	router.Use(middleware.Middleware_VerifySession())
+	group.Use(middleware.Middleware_DecodeJWT())
+	group.Use(middleware.Middleware_VerifySession())
 
-	router.GET("/workflows/:workflowId", handler.API_GetWorkflow)
+	group.GET("/workflows/:workflowId", handler.API_GetWorkflow)
 
 	NewAgentHandler(AgentGroup)
 	NewAccountHandler(AccountGroup)

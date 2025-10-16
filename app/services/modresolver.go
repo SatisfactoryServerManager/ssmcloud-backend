@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/bson"

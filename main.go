@@ -13,12 +13,18 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/mrhid6/go-mongoose/mongoose"
 )
 
 func main() {
 	if err := config.InitConfig(); err != nil {
 		utils.CheckError(err)
+	}
+
+	godotenv.Load(".env", ".env.local")
+	if err := repositories.InitDBRepository(); err != nil {
+		panic(err)
 	}
 
 	ConfigData, err := config.GetConfigData()
@@ -38,17 +44,21 @@ func main() {
 		panic(err)
 	}
 
-    err = repositories.CreateSSMBucket();
-    utils.CheckError(err);
+	err = repositories.CreateSSMBucket()
+	utils.CheckError(err)
 
 	services.InitAllServices()
 
 	PrintConnectionString(dbConnection)
 
 	MainRouter := gin.Default()
-	apiGroup := MainRouter.Group("api").Group("v1")
+	MainRouter.NoRoute(func(c *gin.Context) {
+		c.JSON(404, gin.H{"success": false, "error": "Page not found"})
+	})
+	apiGroup := MainRouter.Group("api")
 
 	handlers.NewV1Handler(apiGroup)
+	handlers.NewV2Handler(apiGroup)
 
 	srv := &http.Server{
 		Addr:    ConfigData.HTTPBind,

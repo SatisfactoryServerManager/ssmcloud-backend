@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -54,12 +54,12 @@ func UpdateAgentPlayers(agentApiKey string, PostData app.API_UpdatePlayers_PostD
 		}
 	}
 
-	dbUpdate := bson.D{{"$set", bson.D{
-		{"mapData.players", theAgent.MapData.Players},
-		{"updatedAt", time.Now()},
-	}}}
+	dbUpdate := bson.M{
+		"mapData.players": theAgent.MapData.Players,
+		"updatedAt":       time.Now(),
+	}
 
-	if err := mongoose.UpdateDataByID(&theAgent, dbUpdate); err != nil {
+	if err := mongoose.UpdateModelData(&theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -96,7 +96,7 @@ func UpdateAgentBuildings(agentApiKey string, PostData app.API_UpdateBuildings_P
 		}
 	}
 
-    theAgent.MapData.Buildings = newBuildingsArray;
+	theAgent.MapData.Buildings = newBuildingsArray
 
 	for _, apiBuilding := range PostData.Buildings {
 		foundBuilding := false
@@ -122,12 +122,12 @@ func UpdateAgentBuildings(agentApiKey string, PostData app.API_UpdateBuildings_P
 		}
 	}
 
-	dbUpdate := bson.D{{"$set", bson.D{
-		{"mapData.buildings", theAgent.MapData.Buildings},
-		{"updatedAt", time.Now()},
-	}}}
+	dbUpdate := bson.M{
+		"mapData.buildings": theAgent.MapData.Buildings,
+		"updatedAt":         time.Now(),
+	}
 
-	if err := mongoose.UpdateDataByID(&theAgent, dbUpdate); err != nil {
+	if err := mongoose.UpdateModelData(&theAgent, dbUpdate); err != nil {
 		return err
 	}
 

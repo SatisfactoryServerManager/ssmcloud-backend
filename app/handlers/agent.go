@@ -6,10 +6,10 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"

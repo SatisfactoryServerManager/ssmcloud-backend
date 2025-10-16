@@ -1,22 +1,29 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/mail"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/joblock"
+	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/v2"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
+	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
+	"github.com/gtuk/discordwebhook"
 	"github.com/kataras/jwt"
+	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -25,71 +32,76 @@ import (
 )
 
 var (
-	accountCleanupJob           joblock.JobLockTask
-	accountIntegrationEventsJob joblock.JobLockTask
-	accountWorkflowJob          joblock.JobLockTask
-	inactiveAccountsJob         joblock.JobLockTask
-	deleteInactiveAccountsJob   joblock.JobLockTask
+	accountCleanupJob           *joblock.JobLockTask
+	accountIntegrationEventsJob *joblock.JobLockTask
+	accountWorkflowJob          *joblock.JobLockTask
+	inactiveAccountsJob         *joblock.JobLockTask
+	deleteInactiveAccountsJob   *joblock.JobLockTask
 )
 
 func InitAccountService() {
 
 	configData, _ := config.GetConfigData()
 
-	accountCleanupJob = joblock.JobLockTask{
-		Name:     "accountCleanupJob",
-		Interval: 30 * time.Second,
-		Timeout:  10 * time.Second,
-		Arg: func() {
+	accountCleanupJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"accountCleanupJob", func() {
 			if err := CleanupAccountFiles(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		30*time.Second,
+		10*time.Second,
+		false,
+	)
 
-	accountIntegrationEventsJob = joblock.JobLockTask{
-		Name:     "accountIntegrationEventsJob",
-		Interval: 5 * time.Second,
-		Timeout:  10 * time.Second,
-		Arg: func() {
+	accountIntegrationEventsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"accountIntegrationEventsJob", func() {
 			if err := ProcessAccountIntegrationEvents(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		5*time.Second,
+		10*time.Second,
+		false,
+	)
 
-	accountWorkflowJob = joblock.JobLockTask{
-		Name:     "accountWorkflowJob",
-		Interval: 10 * time.Second,
-		Timeout:  10 * time.Second,
-		Arg: func() {
-			if err := ProcessAccountWorkflows(); err != nil {
+	accountWorkflowJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"accountWorkflowJob", func() {
+			if err := ProcessWorkflows(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		5*time.Second,
+		10*time.Second,
+		false,
+	)
 
-	inactiveAccountsJob = joblock.JobLockTask{
-		Name:     "inactiveAccountsJob",
-		Interval: 10 * time.Minute,
-		Timeout:  10 * time.Second,
-		Arg: func() {
+	inactiveAccountsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"inactiveAccountsJob", func() {
 			if err := CheckForInactiveAccounts(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		30*time.Second,
+		10*time.Second,
+		false,
+	)
 
-	deleteInactiveAccountsJob = joblock.JobLockTask{
-		Name:     "deleteInactiveAccountsJob",
-		Interval: 1 * time.Minute,
-		Timeout:  10 * time.Second,
-		Arg: func() {
+	deleteInactiveAccountsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"deleteInactiveAccountsJob", func() {
 			if err := DeleteInactiveAccounts(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		1*time.Minute,
+		10*time.Second,
+		false,
+	)
 
 	ctx := context.Background()
 	if !configData.Flags.DisablePurgeAccountData {
@@ -168,13 +180,77 @@ func CleanupAccountFiles() error {
 		for idx := range agents {
 			agent := &agents[idx]
 			objectPath := fmt.Sprintf("%s/%s", account.ID.Hex(), agent.ID.Hex())
-			if err := agent.CheckBackups(objectPath); err != nil {
+			if err := CheckAgentBackups(objectPath, agent); err != nil {
 				return err
 			}
 
-			if err := agent.CheckSaves(objectPath); err != nil {
+			if err := CheckAgentSaves(objectPath, agent); err != nil {
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+func CheckAgentSaves(baseObjectPath string, obj *models.Agents) error {
+
+	if len(obj.Saves) == 0 {
+		return nil
+	}
+
+	newSavesList := make([]models.AgentSave, 0)
+	for _, save := range obj.Saves {
+		objectPath := fmt.Sprintf("%s/saves/%s", baseObjectPath, save.FileName)
+
+		if repositories.HasAgentFile(objectPath) {
+			newSavesList = append(newSavesList, save)
+		} else {
+			fmt.Printf("cant find save file: %s", objectPath)
+		}
+	}
+
+	if len(obj.Saves) != len(newSavesList) {
+
+		dbUpdate := bson.M{
+			"saves":     newSavesList,
+			"updatedAt": time.Now(),
+		}
+
+		if err := mongoose.UpdateModelData(*obj, dbUpdate); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func CheckAgentBackups(baseObjectPath string, obj *models.Agents) error {
+
+	if len(obj.Backups) == 0 {
+		return nil
+	}
+
+	newBackupsList := make([]models.AgentBackup, 0)
+	for _, backup := range obj.Backups {
+		objectPath := fmt.Sprintf("%s/backups/%s", baseObjectPath, backup.FileName)
+
+		if repositories.HasAgentFile(objectPath) {
+			newBackupsList = append(newBackupsList, backup)
+		} else {
+			fmt.Printf("cant find backup file: %s\n", objectPath)
+		}
+	}
+
+	if len(obj.Backups) != len(newBackupsList) {
+
+		dbUpdate := bson.M{
+			"backups":   newBackupsList,
+			"updatedAt": time.Now(),
+		}
+
+		if err := mongoose.UpdateModelData(*obj, dbUpdate); err != nil {
+			return err
 		}
 	}
 
@@ -192,19 +268,196 @@ func ProcessAccountIntegrationEvents() error {
 	for idx := range accounts {
 		account := &accounts[idx]
 
-		if err := account.ProcessIntegrationEvents(); err != nil {
-			logger.GetErrorLogger().Printf("failed to process integration events for account %s with error %s\n", account.AccountName, err.Error())
+		for idx := range account.IntegrationObjects {
+			integration := &account.IntegrationObjects[idx]
+			if err := ProcessIntegrationEvents(integration); err != nil {
+				logger.GetErrorLogger().Printf("failed to process integration events for account %s with error %s\n", account.AccountName, err.Error())
+			}
 		}
 	}
 
 	return nil
 }
 
-func ProcessAccountWorkflows() error {
+func ProcessIntegrationEvents(obj *models.AccountIntegrations) error {
 
-	workflows := make([]models.Workflows, 0)
+	for idx := range obj.Events {
+		event := &obj.Events[idx]
 
-	if err := mongoose.FindAll(bson.M{"status": ""}, &workflows); err != nil {
+		if event.Completed {
+			continue
+		}
+
+		if event.Failed {
+			continue
+		}
+
+		if obj.Type == models.IntegrationWebhook {
+			resp, err := ProcessWebhookEvent(obj.Url, event)
+			if err != nil {
+				event.Status = "failed"
+				event.Retries += 1
+				event.ResponseData = resp
+
+				if event.Retries >= 10 {
+					event.Failed = true
+					event.Status = "failed - max retries"
+				}
+			} else {
+				event.Completed = true
+				event.Status = "delivered"
+				event.ResponseData = resp
+			}
+		} else if obj.Type == models.IntegrationDiscord {
+			if err := ProcessDiscordEvent(obj.Url, event); err != nil {
+				event.Status = "failed"
+
+				event.Retries += 1
+				event.ResponseData = fmt.Sprintf(`{"success":false,"error":%s`, err.Error())
+
+				if event.Retries >= 10 {
+					event.Failed = true
+					event.Status = "failed - max retries"
+				}
+			} else {
+				event.Completed = true
+				event.Status = "delivered"
+				event.ResponseData = `{"success":true}`
+			}
+		}
+	}
+
+	dbUpdate := bson.M{
+		"events":    obj.Events,
+		"updatedAt": time.Now(),
+	}
+
+	if err := mongoose.UpdateModelData(*obj, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ProcessWebhookEvent(url string, event *models.AccountIntegrationEvent) (string, error) {
+
+	// Marshal the data into JSON
+	jsonBytes, err := json.Marshal(event.Data)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare the webhook request
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the webhook request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	bodyString := string(bodyBytes)
+
+	defer func(Body io.ReadCloser) {
+		if err := Body.Close(); err != nil {
+			logger.GetErrorLogger().Printf("error closing response body: %s", err)
+		}
+	}(resp.Body)
+
+	// Determine the status based on the response code
+	status := "failed"
+	if resp.StatusCode == http.StatusOK {
+		status = "delivered"
+	}
+
+	if status == "failed" {
+		return bodyString, errors.New(status)
+	}
+
+	return bodyString, nil
+}
+
+func ProcessDiscordEvent(url string, event *models.AccountIntegrationEvent) error {
+
+	EventNameStr := "SSM Event"
+	fields := make([]discordwebhook.Field, 0)
+	imageUrl := "https://ssmcloud.hostxtra.co.uk/public/images/ssm_logo256.png"
+
+	eventTimeStr := ""
+
+	switch event.Type {
+	case models.IntegrationEventTypeAgentOnline:
+		EventNameStr = "Agent Online"
+		data := models.EventDataAgentOnline{}
+		MarshalToEventData(event.Data, &data)
+
+		fieldName := "AgentName"
+		fieldValue := data.AgentName
+		inline := true
+
+		fields = append(fields, discordwebhook.Field{Name: &fieldName, Value: &fieldValue, Inline: &inline})
+		eventTimeStr = data.EventData.EventTime.Format("2006-01-02 15:04:05")
+	case models.IntegrationEventTypeAgentOffline:
+		EventNameStr = "Agent Offline"
+		data := models.EventDataAgentOffline{}
+		MarshalToEventData(event.Data, &data)
+
+		fieldName := "AgentName"
+		fieldValue := data.AgentName
+		inline := true
+
+		fields = append(fields, discordwebhook.Field{Name: &fieldName, Value: &fieldValue, Inline: &inline})
+		eventTimeStr = data.EventData.EventTime.Format("2006-01-02 15:04:05")
+	}
+
+	footer := discordwebhook.Footer{
+		Text: &eventTimeStr,
+	}
+
+	embed := discordwebhook.Embed{
+		Title:  &EventNameStr,
+		Fields: &fields,
+		Footer: &footer,
+	}
+
+	username := "SSM Cloud"
+	message := discordwebhook.Message{
+		Username:  &username,
+		Embeds:    &[]discordwebhook.Embed{embed},
+		AvatarUrl: &imageUrl,
+	}
+
+	if err := discordwebhook.SendMessage(url, message); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func MarshalToEventData(data interface{}, output interface{}) {
+	bodyBytes, _ := json.Marshal(data)
+	json.Unmarshal(bodyBytes, output)
+}
+
+func ProcessWorkflows() error {
+
+	WorkflowModel, err := repositories.GetMongoClient().GetModel("Workflow")
+	if err != nil {
+		return err
+	}
+
+	workflows := make([]modelsv2.WorkflowSchema, 0)
+
+	if err := WorkflowModel.FindAll(&workflows, bson.M{"status": ""}); err != nil {
 		return err
 	}
 
@@ -212,17 +465,19 @@ func ProcessAccountWorkflows() error {
 		return nil
 	}
 
-	fmt.Println("Process Account Workflows")
+	fmt.Println("Processing Workflows")
 
 	for idx := range workflows {
 		workflow := &workflows[idx]
-		workflow.ValidateStatus()
 
+		v2.ValidateStatus(workflow)
 		if workflow.Status != "" {
 			continue
 		}
 
-		workflow.ProcessCurrentAction()
+		if err := v2.ProcessWorkflow(workflow); err != nil {
+			return err
+		}
 	}
 
 	return nil

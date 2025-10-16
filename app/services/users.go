@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"github.com/pquerna/otp/totp"

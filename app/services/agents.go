@@ -10,14 +10,15 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/joblock"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
+	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
+	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,56 +26,61 @@ import (
 )
 
 var (
-	checkAllAgentsLastCommsJob joblock.JobLockTask
-	purgeAgentTasksJob         joblock.JobLockTask
-	checkAgentModsConfigsJob   joblock.JobLockTask
-	checkAgentVersionsJob      joblock.JobLockTask
+	checkAllAgentsLastCommsJob *joblock.JobLockTask
+	purgeAgentTasksJob         *joblock.JobLockTask
+	checkAgentModsConfigsJob   *joblock.JobLockTask
+	checkAgentVersionsJob      *joblock.JobLockTask
 )
 
 func InitAgentService() {
 
-	checkAllAgentsLastCommsJob = joblock.JobLockTask{
-		Name:     "checkAllAgentsLastCommsJob",
-		Interval: 30 * time.Second,
-		Timeout:  1 * time.Minute,
-		Arg: func() {
+	checkAllAgentsLastCommsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"checkAllAgentsLastCommsJob", func() {
 			if err := CheckAllAgentsLastComms(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
-	purgeAgentTasksJob = joblock.JobLockTask{
-		Name:     "purgeAgentTasksJob",
-		Interval: 30 * time.Second,
-		Timeout:  1 * time.Minute,
-		Arg: func() {
+		30*time.Second,
+		1*time.Minute,
+		false,
+	)
+
+	purgeAgentTasksJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"purgeAgentTasksJob", func() {
 			if err := PurgeAgentTasks(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		30*time.Second,
+		1*time.Minute,
+		false,
+	)
 
-	checkAgentModsConfigsJob = joblock.JobLockTask{
-		Name:     "checkAgentModsConfigsJob",
-		Interval: 30 * time.Second,
-		Timeout:  1 * time.Minute,
-		Arg: func() {
+	checkAgentModsConfigsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"checkAgentModsConfigsJob", func() {
 			if err := CheckAgentModsConfigs(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		30*time.Second,
+		1*time.Minute,
+		false,
+	)
 
-	checkAgentVersionsJob = joblock.JobLockTask{
-		Name:     "checkAgentVersionsJob",
-		Interval: 1 * time.Minute,
-		Timeout:  1 * time.Minute,
-		Arg: func() {
+	checkAgentVersionsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"checkAgentVersionsJob", func() {
 			if err := CheckAgentVersions(); err != nil {
 				fmt.Println(err)
 			}
 		},
-	}
+		30*time.Minute,
+		1*time.Minute,
+		false,
+	)
 
 	ctx := context.Background()
 	if err := checkAllAgentsLastCommsJob.Run(ctx); err != nil {
@@ -105,7 +111,7 @@ func ShutdownAgentService() error {
 
 func CheckAllAgentsLastComms() error {
 
-	allAgents := make([]models.Agents, 0)
+	allAgents := make([]modelsv1.Agents, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
 		return err
@@ -136,15 +142,15 @@ func CheckAllAgentsLastComms() error {
 					return fmt.Errorf("error finding account with error: %s", err.Error())
 				}
 
-				data := models.EventDataAgentOffline{
-					EventData: models.EventData{
+				data := modelsv1.EventDataAgentOffline{
+					EventData: modelsv1.EventData{
 						EventType: "agent.offline",
 						EventTime: time.Now(),
 					},
 					AgentName: agent.AgentName,
 				}
 
-				if err := account.CreateIntegrationEvent(models.IntegrationEventTypeAgentOffline, data); err != nil {
+				if err := account.CreateIntegrationEvent(modelsv1.IntegrationEventTypeAgentOffline, data); err != nil {
 					return fmt.Errorf("error creating integration event with error: %s", err.Error())
 				}
 			}
@@ -156,7 +162,7 @@ func CheckAllAgentsLastComms() error {
 
 func PurgeAgentTasks() error {
 
-	allAgents := make([]models.Agents, 0)
+	allAgents := make([]modelsv1.Agents, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
 		return err
@@ -176,7 +182,7 @@ func PurgeAgentTasks() error {
 
 func CheckAgentModsConfigs() error {
 
-	agents := make([]models.Agents, 0)
+	agents := make([]modelsv1.Agents, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &agents); err != nil {
 		return fmt.Errorf("error finding agents with error: %s", err.Error())
@@ -237,7 +243,7 @@ func CheckAgentVersions() error {
 
 	LatestVersion := releases[0].TagName
 
-	allAgents := make([]models.Agents, 0)
+	allAgents := make([]modelsv1.Agents, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
 		return err
@@ -264,10 +270,10 @@ func CheckAgentVersions() error {
 	return nil
 }
 
-func GetAllAgents(accountIdStr string) ([]models.Agents, error) {
+func GetAllAgents(accountIdStr string) ([]modelsv1.Agents, error) {
 
-	var theAccount models.Accounts
-	emptyAgents := make([]models.Agents, 0)
+	var theAccount modelsv1.Accounts
+	emptyAgents := make([]modelsv1.Agents, 0)
 
 	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
 
@@ -293,7 +299,7 @@ func GetAllAgents(accountIdStr string) ([]models.Agents, error) {
 }
 
 func CreateAgent(accountIdStr string, agentName string, port int, memory int64) error {
-	var theAccount models.Accounts
+	var theAccount modelsv1.Accounts
 
 	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
 
@@ -322,7 +328,7 @@ func CreateAgent(accountIdStr string, agentName string, port int, memory int64) 
 		return fmt.Errorf("error agent with same name %s already exists on your account", agentName)
 	}
 
-	newAgent := models.NewAgent(agentName, port, memory, "")
+	newAgent := modelsv1.NewAgent(agentName, port, memory, "")
 
 	if _, err := mongoose.InsertOne(&newAgent); err != nil {
 		return fmt.Errorf("error inserting new agent with error: %s", err.Error())
@@ -344,8 +350,8 @@ func CreateAgent(accountIdStr string, agentName string, port int, memory int64) 
 	return nil
 }
 
-func CreateAgentWorkflow(accountIdStr string, PostData models.API_AccountCreateAgent_PostData) (string, error) {
-	var theAccount models.Accounts
+func CreateAgentWorkflow(accountIdStr string, PostData modelsv1.API_AccountCreateAgent_PostData) (string, error) {
+	var theAccount modelsv1.Accounts
 
 	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
 
@@ -376,39 +382,39 @@ func CreateAgentWorkflow(accountIdStr string, PostData models.API_AccountCreateA
 
 	PostData.AccountId = theAccount.ID
 
-	createAgentAction := models.WorkflowAction{
+	createAgentAction := modelsv1.WorkflowAction{
 		Type: "create-agent",
 	}
 
-	waitForOnlineAction := models.WorkflowAction{
+	waitForOnlineAction := modelsv1.WorkflowAction{
 		Type: "wait-for-online",
 	}
 
-	installServerAction := models.WorkflowAction{
+	installServerAction := modelsv1.WorkflowAction{
 		Type: "install-server",
 	}
 
-	waitForInstalledAction := models.WorkflowAction{
+	waitForInstalledAction := modelsv1.WorkflowAction{
 		Type: "wait-for-installed",
 	}
 
-	startServerAction := models.WorkflowAction{
+	startServerAction := modelsv1.WorkflowAction{
 		Type: "start-server",
 	}
 
-	waitForRunningAction := models.WorkflowAction{
+	waitForRunningAction := modelsv1.WorkflowAction{
 		Type: "wait-for-running",
 	}
 
-	claimServerAction := models.WorkflowAction{
+	claimServerAction := modelsv1.WorkflowAction{
 		Type: "claim-server",
 	}
 
-	workflow := models.Workflows{
+	workflow := modelsv1.Workflows{
 		ID:   primitive.NewObjectID(),
 		Type: "create-agent",
 		Data: PostData,
-		Actions: []models.WorkflowAction{
+		Actions: []modelsv1.WorkflowAction{
 			createAgentAction,
 			waitForOnlineAction,
 			installServerAction,
@@ -426,18 +432,18 @@ func CreateAgentWorkflow(accountIdStr string, PostData models.API_AccountCreateA
 	return workflow.ID.Hex(), nil
 }
 
-func GetAgentById(accountIdStr string, agentIdStr string) (models.Agents, error) {
+func GetAgentById(accountIdStr string, agentIdStr string) (modelsv1.Agents, error) {
 
 	agents, err := GetAllAgents(accountIdStr)
 
 	if err != nil {
-		return models.Agents{}, err
+		return modelsv1.Agents{}, err
 	}
 
 	agentId, err := primitive.ObjectIDFromHex(agentIdStr)
 
 	if err != nil {
-		return models.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
+		return modelsv1.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
 	}
 
 	for _, agent := range agents {
@@ -446,19 +452,19 @@ func GetAgentById(accountIdStr string, agentIdStr string) (models.Agents, error)
 		}
 	}
 
-	return models.Agents{}, errors.New("error cant find agent on the account")
+	return modelsv1.Agents{}, errors.New("error cant find agent on the account")
 }
 
-func GetAgentByIdNoAccount(agentIdStr string) (models.Agents, error) {
+func GetAgentByIdNoAccount(agentIdStr string) (modelsv1.Agents, error) {
 
-	agents := make([]models.Agents, 0)
+	agents := make([]modelsv1.Agents, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &agents); err != nil {
-		return models.Agents{}, err
+		return modelsv1.Agents{}, err
 	}
 
 	if len(agentIdStr) < 8 {
-		return models.Agents{}, errors.New("invalid agent id")
+		return modelsv1.Agents{}, errors.New("invalid agent id")
 	}
 
 	if len(agentIdStr) == 8 {
@@ -472,7 +478,7 @@ func GetAgentByIdNoAccount(agentIdStr string) (models.Agents, error) {
 		agentId, err := primitive.ObjectIDFromHex(agentIdStr)
 
 		if err != nil {
-			return models.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
+			return modelsv1.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
 		}
 
 		for _, agent := range agents {
@@ -482,12 +488,12 @@ func GetAgentByIdNoAccount(agentIdStr string) (models.Agents, error) {
 		}
 	}
 
-	return models.Agents{}, errors.New("error cant find agent")
+	return modelsv1.Agents{}, errors.New("error cant find agent")
 }
 
-func GetAgentTasks(accountIdStr string, agentIdStr string) ([]models.AgentTask, error) {
+func GetAgentTasks(accountIdStr string, agentIdStr string) ([]modelsv1.AgentTask, error) {
 
-	tasks := make([]models.AgentTask, 0)
+	tasks := make([]modelsv1.AgentTask, 0)
 
 	agent, err := GetAgentById(accountIdStr, agentIdStr)
 
@@ -500,7 +506,7 @@ func GetAgentTasks(accountIdStr string, agentIdStr string) ([]models.AgentTask, 
 
 func NewAgentTask(accountIdStr string, agentIdStr string, action string, data interface{}) error {
 
-	newTask := models.NewAgentTask(action, data)
+	newTask := modelsv1.NewAgentTask(action, data)
 
 	agent, err := GetAgentById(accountIdStr, agentIdStr)
 
@@ -565,7 +571,7 @@ func DeleteAgent(accountIdStr string, agentIdStr string) error {
 	return nil
 }
 
-func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent models.Agents) error {
+func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent modelsv1.Agents) error {
 
 	agent, err := GetAgentById(accountIdStr, agentIdStr)
 	if err != nil {
@@ -646,7 +652,7 @@ func InstallMod(accountIdStr string, agentIdStr string, modReference string, ver
 				return err
 			}
 
-			newSelectedMod := models.AgentModConfigSelectedMod{
+			newSelectedMod := modelsv1.AgentModConfigSelectedMod{
 				Mod:              dbMod.ID,
 				ModObject:        dbMod,
 				DesiredVersion:   mod.Version,
@@ -698,7 +704,7 @@ func UninstallMod(accountIdStr string, agentIdStr string, modReference string) e
 		return err
 	}
 
-	newSelectedModsList := make([]models.AgentModConfigSelectedMod, 0)
+	newSelectedModsList := make([]modelsv1.AgentModConfigSelectedMod, 0)
 
 	for idx := range agent.ModConfig.SelectedMods {
 		selectedMod := agent.ModConfig.SelectedMods[idx]
@@ -721,9 +727,9 @@ func UninstallMod(accountIdStr string, agentIdStr string, modReference string) e
 	return nil
 }
 
-func GetAgentLogs(accountIdStr string, agentIdStr string) ([]models.AgentLogs, error) {
+func GetAgentLogs(accountIdStr string, agentIdStr string) ([]modelsv1.AgentLogs, error) {
 
-	logs := make([]models.AgentLogs, 0)
+	logs := make([]modelsv1.AgentLogs, 0)
 
 	agent, err := GetAgentById(accountIdStr, agentIdStr)
 	if err != nil {
@@ -740,9 +746,9 @@ func GetAgentLogs(accountIdStr string, agentIdStr string) ([]models.AgentLogs, e
 
 // Agent API Functions
 
-func GetAgentByAPIKey(agentAPIKey string) (models.Agents, error) {
+func GetAgentByAPIKey(agentAPIKey string) (modelsv1.Agents, error) {
 
-	var theAgent models.Agents
+	var theAgent modelsv1.Agents
 
 	if err := mongoose.FindOne(bson.M{"apiKey": agentAPIKey}, &theAgent); err != nil {
 		return theAgent, err
@@ -785,28 +791,28 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 
 	if !agent.Status.Online && online {
 
-		data := models.EventDataAgentOnline{
-			EventData: models.EventData{
+		data := modelsv1.EventDataAgentOnline{
+			EventData: modelsv1.EventData{
 				EventType: "agent.online",
 				EventTime: time.Now(),
 			},
 			AgentName: agent.AgentName,
 		}
 
-		if err := account.CreateIntegrationEvent(models.IntegrationEventTypeAgentOnline, data); err != nil {
+		if err := account.CreateIntegrationEvent(modelsv1.IntegrationEventTypeAgentOnline, data); err != nil {
 			return fmt.Errorf("error creating integration event with error: %s", err.Error())
 		}
 	} else if agent.Status.Online && !online {
 
-		data := models.EventDataAgentOffline{
-			EventData: models.EventData{
+		data := modelsv1.EventDataAgentOffline{
+			EventData: modelsv1.EventData{
 				EventType: "agent.offline",
 				EventTime: time.Now(),
 			},
 			AgentName: agent.AgentName,
 		}
 
-		if err := account.CreateIntegrationEvent(models.IntegrationEventTypeAgentOffline, data); err != nil {
+		if err := account.CreateIntegrationEvent(modelsv1.IntegrationEventTypeAgentOffline, data); err != nil {
 			return fmt.Errorf("error creating integration event with error: %s", err.Error())
 		}
 	}
@@ -850,7 +856,7 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity types.StorageFileIdentit
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	var theAccount models.Accounts
+	var theAccount modelsv1.Accounts
 	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
 		return fmt.Errorf("error finding agent account with error: %s", err.Error())
 	}
@@ -871,7 +877,7 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity types.StorageFileIdentit
 	}
 
 	if !agentSaveExists {
-		newAgentSave := models.AgentSave{
+		newAgentSave := modelsv1.AgentSave{
 			UUID:      fileIdentity.UUID,
 			FileName:  fileIdentity.FileName,
 			FileUrl:   objectUrl,
@@ -920,7 +926,7 @@ func UploadedAgentBackup(agentAPIKey string, fileIdentity types.StorageFileIdent
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	var theAccount models.Accounts
+	var theAccount modelsv1.Accounts
 	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
 		return fmt.Errorf("error finding agent account with error: %s", err.Error())
 	}
@@ -932,7 +938,7 @@ func UploadedAgentBackup(agentAPIKey string, fileIdentity types.StorageFileIdent
 		return fmt.Errorf("error uploading file to minio with error: %s", err)
 	}
 
-	newAgentBackup := models.AgentBackup{
+	newAgentBackup := modelsv1.AgentBackup{
 		UUID:      fileIdentity.UUID,
 		FileName:  fileIdentity.FileName,
 		Size:      fileIdentity.Filesize,
@@ -964,7 +970,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	var theAccount models.Accounts
+	var theAccount modelsv1.Accounts
 	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
 		return fmt.Errorf("error finding agent account with error: %s", err.Error())
 	}
@@ -995,7 +1001,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		logType = "Steam"
 	}
 
-	var theLog models.AgentLogs
+	var theLog modelsv1.AgentLogs
 	hasLog := false
 
 	for _, log := range agent.LogObjects {
@@ -1007,7 +1013,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 	}
 
 	if !hasLog {
-		theLog := models.AgentLogs{
+		theLog := modelsv1.AgentLogs{
 			ID:        primitive.NewObjectID(),
 			FileName:  fileIdentity.FileName,
 			Type:      logType,
@@ -1055,9 +1061,9 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 	return nil
 }
 
-func GetAgentModConfig(agentAPIKey string) (models.AgentModConfig, error) {
+func GetAgentModConfig(agentAPIKey string) (modelsv1.AgentModConfig, error) {
 
-	var theModConfig models.AgentModConfig
+	var theModConfig modelsv1.AgentModConfig
 
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
@@ -1070,7 +1076,7 @@ func GetAgentModConfig(agentAPIKey string) (models.AgentModConfig, error) {
 
 }
 
-func UpdateAgentModConfig(agentAPIKey string, newConfig models.AgentModConfig) error {
+func UpdateAgentModConfig(agentAPIKey string, newConfig modelsv1.AgentModConfig) error {
 
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
@@ -1109,8 +1115,8 @@ func UpdateAgentModConfig(agentAPIKey string, newConfig models.AgentModConfig) e
 	return nil
 }
 
-func GetAgentTasksApi(agentAPIKey string) ([]models.AgentTask, error) {
-	tasks := make([]models.AgentTask, 0)
+func GetAgentTasksApi(agentAPIKey string) ([]modelsv1.AgentTask, error) {
+	tasks := make([]modelsv1.AgentTask, 0)
 
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
@@ -1124,7 +1130,7 @@ func GetAgentTasksApi(agentAPIKey string) ([]models.AgentTask, error) {
 	return agent.Tasks, nil
 }
 
-func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask models.AgentTask) error {
+func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask modelsv1.AgentTask) error {
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
@@ -1175,8 +1181,8 @@ func GetAgentConfig(agentAPIKey string) (app.API_AgentConfig_ResData, error) {
 	return config, nil
 }
 
-func GetAgentSaves(agentAPIKey string) ([]models.AgentSave, error) {
-	saves := make([]models.AgentSave, 0)
+func GetAgentSaves(agentAPIKey string) ([]modelsv1.AgentSave, error) {
+	saves := make([]modelsv1.AgentSave, 0)
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return saves, fmt.Errorf("error finding agent with error: %s", err.Error())
@@ -1188,13 +1194,13 @@ func GetAgentSaves(agentAPIKey string) ([]models.AgentSave, error) {
 
 }
 
-func PostAgentSyncSaves(agentAPIKey string, saves []models.AgentSave) error {
+func PostAgentSyncSaves(agentAPIKey string, saves []modelsv1.AgentSave) error {
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	newSavesList := make([]models.AgentSave, 0)
+	newSavesList := make([]modelsv1.AgentSave, 0)
 
 	hasChanged := false
 
