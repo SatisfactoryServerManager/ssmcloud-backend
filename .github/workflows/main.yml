@@ -2,8 +2,8 @@
 name: Build SSM Cloud Backend
 on:
     push:
-        tags-ignore:
-            - "**"
+        branches:
+            - "dev"
 jobs:
     build-linux:
         runs-on: ubuntu-latest
