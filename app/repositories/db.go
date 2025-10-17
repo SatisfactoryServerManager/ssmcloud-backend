@@ -23,6 +23,7 @@ func InitDBRepository() error {
 	err = registerModels(
 		&models.UserSchema{},
 		&models.AccountSchema{},
+		&models.AccountAuditSchema{},
 		&models.AgentSchema{},
 		&models.WorkflowSchema{},
 		&models.AgentLogSchema{},

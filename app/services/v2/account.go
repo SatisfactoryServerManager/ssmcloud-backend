@@ -163,3 +163,41 @@ func GetMyUserLinkedAccounts(theUser *models.UserSchema) (*[]models.AccountSchem
 
 	return &theUser.LinkedAccounts, nil
 }
+
+func GetMyAccountAudit(theUser *models.UserSchema) (*[]models.AccountAuditSchema, error) {
+
+	theAccount, err := GetMyUserAccount(theUser)
+	if err != nil {
+		return nil, err
+	}
+
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := AccountModel.PopulateField(theAccount, "Audits"); err != nil {
+		return nil, err
+	}
+
+	return &theAccount.Audits, nil
+
+}
+
+func GetMyAccountUsers(theAccount *models.AccountSchema) (*[]models.UserSchema, error) {
+	accountId := theAccount.ID
+
+	UserModel, err := repositories.GetMongoClient().GetModel("User")
+	if err != nil {
+		return nil, err
+	}
+
+	users := make([]models.UserSchema, 0)
+
+	filter := bson.M{"linkedAccounts": bson.M{"$in": bson.A{accountId}}}
+	if err := UserModel.FindAll(&users, filter); err != nil {
+		return nil, err
+	}
+
+	return &users, nil
+}

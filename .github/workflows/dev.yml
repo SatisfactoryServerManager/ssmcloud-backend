@@ -1,5 +1,5 @@
 ---
-name: Build SSM Cloud Backend
+name: Build SSM Cloud Backend Dev
 on:
     push:
         branches:
