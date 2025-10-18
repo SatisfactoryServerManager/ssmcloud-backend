@@ -265,6 +265,8 @@ func (a WaitForInstallAction) Execute(action *v2.WorkflowAction, d interface{}, 
 
 	fmt.Printf("waiting for agent: %s to install sf server \n", theAgent.AgentName)
 
+	fmt.Printf("%+v\n", theAgent.Status)
+
 	if !theAgent.Status.Installed {
 		action.RetryCount += 1
 		if action.RetryCount > 300 {
@@ -325,7 +327,7 @@ func (a WaitForRunningAction) Execute(action *v2.WorkflowAction, d interface{}, 
 		return err
 	}
 
-	fmt.Printf("waiting for agent: %s to install sf server \n", theAgent.AgentName)
+	fmt.Printf("waiting for agent: %s to start sf server \n", theAgent.AgentName)
 
 	if !theAgent.Status.Running {
 		action.RetryCount += 1

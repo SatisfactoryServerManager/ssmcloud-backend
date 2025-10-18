@@ -7,11 +7,9 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/v2"
-	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -19,6 +17,14 @@ import (
 type FrontendHandler struct{}
 
 func (hander *FrontendHandler) API_GetWorkflows(c *gin.Context) {
+
+	WorkflowModel, err := repositories.GetMongoClient().GetModel("Workflow")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
 	WorkflowIDString := c.Query("workflowId")
 
 	WorkflowId, err := primitive.ObjectIDFromHex(WorkflowIDString)
@@ -29,9 +35,9 @@ func (hander *FrontendHandler) API_GetWorkflows(c *gin.Context) {
 		return
 	}
 
-	var theWorkflow modelsv1.Workflows
+	var theWorkflow models.WorkflowSchema
 
-	if err := mongoose.FindOne(bson.M{"_id": WorkflowId}, &theWorkflow); err != nil {
+	if err := WorkflowModel.FindOne(&theWorkflow, bson.M{"_id": WorkflowId}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return
