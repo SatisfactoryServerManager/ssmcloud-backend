@@ -94,6 +94,8 @@ github.com/kataras/jwt v0.1.17 h1:dYjemzcdYqA4ylwq9/56MslCr/pNOyVUZ2bl3hYNHgc=
 github.com/kataras/jwt v0.1.17/go.mod h1:HUnU5HDBCDanVF8zrPVSE2VK8HicospKefZDD4DzOKU=
 github.com/klauspost/compress v1.18.0 h1:c/Cqfb0r+Yi+JtIEq73FWXVkRonBlf0CRNYc8Zttxdo=
 github.com/klauspost/compress v1.18.0/go.mod h1:2Pp+KzxcywXVXMr50+X0Q/Lsb43OQHYWRCY2AiWywWQ=
+github.com/klauspost/compress v1.18.1 h1:bcSGx7UbpBqMChDtsF28Lw6v/G94LPrrbMbdC3JH2co=
+github.com/klauspost/compress v1.18.1/go.mod h1:ZQFFVG+MdnR0P+l6wpXgIL4NTtwiKIdBnrBd8Nrxr+0=
 github.com/klauspost/cpuid/v2 v2.0.1/go.mod h1:FInQzS24/EEf25PyTYn52gqo7WaD8xa0213Md/qVLRg=
 github.com/klauspost/cpuid/v2 v2.3.0 h1:S4CRMLnYUhGeDFDqkGriYKdfoFlDnMtqTiI/sFzhA9Y=
 github.com/klauspost/cpuid/v2 v2.3.0/go.mod h1:hqwkgyIinND0mEev00jJYCxPNVRVXFQeu1XKlok6oO0=
@@ -128,6 +130,8 @@ github.com/mrhid6/go-mongoose v0.0.19 h1:MSAUSd4EvJYFjmokQPVn0ehLDwFjaGCtevwR5pn
 github.com/mrhid6/go-mongoose v0.0.19/go.mod h1:RowhE7wnLlPzZ8f/Mgfkh1ErIpM0SOpNU4C7ixgYoZc=
 github.com/mrhid6/go-mongoose v0.0.20 h1:H7w2s7SvxfM1fvRoy6WZiBtL0Dv2b8gSC+zbS7cVGMI=
 github.com/mrhid6/go-mongoose v0.0.20/go.mod h1:RowhE7wnLlPzZ8f/Mgfkh1ErIpM0SOpNU4C7ixgYoZc=
+github.com/mrhid6/go-mongoose v0.0.21 h1:ozhSCl6raKVEF/YNAjMspOn4GW7XS4FDrWpVJxKTidk=
+github.com/mrhid6/go-mongoose v0.0.21/go.mod h1:RowhE7wnLlPzZ8f/Mgfkh1ErIpM0SOpNU4C7ixgYoZc=
 github.com/mrhid6/go-mongoose-lock v0.0.5 h1:oczGTq5vCk7Wb138AWEdWXQmCENbBYLq7ARNogyd0As=
 github.com/mrhid6/go-mongoose-lock v0.0.5/go.mod h1:9Km1UGzfoIy0NuPjmSj8v4qi/guFHvzBHoDA36TzlAc=
 github.com/pelletier/go-toml/v2 v2.2.4 h1:mye9XuhQ6gvn5h28+VilKrrPoQVanw5PMw/TB0t5Ec4=

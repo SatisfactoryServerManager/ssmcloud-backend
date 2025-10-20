@@ -3,7 +3,8 @@ package repositories
 import (
 	"context"
 
-	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
+	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
+	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/mrhid6/go-mongoose/mongoose"
 )
 
@@ -21,13 +22,15 @@ func InitDBRepository() error {
 	db = mc
 
 	err = registerModels(
-		&models.UserSchema{},
-		&models.AccountSchema{},
-		&models.AccountAuditSchema{},
-		&models.AgentSchema{},
-		&models.WorkflowSchema{},
-		&models.AgentLogSchema{},
-		&models.AgentStatSchema{},
+		&v2.UserSchema{},
+		&v2.AccountSchema{},
+		&v2.AccountAuditSchema{},
+		&v2.AgentSchema{},
+		&v2.WorkflowSchema{},
+		&v2.AgentLogSchema{},
+		&v2.AgentStatSchema{},
+		&v2.AgentModConfigSelectedMod{},
+		&models.Mods{},
 	)
 
 	if err != nil {

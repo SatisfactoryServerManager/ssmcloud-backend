@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
@@ -316,6 +318,82 @@ func (handler *FrontendHandler) API_DownloadLog(c *gin.Context) {
 	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
 }
 
+func (handler *FrontendHandler) API_GetMods(c *gin.Context) {
+	agentId := c.Query("agentId")
+	page := c.Query("page")
+	sort := c.Query("sort")
+	direction := c.Query("direction")
+	search := c.Query("search")
+
+	claims, _ := c.Get("user")
+	user := claims.(jwt.MapClaims)
+	eid := user["sub"].(string)
+
+	oid, err := primitive.ObjectIDFromHex(agentId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theAccount, err := v2.GetMyUserAccount(theUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	agents, err := v2.GetMyUserAccountAgents(theAccount, oid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+	theAgent := agents[0]
+
+	pageInt, _ := strconv.Atoi(page)
+	mods, err := v2.GetMods(pageInt, sort, direction, search)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+	modCount, err := v2.GetModCount()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	pages := float64(modCount) / float64(30)
+
+	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	for idx := range theAgent.ModConfig.SelectedMods {
+		mod := &theAgent.ModConfig.SelectedMods[idx]
+		if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+			c.Abort()
+			return
+		}
+	}
+
+	c.JSON(200, gin.H{"success": true, "mods": mods, "totalMods": modCount, "pages": int(math.Ceil(pages)), "agentModConfig": theAgent.ModConfig})
+
+}
 func NewFrontendHandler(router gin.RouterGroup) {
 
 	handler := &FrontendHandler{}
@@ -327,6 +405,8 @@ func NewFrontendHandler(router gin.RouterGroup) {
 	NewFrontendUserHandler(usersGroup)
 
 	router.GET("/workflows", handler.API_GetWorkflows)
+
+	router.GET("/mods", handler.API_GetMods)
 
 	router.GET("/download/backup", handler.API_DownloadBackup)
 	router.GET("/download/save", handler.API_DownloadSave)

@@ -15,7 +15,7 @@ require (
 	github.com/machinebox/graphql v0.2.2
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/mircearoata/pubgrub-go v0.3.4
-	github.com/mrhid6/go-mongoose v0.0.20
+	github.com/mrhid6/go-mongoose v0.0.21
 	github.com/mrhid6/go-mongoose-lock v0.0.5
 	github.com/pquerna/otp v1.5.0
 	github.com/satisfactorymodding/ficsit-resolver v0.0.6
@@ -43,7 +43,7 @@ require (
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/klauspost/compress v1.18.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/matryer/is v1.4.1 // indirect
