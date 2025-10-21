@@ -36,7 +36,7 @@ func InitModService() {
 				fmt.Println(err)
 			}
 		},
-		30*time.Second,
+		5*time.Minute,
 		1*time.Minute,
 		false,
 	)

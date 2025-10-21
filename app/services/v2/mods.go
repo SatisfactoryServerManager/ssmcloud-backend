@@ -1,6 +1,8 @@
 package v2
 
 import (
+	"fmt"
+
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
@@ -42,7 +44,7 @@ func GetMods(page int, sort string, direction string, search string) (*[]models.
 		SetLimit(limit)
 
 	if err := mongoose.FindAllWithOptions(filter, *findOptions, &modsRes); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting mods from db with error: %s", err.Error())
 	}
 
 	return &modsRes, nil
@@ -51,7 +53,7 @@ func GetMods(page int, sort string, direction string, search string) (*[]models.
 func GetModCount() (int64, error) {
 	count, err := mongoose.CountDocuments("mods", bson.M{})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("error getting mod count with error: %s", err.Error())
 	}
 
 	return count, nil

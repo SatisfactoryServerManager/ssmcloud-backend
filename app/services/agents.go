@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"reflect"
 	"strings"
 	"time"
@@ -14,13 +13,11 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
-	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"github.com/mrhid6/go-mongoose/mongoose"
-	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -604,129 +601,6 @@ func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent mode
 	return nil
 }
 
-func InstallMod(accountIdStr string, agentIdStr string, modReference string, version string) error {
-
-	agent, err := GetAgentById(accountIdStr, agentIdStr)
-	if err != nil {
-		return err
-	}
-
-	depResolver := resolver.NewDependencyResolver(SSMProvider{})
-
-	constraints := make(map[string]string, 0)
-
-	constraints[modReference] = version
-
-	requiredTargets := make([]resolver.TargetName, 0)
-	requiredTargets = append(requiredTargets, resolver.TargetNameWindowsServer)
-	requiredTargets = append(requiredTargets, resolver.TargetNameLinuxServer)
-
-	resolved, err := depResolver.ResolveModDependencies(constraints, nil, math.MaxInt, requiredTargets)
-
-	if err != nil {
-		return err
-	}
-
-	mods := resolved.Mods
-
-	for k := range mods {
-		mod := mods[k]
-
-		exists := false
-		for idx := range agent.ModConfig.SelectedMods {
-			selectedMod := &agent.ModConfig.SelectedMods[idx]
-
-			if selectedMod.ModObject.ModReference == k {
-				selectedMod.DesiredVersion = mod.Version
-				exists = true
-				break
-			}
-		}
-
-		if !exists {
-
-			fmt.Printf("Installing Mod %s\n", k)
-
-			var dbMod models.Mods
-			if err := mongoose.FindOne(bson.M{"modReference": k}, &dbMod); err != nil {
-				return err
-			}
-
-			newSelectedMod := modelsv1.AgentModConfigSelectedMod{
-				Mod:              dbMod.ID,
-				ModObject:        dbMod,
-				DesiredVersion:   mod.Version,
-				InstalledVersion: "0.0.0",
-				Config:           "{}",
-			}
-
-			agent.ModConfig.SelectedMods = append(agent.ModConfig.SelectedMods, newSelectedMod)
-		}
-	}
-
-	dbUpdate := bson.M{
-		"modConfig": agent.ModConfig,
-		"updatedAt": time.Now(),
-	}
-
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func UpdateMod(accountIdStr string, agentIdStr string, modReference string) error {
-
-	var dbMod models.Mods
-
-	if err := mongoose.FindOne(bson.M{"modReference": modReference}, &dbMod); err != nil {
-		return fmt.Errorf("error finding mod with error: %s", err.Error())
-	}
-
-	if len(dbMod.Versions) == 0 {
-		return errors.New("error updating mod with error: no mod versions")
-	}
-
-	latestVersion := dbMod.Versions[0].Version
-
-	if err := InstallMod(accountIdStr, agentIdStr, dbMod.ModReference, latestVersion); err != nil {
-		return fmt.Errorf("error installing mod with error: %s", err.Error())
-	}
-
-	return nil
-}
-
-func UninstallMod(accountIdStr string, agentIdStr string, modReference string) error {
-
-	agent, err := GetAgentById(accountIdStr, agentIdStr)
-	if err != nil {
-		return err
-	}
-
-	newSelectedModsList := make([]modelsv1.AgentModConfigSelectedMod, 0)
-
-	for idx := range agent.ModConfig.SelectedMods {
-		selectedMod := agent.ModConfig.SelectedMods[idx]
-
-		if selectedMod.ModObject.ModReference != modReference {
-			newSelectedModsList = append(newSelectedModsList, selectedMod)
-		}
-	}
-
-	agent.ModConfig.SelectedMods = newSelectedModsList
-
-	dbUpdate := bson.M{
-		"modConfig": agent.ModConfig,
-		"updatedAt": time.Now(),
-	}
-
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
-		return err
-	}
-	return nil
-}
-
 func GetAgentLogs(accountIdStr string, agentIdStr string) ([]modelsv1.AgentLogs, error) {
 
 	logs := make([]modelsv1.AgentLogs, 0)
@@ -975,7 +849,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		return fmt.Errorf("error finding agent account with error: %s", err.Error())
 	}
 
-	fileContents, err := utils.ReadLastNBtyesFromFile(fileIdentity.LocalFilePath, 2000)
+	fileContents, err := utils.ReadLastNBtyesFromFile(fileIdentity.LocalFilePath, 4000)
 
 	if err != nil {
 		return fmt.Errorf("error reading log contents with error: %s", err.Error())

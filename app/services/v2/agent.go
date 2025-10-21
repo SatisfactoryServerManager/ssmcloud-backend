@@ -3,18 +3,24 @@ package v2
 import (
 	"errors"
 	"fmt"
+	"math"
+	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
-	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
+	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
+	"github.com/mrhid6/go-mongoose/mongoose"
+	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func GetMyUserAccountAgents(theAccount *models.AccountSchema, agentId primitive.ObjectID) ([]*models.AgentSchema, error) {
+func GetMyUserAccountAgents(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID) ([]*modelsv2.AgentSchema, error) {
 
 	if theAccount == nil {
-		emptyArray := make([]*models.AgentSchema, 0)
+		emptyArray := make([]*modelsv2.AgentSchema, 0)
 		return emptyArray, nil
 	}
 
@@ -28,7 +34,7 @@ func GetMyUserAccountAgents(theAccount *models.AccountSchema, agentId primitive.
 	}
 
 	if !agentId.IsZero() {
-		singleAgentArray := make([]*models.AgentSchema, 0)
+		singleAgentArray := make([]*modelsv2.AgentSchema, 0)
 		for idx := range theAccount.Agents {
 			agent := &theAccount.Agents[idx]
 			if agent.ID.Hex() == agentId.Hex() {
@@ -38,7 +44,7 @@ func GetMyUserAccountAgents(theAccount *models.AccountSchema, agentId primitive.
 		return singleAgentArray, nil
 	}
 
-	resArray := make([]*models.AgentSchema, 0)
+	resArray := make([]*modelsv2.AgentSchema, 0)
 	for idx := range theAccount.Agents {
 		agent := &theAccount.Agents[idx]
 		resArray = append(resArray, agent)
@@ -46,7 +52,7 @@ func GetMyUserAccountAgents(theAccount *models.AccountSchema, agentId primitive.
 	return resArray, nil
 }
 
-func CreateAgentWorkflow(accountId primitive.ObjectID, PostData *models.CreateAgentWorkflowData) (string, error) {
+func CreateAgentWorkflow(accountId primitive.ObjectID, PostData *modelsv2.CreateAgentWorkflowData) (string, error) {
 
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {
@@ -58,7 +64,7 @@ func CreateAgentWorkflow(accountId primitive.ObjectID, PostData *models.CreateAg
 		return "", fmt.Errorf("error getting workflow model with error: %s", err.Error())
 	}
 
-	theAccount := &models.AccountSchema{}
+	theAccount := &modelsv2.AccountSchema{}
 
 	if err := AccountModel.FindOneById(theAccount, accountId); err != nil {
 		return "", fmt.Errorf("error finding account from session with error: %s", err.Error())
@@ -76,39 +82,39 @@ func CreateAgentWorkflow(accountId primitive.ObjectID, PostData *models.CreateAg
 
 	PostData.AccountId = theAccount.ID
 
-	createAgentAction := models.WorkflowAction{
-		Type: models.WorkflowActionType_CreateAgent,
+	createAgentAction := modelsv2.WorkflowAction{
+		Type: modelsv2.WorkflowActionType_CreateAgent,
 	}
 
-	waitForOnlineAction := models.WorkflowAction{
-		Type: models.WorkflowActionType_WaitForOnline,
+	waitForOnlineAction := modelsv2.WorkflowAction{
+		Type: modelsv2.WorkflowActionType_WaitForOnline,
 	}
 
-	installServerAction := models.WorkflowAction{
-		Type: models.WorkflowActionType_InstallServer,
+	installServerAction := modelsv2.WorkflowAction{
+		Type: modelsv2.WorkflowActionType_InstallServer,
 	}
 
-	waitForInstalledAction := models.WorkflowAction{
-		Type: models.WorkflowActionType_WaitForInstalled,
+	waitForInstalledAction := modelsv2.WorkflowAction{
+		Type: modelsv2.WorkflowActionType_WaitForInstalled,
 	}
 
-	startServerAction := models.WorkflowAction{
-		Type: models.WorkflowActionType_StartServer,
+	startServerAction := modelsv2.WorkflowAction{
+		Type: modelsv2.WorkflowActionType_StartServer,
 	}
 
-	waitForRunningAction := models.WorkflowAction{
-		Type: models.WorkflowActionType_WaitForRunning,
+	waitForRunningAction := modelsv2.WorkflowAction{
+		Type: modelsv2.WorkflowActionType_WaitForRunning,
 	}
 
-	claimServerAction := models.WorkflowAction{
-		Type: models.WorkflowActionType_ClaimServer,
+	claimServerAction := modelsv2.WorkflowAction{
+		Type: modelsv2.WorkflowActionType_ClaimServer,
 	}
 
-	workflow := models.WorkflowSchema{
+	workflow := modelsv2.WorkflowSchema{
 		ID:   primitive.NewObjectID(),
-		Type: models.WorkflowType_CreateAgent,
+		Type: modelsv2.WorkflowType_CreateAgent,
 		Data: PostData,
-		Actions: []models.WorkflowAction{
+		Actions: []modelsv2.WorkflowAction{
 			createAgentAction,
 			waitForOnlineAction,
 			installServerAction,
@@ -126,7 +132,7 @@ func CreateAgentWorkflow(accountId primitive.ObjectID, PostData *models.CreateAg
 	return workflow.ID.Hex(), nil
 }
 
-func DeleteAgent(theAccount *models.AccountSchema, agentId primitive.ObjectID) error {
+func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID) error {
 
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {
@@ -142,7 +148,7 @@ func DeleteAgent(theAccount *models.AccountSchema, agentId primitive.ObjectID) e
 		return fmt.Errorf("error populating agents with error: %s", err.Error())
 	}
 
-	var theAgent *models.AgentSchema
+	var theAgent *modelsv2.AgentSchema
 	for idx := range theAccount.Agents {
 		agent := &theAccount.Agents[idx]
 		if agent.ID.Hex() == agentId.Hex() {
@@ -174,7 +180,7 @@ func DeleteAgent(theAccount *models.AccountSchema, agentId primitive.ObjectID) e
 	return nil
 }
 
-func UpdateAgentSettings(theAccount *models.AccountSchema, PostData *app.APIUpdateServerSettingsRequest) error {
+func UpdateAgentSettings(theAccount *modelsv2.AccountSchema, PostData *app.APIUpdateServerSettingsRequest) error {
 
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {
@@ -195,7 +201,7 @@ func UpdateAgentSettings(theAccount *models.AccountSchema, PostData *app.APIUpda
 		return err
 	}
 
-	var theAgent *models.AgentSchema
+	var theAgent *modelsv2.AgentSchema
 	for idx := range theAccount.Agents {
 		agent := &theAccount.Agents[idx]
 
@@ -244,7 +250,7 @@ func UpdateAgentSettings(theAccount *models.AccountSchema, PostData *app.APIUpda
 	return nil
 }
 
-func GetAgentLog(theAgent *models.AgentSchema, logType string) (*models.AgentLogSchema, error) {
+func GetAgentLog(theAgent *modelsv2.AgentSchema, logType string) (*modelsv2.AgentLogSchema, error) {
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
 	if err != nil {
 		return nil, err
@@ -260,5 +266,169 @@ func GetAgentLog(theAgent *models.AgentSchema, logType string) (*models.AgentLog
 			return log, nil
 		}
 	}
-	return &models.AgentLogSchema{}, nil
+	return &modelsv2.AgentLogSchema{}, nil
+}
+
+func CreateAgentTask(theAgent *modelsv2.AgentSchema, action string, data interface{}) error {
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	newTask := modelsv2.NewAgentTask(action, data)
+	theAgent.Tasks = append(theAgent.Tasks, newTask)
+
+	updateData := bson.M{"tasks": theAgent.Tasks}
+	if err := AgentModel.UpdateData(theAgent, updateData); err != nil {
+		return err
+	}
+	return nil
+}
+
+func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version string) error {
+
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+	if err != nil {
+		return err
+	}
+
+	depResolver := resolver.NewDependencyResolver(utils.SSMProvider{})
+
+	constraints := make(map[string]string, 0)
+
+	constraints[modReference] = version
+
+	requiredTargets := make([]resolver.TargetName, 0)
+	requiredTargets = append(requiredTargets, resolver.TargetNameWindowsServer)
+	requiredTargets = append(requiredTargets, resolver.TargetNameLinuxServer)
+
+	resolved, err := depResolver.ResolveModDependencies(constraints, nil, math.MaxInt, requiredTargets)
+
+	if err != nil {
+		return err
+	}
+
+	for idx := range theAgent.ModConfig.SelectedMods {
+		mod := &theAgent.ModConfig.SelectedMods[idx]
+		if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+			return err
+		}
+	}
+
+	mods := resolved.Mods
+
+	for k := range mods {
+		mod := mods[k]
+
+		exists := false
+		for idx := range theAgent.ModConfig.SelectedMods {
+			selectedMod := &theAgent.ModConfig.SelectedMods[idx]
+
+			if selectedMod.Mod.ModReference == k {
+				selectedMod.DesiredVersion = mod.Version
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+
+			var dbMod models.Mods
+			if err := mongoose.FindOne(bson.M{"modReference": k}, &dbMod); err != nil {
+				return err
+			}
+
+			fmt.Printf("Installing Mod %s\n", k)
+			fmt.Printf("%+v\n", dbMod)
+
+			newSelectedMod := modelsv2.AgentModConfigSelectedMod{
+				ModId:            dbMod.ID,
+				Mod:              dbMod,
+				DesiredVersion:   mod.Version,
+				InstalledVersion: "0.0.0",
+				Config:           "{}",
+			}
+
+			theAgent.ModConfig.SelectedMods = append(theAgent.ModConfig.SelectedMods, newSelectedMod)
+		}
+	}
+
+	dbUpdate := bson.M{
+		"modConfig": theAgent.ModConfig,
+		"updatedAt": time.Now(),
+	}
+
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UpdateMod(theAgent *modelsv2.AgentSchema, modReference string) error {
+
+	var dbMod models.Mods
+
+	if err := mongoose.FindOne(bson.M{"modReference": modReference}, &dbMod); err != nil {
+		return fmt.Errorf("error finding mod with error: %s", err.Error())
+	}
+
+	if len(dbMod.Versions) == 0 {
+		return errors.New("error updating mod with error: no mod versions")
+	}
+
+	latestVersion := dbMod.Versions[0].Version
+
+	if err := InstallMod(theAgent, dbMod.ModReference, latestVersion); err != nil {
+		return fmt.Errorf("error installing mod with error: %s", err.Error())
+	}
+
+	return nil
+}
+
+func UninstallMod(theAgent *modelsv2.AgentSchema, modReference string) error {
+
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+	if err != nil {
+		return err
+	}
+
+	for idx := range theAgent.ModConfig.SelectedMods {
+		mod := &theAgent.ModConfig.SelectedMods[idx]
+		if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+			return err
+		}
+	}
+
+	newSelectedModsList := make([]modelsv2.AgentModConfigSelectedMod, 0)
+
+	for idx := range theAgent.ModConfig.SelectedMods {
+		selectedMod := theAgent.ModConfig.SelectedMods[idx]
+
+		if selectedMod.Mod.ModReference != modReference {
+			newSelectedModsList = append(newSelectedModsList, selectedMod)
+		}
+	}
+
+	theAgent.ModConfig.SelectedMods = newSelectedModsList
+
+	dbUpdate := bson.M{
+		"modConfig": theAgent.ModConfig,
+		"updatedAt": time.Now(),
+	}
+
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
+		return err
+	}
+	return nil
 }

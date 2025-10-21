@@ -3,6 +3,7 @@ package app
 import (
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Vector3f struct {
@@ -42,7 +43,8 @@ type API_AccountAgentTask_PostData struct {
 }
 
 type API_AccountAgentMod_PostData struct {
-	ModReference string `json:"modReference"`
+	ModReference string             `json:"modReference"`
+	AgentID      primitive.ObjectID `json:"agentId"`
 }
 
 type API_AccountAgentConfig_PutData struct {
@@ -122,7 +124,7 @@ type APIUpdateServerSettings struct {
 	WorkerThreads        int     `form:"inp_workerthreads" json:"workerThreads"`
 	Branch               string  `form:"inp_sfbranch" json:"branch"`
 	BackupInterval       float32 `form:"inp_backupinterval" json:"backupInterval"`
-	BackupKeep           int `form:"inp_backupkeep" json:"backupKeep"`
+	BackupKeep           int     `form:"inp_backupkeep" json:"backupKeep"`
 }
 
 type APIUpdateServerSettingsRequest struct {
