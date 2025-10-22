@@ -551,7 +551,7 @@ func NewFrontendUserAccountAgentHandler(router *gin.RouterGroup) {
 	router.GET("/log", handler.API_GetAgentLog)
 	router.POST("/tasks", handler.API_CreateAgentTask)
 
-	router.POST("/mods", handler.API_GetAgentMods)
+	router.GET("/mods", handler.API_GetAgentMods)
 	router.POST("/installmod", handler.API_AgentUpdateMod)
 	router.POST("/uninstallmod", handler.API_AgentUninstallMod)
 }

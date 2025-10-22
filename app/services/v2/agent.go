@@ -235,6 +235,37 @@ func UpdateAgentSettings(theAccount *modelsv2.AccountSchema, PostData *app.APIUp
 		theAgent.Config.BackupInterval = PostData.BackupInterval
 		theAgent.Config.BackupKeepAmount = PostData.BackupKeep
 		updateData["config"] = theAgent.Config
+	case "modsettings":
+		ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+		if err != nil {
+			return err
+		}
+
+		for idx := range theAgent.ModConfig.SelectedMods {
+			mod := &theAgent.ModConfig.SelectedMods[idx]
+			if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+				return err
+			}
+		}
+
+        var selectedMod *modelsv2.AgentModConfigSelectedMod
+        for idx := range theAgent.ModConfig.SelectedMods {
+			mod := &theAgent.ModConfig.SelectedMods[idx]
+            if mod.Mod.ModReference == PostData.ModReference{
+                selectedMod = mod;
+                break;
+            }
+        }
+
+        if selectedMod == nil{
+            return errors.New("error cant find mod in selected mods list")
+        }
+
+        selectedMod.Config = PostData.ModConfig
+
+        updateData["modConfig"] = theAgent.ModConfig
+
+
 	default:
 		return errors.New("error unknown config setting")
 	}
