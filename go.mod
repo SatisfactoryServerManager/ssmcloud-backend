@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/MicahParks/keyfunc v1.9.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.18
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.19
 	github.com/TwiN/go-away v1.8.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
@@ -17,14 +17,12 @@ require (
 	github.com/mircearoata/pubgrub-go v0.3.4
 	github.com/mrhid6/go-mongoose v0.0.21
 	github.com/mrhid6/go-mongoose-lock v0.0.5
-	github.com/pquerna/otp v1.5.0
 	github.com/satisfactorymodding/ficsit-resolver v0.0.6
 	go.mongodb.org/mongo-driver v1.17.4
 	golang.org/x/crypto v0.43.0
 )
 
 require (
-	github.com/boombuler/barcode v1.1.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.1 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect

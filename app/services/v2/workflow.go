@@ -179,7 +179,12 @@ func (a CreateAgentAction) Execute(action *v2.WorkflowAction, d interface{}, the
 		return fmt.Errorf("error updating account AgentSchema with error: %s", err.Error())
 	}
 
-	//theAccount.AddAudit("CREATE_AGENT", fmt.Sprintf("New agent created (%s)", workflowData.AgentName))
+	if err := AddAccountAudit(theAccount,
+		v2.AuditType_AgentRemoveFromAccount,
+		fmt.Sprintf("Agent (%s) was added to the account", newAgent.AgentName),
+	); err != nil {
+		return err
+	}
 
 	action.Status = "completed"
 	return nil

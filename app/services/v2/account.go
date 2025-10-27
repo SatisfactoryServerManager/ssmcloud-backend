@@ -54,6 +54,13 @@ func CreateAccount(theUser *models.UserSchema, accountName string) error {
 		return err
 	}
 
+	if err := AddAccountAudit(newAccount,
+		models.AuditType_AgentRemoveFromAccount,
+		fmt.Sprintf("User (%s) was added to the account", theUser.Username),
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -91,6 +98,13 @@ func JoinAccount(theUser *models.UserSchema, joinCode string) error {
 	}
 
 	if err := UserModel.UpdateData(theUser, updateData); err != nil {
+		return err
+	}
+
+	if err := AddAccountAudit(existingAccount,
+		models.AuditType_AgentRemoveFromAccount,
+		fmt.Sprintf("User (%s) was added to the account", theUser.Username),
+	); err != nil {
 		return err
 	}
 

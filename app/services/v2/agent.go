@@ -177,6 +177,13 @@ func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID)
 		return fmt.Errorf("error deleting agent from db with error: %s", err.Error())
 	}
 
+	if err := AddAccountAudit(theAccount,
+		modelsv2.AuditType_AgentRemoveFromAccount,
+		fmt.Sprintf("Agent (%s) was removed from the account", theAgent.AgentName),
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 

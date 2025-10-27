@@ -13,33 +13,6 @@ import (
 
 type AccountIntegrationHandler struct{}
 
-func (h *AccountIntegrationHandler) API_PostIntegration(c *gin.Context) {
-	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
-	AccountID := JWTData.AccountID
-
-	account, err := services.GetAccount(AccountID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	var PostData models.AccountIntegrations
-	if err := c.BindJSON(&PostData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	if err := account.AddIntegration(PostData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
 func (h *AccountIntegrationHandler) API_UpdateIntegration(c *gin.Context) {
 	JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
 	AccountID := JWTData.AccountID
@@ -103,7 +76,6 @@ func NewAccountIntegrationsHandler(router *gin.RouterGroup) {
 	router.Use(middleware.Middleware_DecodeJWT())
 	router.Use(middleware.Middleware_VerifySession())
 
-	router.POST("/", handler.API_PostIntegration)
 	router.PUT("/", handler.API_UpdateIntegration)
 	router.DELETE("/:integrationId", handler.API_DeleteIntegration)
 }
