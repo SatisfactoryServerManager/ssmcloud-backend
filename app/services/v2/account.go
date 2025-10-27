@@ -201,3 +201,16 @@ func GetMyAccountUsers(theAccount *models.AccountSchema) (*[]models.UserSchema, 
 
 	return &users, nil
 }
+
+func GetMyAccountIntegrations(theAccount *models.AccountSchema) (*[]models.AccountIntegrationSchema, error) {
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := AccountModel.PopulateField(theAccount, "Integrations"); err != nil {
+		return nil, fmt.Errorf("error populating account integrations with error: %s", err.Error())
+	}
+
+	return &theAccount.Integrations, nil
+}
