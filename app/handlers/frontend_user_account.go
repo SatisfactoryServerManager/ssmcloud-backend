@@ -165,7 +165,8 @@ func (handler *FrontendUserAccountHandler) API_GetMyAccountAudit(c *gin.Context)
 	}
 
 	filteredAudits := make([]models.AccountAuditSchema, 0)
-	filter := c.Query("auditType")
+	filter := models.AuditType(c.Query("auditType"))
+
 	if filter != "" {
 		for _, audit := range *allAudits {
 			if audit.Type == filter {
@@ -242,6 +243,51 @@ func (hander *FrontendUserAccountHandler) API_GetMyAccountIntegrations(c *gin.Co
 	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "integrations": integrations})
 }
 
+func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Context) {
+
+	claims, _ := c.Get("user")
+	user := claims.(jwt.MapClaims)
+	eid := user["sub"].(string)
+
+	type APIPostAccountIntegrationsData struct {
+		Type       models.IntegrationType        `json:"type"`
+		URL        string                        `json:"url"`
+		EventTypes []models.IntegrationEventType `json:"eventTypes"`
+	}
+
+	PostData := &APIPostAccountIntegrationsData{}
+	if err := c.BindJSON(PostData); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theAccount, err := v2.GetMyUserAccount(theUser)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err = v2.AddAccountIntegration(theAccount, PostData.Type, PostData.URL, PostData.EventTypes)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "error": ""})
+}
+
 func (handler *FrontendUserAccountHandler) API_GetMyLinkedAccounts(c *gin.Context) {
 	claims, _ := c.Get("user")
 	user := claims.(jwt.MapClaims)
@@ -279,6 +325,7 @@ func NewFrontendUserAccountHandler(router *gin.RouterGroup) {
 	accountGroup.GET("/audit", handler.API_GetMyAccountAudit)
 	accountGroup.GET("/users", handler.API_GetMyAccountUsers)
 	accountGroup.GET("/integrations", handler.API_GetMyAccountIntegrations)
+	accountGroup.POST("/integrations/add", handler.API_AddAccountIntegrations)
 
 	agentsGroup := accountGroup.Group("agents")
 

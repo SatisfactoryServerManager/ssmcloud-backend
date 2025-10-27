@@ -72,9 +72,9 @@ func GetModCountFromAPI() (int, error) {
 	return count, nil
 }
 
-func GetAllModsFromAPI() ([]models.Mods, error) {
+func GetAllModsFromAPI() ([]models.ModSchema, error) {
 
-	allMods := make([]models.Mods, 0)
+	allMods := make([]models.ModSchema, 0)
 
 	count, err := GetModCountFromAPI()
 	if err != nil {
@@ -93,7 +93,7 @@ func GetAllModsFromAPI() ([]models.Mods, error) {
 		allMods = append(allMods, mods...)
 	}
 
-	filteredMods := make([]models.Mods, 0)
+	filteredMods := make([]models.ModSchema, 0)
 
 	for _, mod := range allMods {
 
@@ -139,9 +139,9 @@ func GetAllModsFromAPI() ([]models.Mods, error) {
 	return filteredMods, nil
 }
 
-func GetModsFromAPI(offset int) ([]models.Mods, error) {
+func GetModsFromAPI(offset int) ([]models.ModSchema, error) {
 
-	emptyMods := make([]models.Mods, 0)
+	emptyMods := make([]models.ModSchema, 0)
 
 	graphqlRequest := graphql.NewRequest(`
         {
@@ -200,7 +200,7 @@ func UpdateModsInDB() error {
 
 		apiMod := &apiMods[idx]
 
-		var dbMod models.Mods
+		var dbMod models.ModSchema
 		if err := mongoose.FindOne(bson.M{"modReference": apiMod.ModReference}, &dbMod); err != nil {
 
 			if errors.Is(err, mongo.ErrNoDocuments) {

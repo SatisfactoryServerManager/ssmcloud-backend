@@ -4,8 +4,8 @@ go 1.25
 
 require (
 	github.com/MicahParks/keyfunc v1.9.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.16
-	github.com/TwiN/go-away v1.8.0
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.18
+	github.com/TwiN/go-away v1.8.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-github v17.0.0+incompatible

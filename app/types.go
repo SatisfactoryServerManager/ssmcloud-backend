@@ -109,7 +109,7 @@ type FicsitAPI_Response_GetMods struct {
 }
 
 type FicsitAPI_Response_GetMods_Mods struct {
-	Mods []models.Mods `json:"mods"`
+	Mods []models.ModSchema `json:"mods"`
 }
 
 type APIUpdateServerSettings struct {

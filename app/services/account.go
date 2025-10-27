@@ -19,7 +19,8 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
-	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
+	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gtuk/discordwebhook"
 	"github.com/kataras/jwt"
@@ -165,7 +166,7 @@ func CleanupAccountFiles() error {
 		return err
 	}
 
-	accounts := make([]models.Accounts, 0)
+	accounts := make([]modelsv1.Accounts, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &accounts); err != nil {
 		return err
@@ -193,13 +194,13 @@ func CleanupAccountFiles() error {
 	return nil
 }
 
-func CheckAgentSaves(baseObjectPath string, obj *models.Agents) error {
+func CheckAgentSaves(baseObjectPath string, obj *modelsv1.Agents) error {
 
 	if len(obj.Saves) == 0 {
 		return nil
 	}
 
-	newSavesList := make([]models.AgentSave, 0)
+	newSavesList := make([]modelsv1.AgentSave, 0)
 	for _, save := range obj.Saves {
 		objectPath := fmt.Sprintf("%s/saves/%s", baseObjectPath, save.FileName)
 
@@ -225,13 +226,13 @@ func CheckAgentSaves(baseObjectPath string, obj *models.Agents) error {
 	return nil
 }
 
-func CheckAgentBackups(baseObjectPath string, obj *models.Agents) error {
+func CheckAgentBackups(baseObjectPath string, obj *modelsv1.Agents) error {
 
 	if len(obj.Backups) == 0 {
 		return nil
 	}
 
-	newBackupsList := make([]models.AgentBackup, 0)
+	newBackupsList := make([]modelsv1.AgentBackup, 0)
 	for _, backup := range obj.Backups {
 		objectPath := fmt.Sprintf("%s/backups/%s", baseObjectPath, backup.FileName)
 
@@ -259,7 +260,7 @@ func CheckAgentBackups(baseObjectPath string, obj *models.Agents) error {
 
 func ProcessAccountIntegrationEvents() error {
 
-	accounts := make([]models.Accounts, 0)
+	accounts := make([]modelsv1.Accounts, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &accounts); err != nil {
 		return err
@@ -279,7 +280,7 @@ func ProcessAccountIntegrationEvents() error {
 	return nil
 }
 
-func ProcessIntegrationEvents(obj *models.AccountIntegrations) error {
+func ProcessIntegrationEvents(obj *modelsv1.AccountIntegrations) error {
 
 	for idx := range obj.Events {
 		event := &obj.Events[idx]
@@ -292,7 +293,7 @@ func ProcessIntegrationEvents(obj *models.AccountIntegrations) error {
 			continue
 		}
 
-		if obj.Type == models.IntegrationWebhook {
+		if obj.Type == modelsv1.IntegrationWebhook {
 			resp, err := ProcessWebhookEvent(obj.Url, event)
 			if err != nil {
 				event.Status = "failed"
@@ -308,7 +309,7 @@ func ProcessIntegrationEvents(obj *models.AccountIntegrations) error {
 				event.Status = "delivered"
 				event.ResponseData = resp
 			}
-		} else if obj.Type == models.IntegrationDiscord {
+		} else if obj.Type == modelsv1.IntegrationDiscord {
 			if err := ProcessDiscordEvent(obj.Url, event); err != nil {
 				event.Status = "failed"
 
@@ -339,7 +340,7 @@ func ProcessIntegrationEvents(obj *models.AccountIntegrations) error {
 	return nil
 }
 
-func ProcessWebhookEvent(url string, event *models.AccountIntegrationEvent) (string, error) {
+func ProcessWebhookEvent(url string, event *modelsv1.AccountIntegrationEvent) (string, error) {
 
 	// Marshal the data into JSON
 	jsonBytes, err := json.Marshal(event.Data)
@@ -386,7 +387,7 @@ func ProcessWebhookEvent(url string, event *models.AccountIntegrationEvent) (str
 	return bodyString, nil
 }
 
-func ProcessDiscordEvent(url string, event *models.AccountIntegrationEvent) error {
+func ProcessDiscordEvent(url string, event *modelsv1.AccountIntegrationEvent) error {
 
 	EventNameStr := "SSM Event"
 	fields := make([]discordwebhook.Field, 0)
@@ -395,7 +396,7 @@ func ProcessDiscordEvent(url string, event *models.AccountIntegrationEvent) erro
 	eventTimeStr := ""
 
 	switch event.Type {
-	case models.IntegrationEventTypeAgentOnline:
+	case modelsv1.IntegrationEventTypeAgentOnline:
 		EventNameStr = "Agent Online"
 		data := models.EventDataAgentOnline{}
 		MarshalToEventData(event.Data, &data)
@@ -406,7 +407,7 @@ func ProcessDiscordEvent(url string, event *models.AccountIntegrationEvent) erro
 
 		fields = append(fields, discordwebhook.Field{Name: &fieldName, Value: &fieldValue, Inline: &inline})
 		eventTimeStr = data.EventData.EventTime.Format("2006-01-02 15:04:05")
-	case models.IntegrationEventTypeAgentOffline:
+	case modelsv1.IntegrationEventTypeAgentOffline:
 		EventNameStr = "Agent Offline"
 		data := models.EventDataAgentOffline{}
 		MarshalToEventData(event.Data, &data)
@@ -484,7 +485,7 @@ func ProcessWorkflows() error {
 }
 
 func CheckForInactiveAccounts() error {
-	allAccounts := make([]models.Accounts, 0)
+	allAccounts := make([]modelsv1.Accounts, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &allAccounts); err != nil {
 		return err
@@ -551,7 +552,7 @@ func CheckForInactiveAccounts() error {
 func DeleteInactiveAccounts() error {
 	defer utils.TrackTime(time.Now(), "DeleteInactiveAccounts")
 
-	var inactiveAccounts []models.Accounts
+	var inactiveAccounts []modelsv1.Accounts
 	if err := mongoose.FindAll(bson.M{"state.inactive": true, "state.deleteDate": bson.M{"$lt": time.Now()}}, &inactiveAccounts); err != nil {
 		return err
 	}
@@ -579,7 +580,7 @@ func DeleteInactiveAccounts() error {
 
 func LoginAccountUser(email string, password string) (string, error) {
 
-	var theUser models.Users
+	var theUser modelsv1.Users
 
 	if err := mongoose.FindOne(bson.M{"email": email}, &theUser); err != nil {
 
@@ -590,7 +591,7 @@ func LoginAccountUser(email string, password string) (string, error) {
 		return "", fmt.Errorf("error finding user account with error: %s", err.Error())
 	}
 
-	var theAccount models.Accounts
+	var theAccount modelsv1.Accounts
 
 	if err := mongoose.FindOne(bson.M{"users": theUser.ID}, &theAccount); err != nil {
 		return "", fmt.Errorf("error finding account with error: %s", err.Error())
@@ -605,7 +606,7 @@ func LoginAccountUser(email string, password string) (string, error) {
 		return "", fmt.Errorf("error account is marked as inactive due to inactivity")
 	}
 
-	var existingSession models.AccountSessions
+	var existingSession modelsv1.AccountSessions
 	mongoose.FindOne(bson.M{"userId": theUser.ID}, &existingSession)
 
 	sessionExpiry := time.Now().AddDate(0, 0, 1)
@@ -662,7 +663,7 @@ func LoginAccountUser(email string, password string) (string, error) {
 
 	}
 
-	newSession := models.AccountSessions{
+	newSession := modelsv1.AccountSessions{
 		ID:        primitive.NewObjectID(),
 		AccountID: theAccount.ID,
 		UserID:    theUser.ID,
@@ -729,8 +730,8 @@ func AccountSignup(accountName string, email string, password string) error {
 		return errors.New("error email was invalid")
 	}
 
-	var existingAccount models.Accounts
-	var existingUser models.Users
+	var existingAccount modelsv1.Accounts
+	var existingUser modelsv1.Users
 
 	mongoose.FindOne(bson.M{"accountName": accountName}, &existingAccount)
 	mongoose.FindOne(bson.M{"email": email}, &existingUser)
@@ -743,7 +744,7 @@ func AccountSignup(accountName string, email string, password string) error {
 		return fmt.Errorf("email %s already in use by another user", email)
 	}
 
-	newAccount := models.Accounts{
+	newAccount := modelsv1.Accounts{
 		ID:           primitive.NewObjectID(),
 		AccountName:  accountName,
 		Sessions:     primitive.A{},
@@ -760,12 +761,12 @@ func AccountSignup(accountName string, email string, password string) error {
 		return fmt.Errorf("error creating user with error: %s", err.Error())
 	}
 
-	newUser := models.Users{
+	newUser := modelsv1.Users{
 		ID:             primitive.NewObjectID(),
 		Email:          email,
 		Password:       string(hashedPassword),
 		IsAccountAdmin: true,
-		APIKeys:        make([]models.UserAPIKey, 0),
+		APIKeys:        make([]modelsv1.UserAPIKey, 0),
 		Active:         true,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
@@ -784,9 +785,9 @@ func AccountSignup(accountName string, email string, password string) error {
 	return nil
 }
 
-func GetAccountSession(sessionIdStr string) (models.AccountSessions, error) {
+func GetAccountSession(sessionIdStr string) (modelsv1.AccountSessions, error) {
 
-	var theSession models.AccountSessions
+	var theSession modelsv1.AccountSessions
 	sessionId, err := primitive.ObjectIDFromHex(sessionIdStr)
 
 	if err != nil {
@@ -805,8 +806,8 @@ func GetAccountSession(sessionIdStr string) (models.AccountSessions, error) {
 	return theSession, nil
 }
 
-func GetAccount(accountIdStr string) (models.Accounts, error) {
-	var theAccount models.Accounts
+func GetAccount(accountIdStr string) (modelsv1.Accounts, error) {
+	var theAccount modelsv1.Accounts
 	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
 
 	if err != nil {
@@ -820,8 +821,8 @@ func GetAccount(accountIdStr string) (models.Accounts, error) {
 	return theAccount, nil
 }
 
-func GetAccountByAgentId(agentIdStr string) (models.Accounts, error) {
-	var theAccount models.Accounts
+func GetAccountByAgentId(agentIdStr string) (modelsv1.Accounts, error) {
+	var theAccount modelsv1.Accounts
 	agentId, err := primitive.ObjectIDFromHex(agentIdStr)
 
 	if err != nil {

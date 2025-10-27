@@ -9,9 +9,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func GetMods(page int, sort string, direction string, search string) (*[]models.Mods, error) {
+func GetMods(page int, sort string, direction string, search string) (*[]models.ModSchema, error) {
 
-	modsRes := make([]models.Mods, 0)
+	modsRes := make([]models.ModSchema, 0)
 
 	// Determine sorting field
 	sortField := "modName"

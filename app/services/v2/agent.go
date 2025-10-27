@@ -248,23 +248,22 @@ func UpdateAgentSettings(theAccount *modelsv2.AccountSchema, PostData *app.APIUp
 			}
 		}
 
-        var selectedMod *modelsv2.AgentModConfigSelectedMod
-        for idx := range theAgent.ModConfig.SelectedMods {
+		var selectedMod *modelsv2.AgentModConfigSelectedModSchema
+		for idx := range theAgent.ModConfig.SelectedMods {
 			mod := &theAgent.ModConfig.SelectedMods[idx]
-            if mod.Mod.ModReference == PostData.ModReference{
-                selectedMod = mod;
-                break;
-            }
-        }
+			if mod.Mod.ModReference == PostData.ModReference {
+				selectedMod = mod
+				break
+			}
+		}
 
-        if selectedMod == nil{
-            return errors.New("error cant find mod in selected mods list")
-        }
+		if selectedMod == nil {
+			return errors.New("error cant find mod in selected mods list")
+		}
 
-        selectedMod.Config = PostData.ModConfig
+		selectedMod.Config = PostData.ModConfig
 
-        updateData["modConfig"] = theAgent.ModConfig
-
+		updateData["modConfig"] = theAgent.ModConfig
 
 	default:
 		return errors.New("error unknown config setting")
@@ -369,7 +368,7 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 
 		if !exists {
 
-			var dbMod models.Mods
+			var dbMod models.ModSchema
 			if err := mongoose.FindOne(bson.M{"modReference": k}, &dbMod); err != nil {
 				return err
 			}
@@ -377,7 +376,7 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 			fmt.Printf("Installing Mod %s\n", k)
 			fmt.Printf("%+v\n", dbMod)
 
-			newSelectedMod := modelsv2.AgentModConfigSelectedMod{
+			newSelectedMod := modelsv2.AgentModConfigSelectedModSchema{
 				ModId:            dbMod.ID,
 				Mod:              dbMod,
 				DesiredVersion:   mod.Version,
@@ -403,7 +402,7 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 
 func UpdateMod(theAgent *modelsv2.AgentSchema, modReference string) error {
 
-	var dbMod models.Mods
+	var dbMod models.ModSchema
 
 	if err := mongoose.FindOne(bson.M{"modReference": modReference}, &dbMod); err != nil {
 		return fmt.Errorf("error finding mod with error: %s", err.Error())
@@ -441,7 +440,7 @@ func UninstallMod(theAgent *modelsv2.AgentSchema, modReference string) error {
 		}
 	}
 
-	newSelectedModsList := make([]modelsv2.AgentModConfigSelectedMod, 0)
+	newSelectedModsList := make([]modelsv2.AgentModConfigSelectedModSchema, 0)
 
 	for idx := range theAgent.ModConfig.SelectedMods {
 		selectedMod := theAgent.ModConfig.SelectedMods[idx]

@@ -24,8 +24,12 @@ github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.15 h1:K7Jo5uhcbciO7
 github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.15/go.mod h1:kZH0TGdW9Vjv7RB1NeRyO4yMeg13UKQZMbnFRdFXWN8=
 github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.16 h1:pN58TKWPFkWEzGOmXc55AF/are6cFuRBz3gbHa/sGJk=
 github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.16/go.mod h1:kZH0TGdW9Vjv7RB1NeRyO4yMeg13UKQZMbnFRdFXWN8=
+github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.18 h1:VWHC4U246v4ZMagBLha+WCxysmk8wHJCMc8Y0WOcUIo=
+github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.18/go.mod h1:kZH0TGdW9Vjv7RB1NeRyO4yMeg13UKQZMbnFRdFXWN8=
 github.com/TwiN/go-away v1.8.0 h1:9eNCSlbVe9vjrBCC69afH/XR0lfKQL27IDzUlqoPEmQ=
 github.com/TwiN/go-away v1.8.0/go.mod h1:FEnYVbC7/xfbBDN4iQ2W/ZQ6+UvnyUBYUk7cZgHocWs=
+github.com/TwiN/go-away v1.8.1 h1:zbbr0ISBkDSbnUFHrnRUhbCR/7+9ONMWtIi1BiQWX8Y=
+github.com/TwiN/go-away v1.8.1/go.mod h1:nSQEvd/FYBNmnC27RGJdPi91LXYMG8SrRc1o1w+VmKY=
 github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
 github.com/boombuler/barcode v1.1.0 h1:ChaYjBR63fr4LFyGn8E8nt7dBSt3MiU3zMOZqFvVkHo=
 github.com/boombuler/barcode v1.1.0/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=

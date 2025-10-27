@@ -26,7 +26,7 @@ func (h *V1Handler) API_Ping(c *gin.Context) {
 
 func (h *V1Handler) API_Mods(c *gin.Context) {
 
-	mods := make([]models.Mods, 0)
+	mods := make([]models.ModSchema, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &mods); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})

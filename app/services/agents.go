@@ -13,6 +13,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
@@ -139,8 +140,8 @@ func CheckAllAgentsLastComms() error {
 					return fmt.Errorf("error finding account with error: %s", err.Error())
 				}
 
-				data := modelsv1.EventDataAgentOffline{
-					EventData: modelsv1.EventData{
+				data := models.EventDataAgentOffline{
+					EventData: models.EventData{
 						EventType: "agent.offline",
 						EventTime: time.Now(),
 					},
@@ -665,8 +666,8 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 
 	if !agent.Status.Online && online {
 
-		data := modelsv1.EventDataAgentOnline{
-			EventData: modelsv1.EventData{
+		data := models.EventDataAgentOnline{
+			EventData: models.EventData{
 				EventType: "agent.online",
 				EventTime: time.Now(),
 			},
@@ -678,8 +679,8 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 		}
 	} else if agent.Status.Online && !online {
 
-		data := modelsv1.EventDataAgentOffline{
-			EventData: modelsv1.EventData{
+		data := models.EventDataAgentOffline{
+			EventData: models.EventData{
 				EventType: "agent.offline",
 				EventTime: time.Now(),
 			},

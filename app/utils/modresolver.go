@@ -15,7 +15,7 @@ func (p SSMProvider) ModVersionsWithDependencies(_ context.Context, modID string
 
 	modVersions := make([]resolver.ModVersion, 0)
 
-	var dbMod models.Mods
+	var dbMod models.ModSchema
 	if err := mongoose.FindOne(bson.M{"modReference": modID}, &dbMod); err != nil {
 		return modVersions, err
 	}
@@ -58,7 +58,7 @@ func (p SSMProvider) GetModName(_ context.Context, modReference string) (*resolv
 
 	var modName resolver.ModName
 
-	var dbMod models.Mods
+	var dbMod models.ModSchema
 	if err := mongoose.FindOne(bson.M{"modReference": modReference}, &dbMod); err != nil {
 		return &modName, err
 	}

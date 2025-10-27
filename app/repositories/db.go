@@ -29,9 +29,9 @@ func InitDBRepository() error {
 		&v2.WorkflowSchema{},
 		&v2.AgentLogSchema{},
 		&v2.AgentStatSchema{},
-		&v2.AgentModConfigSelectedMod{},
+		&v2.AgentModConfigSelectedModSchema{},
 		&v2.AccountIntegrationSchema{},
-		&models.Mods{},
+		&models.ModSchema{},
 	)
 
 	if err != nil {
