@@ -31,6 +31,7 @@ func InitDBRepository() error {
 		&v2.AgentStatSchema{},
 		&v2.AgentModConfigSelectedModSchema{},
 		&v2.AccountIntegrationSchema{},
+		&v2.IntegrationEventSchema{},
 		&models.ModSchema{},
 	)
 

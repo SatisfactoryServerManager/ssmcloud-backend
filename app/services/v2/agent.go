@@ -184,6 +184,12 @@ func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID)
 		return err
 	}
 
+	if err := AddIntegrationEvent(theAccount, modelsv2.IntegrationEventTypeAgentRemoved, models.EventDataAgent{
+		AgentName: theAgent.AgentName,
+	}); err != nil {
+		return err
+	}
+
 	return nil
 }
 

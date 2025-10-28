@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
+	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/v2"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
+	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
@@ -109,6 +110,11 @@ func ShutdownAgentService() error {
 
 func CheckAllAgentsLastComms() error {
 
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return err
+	}
+
 	allAgents := make([]modelsv1.Agents, 0)
 
 	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
@@ -134,21 +140,22 @@ func CheckAllAgentsLastComms() error {
 				if err := mongoose.UpdateModelData(agent, dbUpdate); err != nil {
 					return err
 				}
+				theAccount := &modelsv2.AccountSchema{}
+				filter := bson.M{"agents": bson.M{"$in": bson.A{agent.ID}}}
 
-				account, err := GetAccountByAgentId(agent.ID.Hex())
-				if err != nil {
+				if err := AccountModel.FindOne(theAccount, filter); err != nil {
 					return fmt.Errorf("error finding account with error: %s", err.Error())
 				}
 
-				data := models.EventDataAgentOffline{
+				data := models.EventDataAgent{
 					EventData: models.EventData{
-						EventType: "agent.offline",
+						EventType: string(modelsv2.IntegrationEventTypeAgentOffline),
 						EventTime: time.Now(),
 					},
 					AgentName: agent.AgentName,
 				}
 
-				if err := account.CreateIntegrationEvent(modelsv1.IntegrationEventTypeAgentOffline, data); err != nil {
+				if err := v2.AddIntegrationEvent(theAccount, modelsv2.IntegrationEventTypeAgentOffline, data); err != nil {
 					return fmt.Errorf("error creating integration event with error: %s", err.Error())
 				}
 			}
@@ -296,140 +303,6 @@ func GetAllAgents(accountIdStr string) ([]modelsv1.Agents, error) {
 	return theAccount.AgentObjects, nil
 }
 
-func CreateAgent(accountIdStr string, agentName string, port int, memory int64) error {
-	var theAccount modelsv1.Accounts
-
-	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
-
-	if err != nil {
-		return fmt.Errorf("error converting accountid to object id with error: %s", err.Error())
-	}
-
-	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
-		return fmt.Errorf("error finding account from session with error: %s", err.Error())
-	}
-
-	if err := theAccount.PopulateAgents(); err != nil {
-		return fmt.Errorf("error populating account agents with error: %s", err.Error())
-	}
-
-	exists := false
-
-	for _, agent := range theAccount.AgentObjects {
-		if agent.AgentName == agentName {
-			exists = true
-			break
-		}
-	}
-
-	if exists {
-		return fmt.Errorf("error agent with same name %s already exists on your account", agentName)
-	}
-
-	newAgent := modelsv1.NewAgent(agentName, port, memory, "")
-
-	if _, err := mongoose.InsertOne(&newAgent); err != nil {
-		return fmt.Errorf("error inserting new agent with error: %s", err.Error())
-	}
-
-	theAccount.Agents = append(theAccount.Agents, newAgent.ID)
-
-	dbUpdate := bson.M{
-		"agents":    theAccount.Agents,
-		"updatedAt": time.Now(),
-	}
-
-	if err := mongoose.UpdateModelData(&theAccount, dbUpdate); err != nil {
-		return fmt.Errorf("error updating account agents with error: %s", err.Error())
-	}
-
-	theAccount.AddAudit("CREATE_AGENT", fmt.Sprintf("New agent created (%s)", agentName))
-
-	return nil
-}
-
-func CreateAgentWorkflow(accountIdStr string, PostData modelsv1.API_AccountCreateAgent_PostData) (string, error) {
-	var theAccount modelsv1.Accounts
-
-	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
-
-	if err != nil {
-		return "", fmt.Errorf("error converting accountid to object id with error: %s", err.Error())
-	}
-
-	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
-		return "", fmt.Errorf("error finding account from session with error: %s", err.Error())
-	}
-
-	if err := theAccount.PopulateAgents(); err != nil {
-		return "", fmt.Errorf("error populating account agents with error: %s", err.Error())
-	}
-
-	exists := false
-
-	for _, agent := range theAccount.AgentObjects {
-		if agent.AgentName == PostData.AgentName {
-			exists = true
-			break
-		}
-	}
-
-	if exists {
-		return "", fmt.Errorf("error agent with same name %s already exists on your account", PostData.AgentName)
-	}
-
-	PostData.AccountId = theAccount.ID
-
-	createAgentAction := modelsv1.WorkflowAction{
-		Type: "create-agent",
-	}
-
-	waitForOnlineAction := modelsv1.WorkflowAction{
-		Type: "wait-for-online",
-	}
-
-	installServerAction := modelsv1.WorkflowAction{
-		Type: "install-server",
-	}
-
-	waitForInstalledAction := modelsv1.WorkflowAction{
-		Type: "wait-for-installed",
-	}
-
-	startServerAction := modelsv1.WorkflowAction{
-		Type: "start-server",
-	}
-
-	waitForRunningAction := modelsv1.WorkflowAction{
-		Type: "wait-for-running",
-	}
-
-	claimServerAction := modelsv1.WorkflowAction{
-		Type: "claim-server",
-	}
-
-	workflow := modelsv1.Workflows{
-		ID:   primitive.NewObjectID(),
-		Type: "create-agent",
-		Data: PostData,
-		Actions: []modelsv1.WorkflowAction{
-			createAgentAction,
-			waitForOnlineAction,
-			installServerAction,
-			waitForInstalledAction,
-			startServerAction,
-			waitForRunningAction,
-			claimServerAction,
-		},
-	}
-
-	if _, err := mongoose.InsertOne(&workflow); err != nil {
-		return "", err
-	}
-
-	return workflow.ID.Hex(), nil
-}
-
 func GetAgentById(accountIdStr string, agentIdStr string) (modelsv1.Agents, error) {
 
 	agents, err := GetAllAgents(accountIdStr)
@@ -489,136 +362,6 @@ func GetAgentByIdNoAccount(agentIdStr string) (modelsv1.Agents, error) {
 	return modelsv1.Agents{}, errors.New("error cant find agent")
 }
 
-func GetAgentTasks(accountIdStr string, agentIdStr string) ([]modelsv1.AgentTask, error) {
-
-	tasks := make([]modelsv1.AgentTask, 0)
-
-	agent, err := GetAgentById(accountIdStr, agentIdStr)
-
-	if err != nil {
-		return tasks, err
-	}
-
-	return agent.Tasks, nil
-}
-
-func NewAgentTask(accountIdStr string, agentIdStr string, action string, data interface{}) error {
-
-	newTask := modelsv1.NewAgentTask(action, data)
-
-	agent, err := GetAgentById(accountIdStr, agentIdStr)
-
-	if err != nil {
-		return err
-	}
-
-	agent.Tasks = append(agent.Tasks, newTask)
-
-	dbUpdate := bson.M{
-		"tasks":     agent.Tasks,
-		"updatedAt": time.Now(),
-	}
-
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func DeleteAgent(accountIdStr string, agentIdStr string) error {
-
-	theAgent, err := GetAgentById(accountIdStr, agentIdStr)
-
-	if err != nil {
-		return err
-	}
-
-	account, err := GetAccount(accountIdStr)
-	if err != nil {
-		return err
-	}
-
-	if err := account.PopulateAgents(); err != nil {
-		return fmt.Errorf("error populating account agents with error: %s", err.Error())
-	}
-
-	newAgentList := make(primitive.A, 0)
-
-	for _, agent := range account.AgentObjects {
-		if agent.ID.Hex() != theAgent.ID.Hex() {
-			newAgentList = append(newAgentList, agent.ID)
-		}
-	}
-
-	dbUpdate := bson.M{
-		"agents":    newAgentList,
-		"updatedAt": time.Now(),
-	}
-
-	if err := mongoose.UpdateModelData(&account, dbUpdate); err != nil {
-		return err
-	}
-
-	if _, err := mongoose.DeleteOne(bson.M{"_id": theAgent.ID}, "agents"); err != nil {
-		return err
-	}
-
-	account.AddAudit("DELETE_AGENT", fmt.Sprintf("Agent deleted (%s)", theAgent.AgentName))
-
-	return nil
-}
-
-func UpdateAgentConfig(accountIdStr string, agentIdStr string, updatedAgent modelsv1.Agents) error {
-
-	agent, err := GetAgentById(accountIdStr, agentIdStr)
-	if err != nil {
-		return err
-	}
-
-	updatedConfigs := bson.M{}
-
-	if !reflect.DeepEqual(agent.Config, updatedAgent.Config) {
-		agent.Config.BackupInterval = updatedAgent.Config.BackupInterval
-		agent.Config.BackupKeepAmount = updatedAgent.Config.BackupKeepAmount
-
-		updatedConfigs["config.backupInterval"] = agent.Config.BackupInterval
-		updatedConfigs["config.backupKeepAmount"] = agent.Config.BackupKeepAmount
-	}
-
-	if !reflect.DeepEqual(agent.ServerConfig, updatedAgent.ServerConfig) {
-		agent.ServerConfig = updatedAgent.ServerConfig
-		updatedConfigs["serverConfig"] = agent.ServerConfig
-	}
-
-	if len(updatedConfigs) == 0 {
-		return nil
-	}
-
-	if err := mongoose.UpdateModelData(&agent, updatedConfigs); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func GetAgentLogs(accountIdStr string, agentIdStr string) ([]modelsv1.AgentLogs, error) {
-
-	logs := make([]modelsv1.AgentLogs, 0)
-
-	agent, err := GetAgentById(accountIdStr, agentIdStr)
-	if err != nil {
-		return logs, err
-	}
-
-	if err := agent.PopulateLogs(); err != nil {
-		return logs, fmt.Errorf("error populating agent logs with error: %s", err.Error())
-	}
-
-	return agent.LogObjects, nil
-
-}
-
 // Agent API Functions
 
 func GetAgentByAPIKey(agentAPIKey string) (modelsv1.Agents, error) {
@@ -654,32 +397,39 @@ func UpdateAgentLastComm(agentAPIKey string) error {
 
 func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running bool, cpu float64, mem float32, installedSFVersion int64, latestSFVersion int64) error {
 
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return err
+	}
+
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	account, err := GetAccountByAgentId(agent.ID.Hex())
-	if err != nil {
+	theAccount := &modelsv2.AccountSchema{}
+	filter := bson.M{"agents": bson.M{"$in": bson.A{agent.ID}}}
+
+	if err := AccountModel.FindOne(theAccount, filter); err != nil {
 		return fmt.Errorf("error finding account with error: %s", err.Error())
 	}
 
 	if !agent.Status.Online && online {
 
-		data := models.EventDataAgentOnline{
+		data := models.EventDataAgent{
 			EventData: models.EventData{
-				EventType: "agent.online",
+				EventType: string(modelsv2.IntegrationEventTypeAgentOnline),
 				EventTime: time.Now(),
 			},
 			AgentName: agent.AgentName,
 		}
 
-		if err := account.CreateIntegrationEvent(modelsv1.IntegrationEventTypeAgentOnline, data); err != nil {
+		if err := v2.AddIntegrationEvent(theAccount, modelsv2.IntegrationEventTypeAgentOnline, data); err != nil {
 			return fmt.Errorf("error creating integration event with error: %s", err.Error())
 		}
 	} else if agent.Status.Online && !online {
 
-		data := models.EventDataAgentOffline{
+		data := models.EventDataAgent{
 			EventData: models.EventData{
 				EventType: "agent.offline",
 				EventTime: time.Now(),
@@ -687,7 +437,7 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 			AgentName: agent.AgentName,
 		}
 
-		if err := account.CreateIntegrationEvent(modelsv1.IntegrationEventTypeAgentOffline, data); err != nil {
+		if err := v2.AddIntegrationEvent(theAccount, modelsv2.IntegrationEventTypeAgentOffline, data); err != nil {
 			return fmt.Errorf("error creating integration event with error: %s", err.Error())
 		}
 	}

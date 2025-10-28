@@ -265,7 +265,7 @@ func GetMyAccountIntegrations(theAccount *models.AccountSchema) (*[]models.Accou
 	return &theAccount.Integrations, nil
 }
 
-func AddAccountIntegration(theAccount *models.AccountSchema, integrationType models.IntegrationType, url string, eventTypes []models.IntegrationEventType) error {
+func AddAccountIntegration(theAccount *models.AccountSchema, name string, integrationType models.IntegrationType, url string, eventTypes []models.IntegrationEventType) error {
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {
 		return err
@@ -288,6 +288,7 @@ func AddAccountIntegration(theAccount *models.AccountSchema, integrationType mod
 
 	newIntegration := models.AccountIntegrationSchema{
 		ID:         primitive.NewObjectID(),
+		Name:       name,
 		Type:       integrationType,
 		Url:        url,
 		EventTypes: eventTypes,

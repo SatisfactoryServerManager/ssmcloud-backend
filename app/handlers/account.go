@@ -10,11 +10,9 @@ type AccountHandler struct{}
 func NewAccountHandler(router *gin.RouterGroup) {
 
 	agentGroup := router.Group("agents")
-	integrationsGroup := router.Group("integrations")
 
 	router.Use(middleware.Middleware_DecodeJWT())
 	router.Use(middleware.Middleware_VerifySession())
 
 	NewAccountAgentHandler(agentGroup)
-	NewAccountIntegrationsHandler(integrationsGroup)
 }

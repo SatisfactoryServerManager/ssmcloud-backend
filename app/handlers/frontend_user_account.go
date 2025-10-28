@@ -250,6 +250,7 @@ func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Con
 	eid := user["sub"].(string)
 
 	type APIPostAccountIntegrationsData struct {
+		Name       string                        `json:"name"`
 		Type       models.IntegrationType        `json:"type"`
 		URL        string                        `json:"url"`
 		EventTypes []models.IntegrationEventType `json:"eventTypes"`
@@ -278,7 +279,7 @@ func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Con
 		return
 	}
 
-	err = v2.AddAccountIntegration(theAccount, PostData.Type, PostData.URL, PostData.EventTypes)
+	err = v2.AddAccountIntegration(theAccount, PostData.Name, PostData.Type, PostData.URL, PostData.EventTypes)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
