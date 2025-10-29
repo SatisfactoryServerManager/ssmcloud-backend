@@ -315,7 +315,7 @@ func (a InstallServerAction) Execute(action *v2.WorkflowAction, d interface{}, t
 		"updatedAt": time.Now(),
 	}
 
-	if err := AgentModel.UpdateData(&theAgent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -379,7 +379,7 @@ func (a StartServerAction) Execute(action *v2.WorkflowAction, d interface{}, the
 		"updatedAt": time.Now(),
 	}
 
-	if err := AgentModel.UpdateData(&theAgent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -445,7 +445,7 @@ func (a ClaimServerAction) Execute(action *v2.WorkflowAction, d interface{}, the
 		"updatedAt": time.Now(),
 	}
 
-	if err := AgentModel.UpdateData(&theAgent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 

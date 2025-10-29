@@ -810,7 +810,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		"fileUrl":   theLog.FileURL,
 	}
 
-	if err := AgentLogModel.UpdateData(&theLog, dbUpdate); err != nil {
+	if err := AgentLogModel.UpdateData(theLog, dbUpdate); err != nil {
 		return err
 	}
 
