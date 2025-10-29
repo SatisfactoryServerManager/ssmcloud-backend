@@ -11,7 +11,6 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
-	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -335,7 +334,12 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 		return err
 	}
 
-	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+	ModModel, err := repositories.GetMongoClient().GetModel("Mod")
+	if err != nil {
+		return err
+	}
+
+	SelectedModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
 	if err != nil {
 		return err
 	}
@@ -358,7 +362,7 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 
 	for idx := range theAgent.ModConfig.SelectedMods {
 		mod := &theAgent.ModConfig.SelectedMods[idx]
-		if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+		if err := SelectedModModel.PopulateField(mod, "Mod"); err != nil {
 			return err
 		}
 	}
@@ -382,7 +386,7 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 		if !exists {
 
 			var dbMod models.ModSchema
-			if err := mongoose.FindOne(bson.M{"modReference": k}, &dbMod); err != nil {
+			if err := ModModel.FindOne(&dbMod, bson.M{"modReference": k}); err != nil {
 				return err
 			}
 
@@ -415,9 +419,14 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 
 func UpdateMod(theAgent *modelsv2.AgentSchema, modReference string) error {
 
+	ModModel, err := repositories.GetMongoClient().GetModel("Mod")
+	if err != nil {
+		return err
+	}
+
 	var dbMod models.ModSchema
 
-	if err := mongoose.FindOne(bson.M{"modReference": modReference}, &dbMod); err != nil {
+	if err := ModModel.FindOne(&dbMod, bson.M{"modReference": modReference}); err != nil {
 		return fmt.Errorf("error finding mod with error: %s", err.Error())
 	}
 
@@ -473,5 +482,39 @@ func UninstallMod(theAgent *modelsv2.AgentSchema, modReference string) error {
 	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
+	return nil
+}
+
+func AddAgentStat(theAgent *modelsv2.AgentSchema, runningState bool, cpu float64, memory float32) error {
+
+	AgentStatModel, err := repositories.GetMongoClient().GetModel("AgentStat")
+	if err != nil {
+		return err
+	}
+	newStat := modelsv2.NewAgentStat(theAgent, runningState, cpu, memory)
+
+	if err := AgentStatModel.Create(newStat); err != nil {
+		return fmt.Errorf("error creating agent stat with error: %s", err.Error())
+	}
+
+	return nil
+}
+
+func PurgeAgentStats() error {
+
+	now := time.Now()
+	expiry := now.AddDate(0, 0, -3)
+
+	AgentStatModel, err := repositories.GetMongoClient().GetModel("AgentStat")
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"createdAt": bson.M{"$lt": expiry}}
+
+	if err := AgentStatModel.Delete(filter); err != nil {
+		return fmt.Errorf("error deleting agent stats with error: %s", err.Error())
+	}
+
 	return nil
 }

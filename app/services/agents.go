@@ -13,7 +13,6 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
-	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
@@ -538,14 +537,13 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 		}
 	}
 
-	//TODO: Fix Agent Stats
-	// if err := agent.CreateStat(running, cpu, mem); err != nil {
-	// 	return err
-	// }
+	if err := v2.AddAgentStat(theAgent, running, cpu, mem); err != nil {
+		return err
+	}
 
-	// if err := agent.PurgeStats(); err != nil {
-	// 	return err
-	// }
+	if err := v2.PurgeAgentStats(); err != nil {
+		return err
+	}
 
 	theAgent.Status.Online = online
 	theAgent.Status.Installed = installed
@@ -557,7 +555,6 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 
 	dbUpdate := bson.M{
 		"status":    theAgent.Status,
-		"stats":     theAgent.Stats,
 		"updatedAt": time.Now(),
 	}
 
@@ -914,7 +911,7 @@ func GetAgentTasksApi(agentAPIKey string) ([]modelsv2.AgentTask, error) {
 	return theAgent.Tasks, nil
 }
 
-func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask modelsv1.AgentTask) error {
+func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask modelsv2.AgentTask) error {
 
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
 	if err != nil {
@@ -1059,12 +1056,14 @@ func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
 	theAgent.Config.IP = ip
 
 	dbUpdate := bson.M{
-		"config.version": theAgent.Config.Version,
-		"config.ip":      theAgent.Config.IP,
-		"updatedAt":      time.Now(),
+		"$set": bson.M{
+			"config.version": theAgent.Config.Version,
+			"config.ip":      theAgent.Config.IP,
+			"updatedAt":      time.Now(),
+		},
 	}
 
-	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
+	if err := AgentModel.RawUpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 

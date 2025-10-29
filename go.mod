@@ -4,14 +4,13 @@ go 1.25
 
 require (
 	github.com/MicahParks/keyfunc v1.9.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.25
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.26
 	github.com/TwiN/go-away v1.8.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/gtuk/discordwebhook v1.2.0
 	github.com/joho/godotenv v1.5.1
-	github.com/kataras/jwt v0.1.17
 	github.com/machinebox/graphql v0.2.2
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/mircearoata/pubgrub-go v0.3.4
@@ -27,7 +26,7 @@ require (
 	github.com/bytedance/sonic/loader v0.4.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.11 // indirect
 	github.com/gertd/go-pluralize v0.2.1 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect

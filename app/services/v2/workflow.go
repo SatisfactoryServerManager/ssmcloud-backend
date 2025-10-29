@@ -1,13 +1,16 @@
 package v2
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
+	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -21,14 +24,46 @@ type StartServerAction struct{}
 type WaitForRunningAction struct{}
 type ClaimServerAction struct{}
 
-func init() {
-	RegisterWorkflowAction(v2.WorkflowActionType_CreateAgent, CreateAgentAction{})
+var (
+	processWorkflowsJob *joblock.JobLockTask
+)
+
+func InitWorkflowService() {
+
+    RegisterWorkflowAction(v2.WorkflowActionType_CreateAgent, CreateAgentAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_WaitForOnline, WaitForOnlineAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_InstallServer, InstallServerAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_WaitForInstalled, WaitForInstallAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_StartServer, StartServerAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_WaitForRunning, WaitForRunningAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_ClaimServer, ClaimServerAction{})
+
+	processWorkflowsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"processWorkflowsJob", func() {
+			if err := ProcessWorkflows(); err != nil {
+				logger.GetErrorLogger().Printf("error running account workflow job with error: %s", err.Error())
+			}
+		},
+		5*time.Second,
+		10*time.Second,
+		false,
+	)
+
+	ctx := context.Background()
+
+	if err := processWorkflowsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
+
+    logger.GetDebugLogger().Println("Initalized Workflow Service")
+}
+
+func ShutdownWorkflowService() error {
+	processWorkflowsJob.UnLock(context.TODO())
+
+    logger.GetDebugLogger().Println("Shutdown Workflow Service")
+	return nil
 }
 
 func RegisterWorkflowAction(name string, handler v2.IWorkflowAction) {
@@ -36,6 +71,41 @@ func RegisterWorkflowAction(name string, handler v2.IWorkflowAction) {
 		workflowActionRegistry = map[string]v2.IWorkflowAction{}
 	}
 	workflowActionRegistry[name] = handler
+}
+
+func ProcessWorkflows() error {
+
+	WorkflowModel, err := repositories.GetMongoClient().GetModel("Workflow")
+	if err != nil {
+		return err
+	}
+
+	workflows := make([]v2.WorkflowSchema, 0)
+
+	if err := WorkflowModel.FindAll(&workflows, bson.M{"status": ""}); err != nil {
+		return err
+	}
+
+	if len(workflows) == 0 {
+		return nil
+	}
+
+	fmt.Println("Processing Workflows")
+
+	for idx := range workflows {
+		workflow := &workflows[idx]
+
+		ValidateStatus(workflow)
+		if workflow.Status != "" {
+			continue
+		}
+
+		if err := ProcessWorkflow(workflow); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func ValidateStatus(obj *v2.WorkflowSchema) {

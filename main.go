@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/handlers"
@@ -23,33 +24,15 @@ func main() {
 	}
 
 	godotenv.Load(".env", ".env.local")
+
 	if err := repositories.InitDBRepository(); err != nil {
 		panic(err)
 	}
 
-	ConfigData, err := config.GetConfigData()
-	utils.CheckError(err)
-
-	dbConnection := mongoose.DBConnection{
-		Host:     ConfigData.Database.Host,
-		Port:     ConfigData.Database.Port,
-		Database: ConfigData.Database.DB,
-		User:     ConfigData.Database.User,
-		Password: ConfigData.Database.Pass,
-	}
-
-	mongoose.InitiateDB(dbConnection)
-
-	if err := mongoose.TestConnection(); err != nil {
-		panic(err)
-	}
-
-	err = repositories.CreateSSMBucket()
+	err := repositories.CreateSSMBucket()
 	utils.CheckError(err)
 
 	services.InitAllServices()
-
-	PrintConnectionString(dbConnection)
 
 	MainRouter := gin.Default()
 	MainRouter.NoRoute(func(c *gin.Context) {
@@ -60,8 +43,13 @@ func main() {
 	handlers.NewV1Handler(apiGroup)
 	handlers.NewV2Handler(apiGroup)
 
+    httpBind := ":3000"
+    if os.Getenv("HOST_PORT") != "" {
+		httpBind = os.Getenv("HOST_PORT")
+	}
+
 	srv := &http.Server{
-		Addr:    ConfigData.HTTPBind,
+		Addr:    httpBind,
 		Handler: MainRouter,
 	}
 

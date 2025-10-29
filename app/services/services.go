@@ -7,6 +7,7 @@ func InitAllServices() {
 	v2.InitModService()
 	InitAgentService()
 	InitAccountService()
+	v2.InitWorkflowService()
 	v2.InitIntegrationService()
 }
 
@@ -21,6 +22,10 @@ func ShutdownAllServices() error {
 	}
 
 	if err := ShutdownAccountService(); err != nil {
+		return err
+	}
+
+	if err := v2.ShutdownWorkflowService(); err != nil {
 		return err
 	}
 

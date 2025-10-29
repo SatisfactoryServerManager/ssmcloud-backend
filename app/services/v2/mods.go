@@ -215,7 +215,7 @@ func UpdateModsInDB() error {
 				// create mod if not exist
 				apiMod.ID = primitive.NewObjectID()
 
-				mongoose.InsertOne(apiMod)
+				ModsModel.Create(apiMod)
 
 				continue
 			}

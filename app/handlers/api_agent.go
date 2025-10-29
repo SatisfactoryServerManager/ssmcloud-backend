@@ -8,10 +8,8 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
-	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -173,6 +171,7 @@ func (h *ApiAgentHandler) API_UpdateAgentConfig(c *gin.Context) {
 
 	err := services.UpdateAgentConfigApi(AgentAPIKey, PostData.Version, PostData.IP)
 	if err != nil {
+		fmt.Printf("%+v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return
@@ -185,6 +184,13 @@ func (h *ApiAgentHandler) API_DownloadAgentSave(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	SaveFileName := c.Param("filename")
 
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
 	theAgent, err := services.GetAgentByAPIKey(AgentAPIKey)
 	if err != nil {
 		err = fmt.Errorf("error finding agent with error: %s", err.Error())
@@ -193,23 +199,24 @@ func (h *ApiAgentHandler) API_DownloadAgentSave(c *gin.Context) {
 		return
 	}
 
-	var theAccount models.Accounts
-	if err := mongoose.FindOne(bson.M{"agents": theAgent.ID}, &theAccount); err != nil {
+	theAccount := &v2.AccountSchema{}
+	if err := AccountModel.FindOne(theAccount, bson.M{"agents": theAgent.ID}); err != nil {
 		err = fmt.Errorf("error finding agent account with error: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return
 	}
 
-	var theSave v2.AgentSave
-	for _, save := range theAgent.Saves {
+	var theSave *v2.AgentSave
+	for idx := range theAgent.Saves {
+		save := &theAgent.Saves[idx]
 		if save.FileName == SaveFileName {
 			theSave = save
 			break
 		}
 	}
 
-	if theSave.FileName == "" {
+	if theSave == nil || theSave.FileName == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "save file not found", "success": false})
 		c.Abort()
 		return

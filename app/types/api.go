@@ -2,42 +2,13 @@ package types
 
 import (
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
-	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type API_AccountLogin_PostData struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type API_AccountSignup_PostData struct {
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	AccountName string `json:"accountName"`
-}
-
-type API_AccountUserTwoFACode_PostData struct {
-	Token string `json:"token"`
-}
-
-type API_AccountUserApiKey_PostData struct {
-	APIKey string `json:"apikey"`
-}
-
-type API_AccountAgentTask_PostData struct {
-	Action string      `json:"action"`
-	Data   interface{} `json:"data"`
-}
-
 type API_AccountAgentMod_PostData struct {
 	ModReference string             `json:"modReference"`
 	AgentID      primitive.ObjectID `json:"agentId"`
-}
-
-type API_AccountAgentConfig_PutData struct {
-	UpdatedAgent modelsv1.Agents `json:"updatedAgent"`
 }
 
 type API_AgentStatus_PutData struct {
@@ -51,7 +22,7 @@ type API_AgentStatus_PutData struct {
 }
 
 type API_AgentTaskItem_PutData struct {
-	Item modelsv1.AgentTask `json:"item"`
+	Item modelsv2.AgentTask `json:"item"`
 }
 
 type API_AgentConfig_ResData struct {

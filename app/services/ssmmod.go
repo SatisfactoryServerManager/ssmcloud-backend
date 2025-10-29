@@ -3,13 +3,18 @@ package services
 import (
 	"time"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
-	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 func UpdateAgentPlayers(agentApiKey string, PostData types.API_UpdatePlayers_PostData) error {
+
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
 
 	theAgent, err := GetAgentByAPIKey(agentApiKey)
 
@@ -59,7 +64,7 @@ func UpdateAgentPlayers(agentApiKey string, PostData types.API_UpdatePlayers_Pos
 		"updatedAt":       time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&theAgent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -67,6 +72,12 @@ func UpdateAgentPlayers(agentApiKey string, PostData types.API_UpdatePlayers_Pos
 }
 
 func UpdateAgentBuildings(agentApiKey string, PostData types.API_UpdateBuildings_PostData) error {
+
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
 	theAgent, err := GetAgentByAPIKey(agentApiKey)
 
 	if err != nil {
@@ -127,7 +138,7 @@ func UpdateAgentBuildings(agentApiKey string, PostData types.API_UpdateBuildings
 		"updatedAt":         time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&theAgent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 

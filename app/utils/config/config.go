@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
@@ -27,26 +26,9 @@ type Config struct {
 }
 
 type ConfigData struct {
-	Version  string `json:"version"`
-	HTTPBind string `json:"http_bind"`
-	Database struct {
-		Host string `json:"host"`
-		Port int    `json:"port"`
-		DB   string `json:"database"`
-		User string `json:"username"`
-		Pass string `json:"password"`
-	} `json:"db"`
-	Storage struct {
-		Minio struct {
-			Endpoint    string `json:"endpoint"`
-			AccessKeyId string `json:"accessKeyId"`
-			SecretKey   string `json:"secretKey"`
-			UseSSL      bool   `json:"useSSL"`
-		} `json:"minio"`
-	} `json:"storage"`
-	Flags struct {
+	Version string `json:"version"`
+	Flags   struct {
 		DisablePurgeAccountData bool `json:"disablePurgeAccountData"`
-		UseMinioStorage         bool `json:"useMinioStorage"`
 	}
 }
 
@@ -98,29 +80,8 @@ func (config *Config) SetDefaultValues() {
 
 	godotenv.Load(".env.local")
 
-	config.ConfigData.Version = "v1.0.63"
-
-	config.ConfigData.Database.Host = os.Getenv("DB_HOST")
-	config.ConfigData.Database.DB = os.Getenv("DB_DB")
-	config.ConfigData.Database.Port, _ = strconv.Atoi(os.Getenv("DB_PORT"))
-	config.ConfigData.Database.User = os.Getenv("DB_USER")
-	config.ConfigData.Database.Pass = os.Getenv("DB_PASS")
-
-	if os.Getenv("HOST_PORT") != "" {
-		config.ConfigData.HTTPBind = os.Getenv("HOST_PORT")
-	} else {
-		config.ConfigData.HTTPBind = ":3000"
-	}
-
 	config.ConfigData.Flags.DisablePurgeAccountData = os.Getenv("FLAG_DISABLEPURGEACCOUNTDATA") == "true"
-	config.ConfigData.Flags.UseMinioStorage = os.Getenv("FLAG_USEMINIOSTORAGE") == "true"
 
-    if config.ConfigData.Flags.UseMinioStorage {
-        config.ConfigData.Storage.Minio.Endpoint = os.Getenv("STORAGE_MINIO_ENDPOINT")
-        config.ConfigData.Storage.Minio.AccessKeyId = os.Getenv("STORAGE_MINIO_ACCESSKEYID")
-        config.ConfigData.Storage.Minio.SecretKey = os.Getenv("STORAGE_MINIO_SECRETKEY")
-        config.ConfigData.Storage.Minio.UseSSL = os.Getenv("STORAGE_MINIO_USESSL") == "true"
-    }
 }
 
 func (config *Config) SaveConfigData() error {

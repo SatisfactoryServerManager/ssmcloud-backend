@@ -12,7 +12,6 @@ import (
 
 func InitStorageService() {
 	utils.CreateFolder(filepath.Join(config.DataDir, "temp"))
-	utils.CreateFolder(filepath.Join(config.DataDir, "account_data"))
 }
 
 func ConvertUploadToFileIdentity(file *multipart.FileHeader) types.StorageFileIdentity {

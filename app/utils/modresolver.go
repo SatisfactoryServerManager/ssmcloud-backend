@@ -3,8 +3,8 @@ package utils
 import (
 	"context"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
-	"github.com/mrhid6/go-mongoose/mongoose"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -15,8 +15,13 @@ func (p SSMProvider) ModVersionsWithDependencies(_ context.Context, modID string
 
 	modVersions := make([]resolver.ModVersion, 0)
 
+	ModsModel, err := repositories.GetMongoClient().GetModel("Mod")
+	if err != nil {
+		return modVersions, err
+	}
+
 	var dbMod models.ModSchema
-	if err := mongoose.FindOne(bson.M{"modReference": modID}, &dbMod); err != nil {
+	if err := ModsModel.FindOne(&dbMod, bson.M{"modReference": modID}); err != nil {
 		return modVersions, err
 	}
 
@@ -58,8 +63,13 @@ func (p SSMProvider) GetModName(_ context.Context, modReference string) (*resolv
 
 	var modName resolver.ModName
 
+	ModsModel, err := repositories.GetMongoClient().GetModel("Mod")
+	if err != nil {
+		return &modName, err
+	}
+
 	var dbMod models.ModSchema
-	if err := mongoose.FindOne(bson.M{"modReference": modReference}, &dbMod); err != nil {
+	if err := ModsModel.FindOne(&dbMod, bson.M{"modReference": modReference}); err != nil {
 		return &modName, err
 	}
 
