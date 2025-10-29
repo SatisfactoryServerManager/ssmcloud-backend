@@ -8,29 +8,22 @@ import (
 	"path/filepath"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 var (
 	MinioClient *minio.Client
-	bucketName  = "ssm"
+	bucketName  string
 )
 
 func GetMinioClient() (*minio.Client, error) {
 	if MinioClient == nil {
 
-		configData, err := config.GetConfigData()
-		if err != nil {
-			return nil, err
-		}
-
-		endpoint := configData.Storage.Minio.Endpoint
-		accessKeyID := configData.Storage.Minio.AccessKeyId
-		secretAccessKey := configData.Storage.Minio.SecretKey
-		useSSL := configData.Storage.Minio.UseSSL
+		endpoint := os.Getenv("STORAGE_MINIO_ENDPOINT")
+		accessKeyID := os.Getenv("STORAGE_MINIO_ACCESSKEYID")
+		secretAccessKey := os.Getenv("STORAGE_MINIO_SECRETKEY")
+		useSSL := os.Getenv("STORAGE_MINIO_USESSL") == "true"
 
 		minioClient, err := minio.New(endpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
@@ -47,6 +40,7 @@ func GetMinioClient() (*minio.Client, error) {
 }
 
 func CreateSSMBucket() error {
+	bucketName = os.Getenv("STORAGE_MINIO_BUCKET")
 	minioClient, err := GetMinioClient()
 
 	if err != nil {
@@ -133,7 +127,7 @@ func HasAgentFile(objectPath string) bool {
 	minioClient, err := GetMinioClient()
 
 	if err != nil {
-		logger.GetErrorLogger().Println(err.Error())
+		fmt.Println(err.Error())
 		return false
 	}
 
