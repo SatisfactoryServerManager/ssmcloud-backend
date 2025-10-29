@@ -3,13 +3,13 @@ package services
 import (
 	"time"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
-	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
+	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func UpdateAgentPlayers(agentApiKey string, PostData app.API_UpdatePlayers_PostData) error {
+func UpdateAgentPlayers(agentApiKey string, PostData types.API_UpdatePlayers_PostData) error {
 
 	theAgent, err := GetAgentByAPIKey(agentApiKey)
 
@@ -44,7 +44,7 @@ func UpdateAgentPlayers(agentApiKey string, PostData app.API_UpdatePlayers_PostD
 		}
 
 		if !foundPlayer {
-			newPlayer := models.AgentMapDataPlayer{
+			newPlayer := v2.AgentMapDataPlayer{
 				Username: apiPlayer.Name,
 				Location: apiPlayer.Location,
 				Online:   true,
@@ -66,14 +66,14 @@ func UpdateAgentPlayers(agentApiKey string, PostData app.API_UpdatePlayers_PostD
 	return nil
 }
 
-func UpdateAgentBuildings(agentApiKey string, PostData app.API_UpdateBuildings_PostData) error {
+func UpdateAgentBuildings(agentApiKey string, PostData types.API_UpdateBuildings_PostData) error {
 	theAgent, err := GetAgentByAPIKey(agentApiKey)
 
 	if err != nil {
 		return err
 	}
 
-	newBuildingsArray := make([]models.AgentMapDataBuilding, 0)
+	newBuildingsArray := make([]v2.AgentMapDataBuilding, 0)
 
 	// Update Existing Players
 	for idx := range theAgent.MapData.Buildings {
@@ -110,7 +110,7 @@ func UpdateAgentBuildings(agentApiKey string, PostData app.API_UpdateBuildings_P
 		}
 
 		if !foundBuilding {
-			newBuilding := models.AgentMapDataBuilding{
+			newBuilding := v2.AgentMapDataBuilding{
 				Name:        apiBuilding.Name,
 				Class:       apiBuilding.Class,
 				Location:    apiBuilding.Location,

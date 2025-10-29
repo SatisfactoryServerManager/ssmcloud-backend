@@ -65,7 +65,7 @@ func AddIntegrationEvent(theAccount *v2.AccountSchema, eventType v2.IntegrationE
 	}
 
 	for _, integration := range integrations {
-		if err := CreateIntegrationEvent(integration, v2.IntegrationEventTypeAgentOnline, payload); err != nil {
+		if err := createIntegrationEvent(integration, eventType, payload); err != nil {
 			return err
 		}
 	}
@@ -105,7 +105,7 @@ func GetAccountIntegrationsWithEventType(theAccount *v2.AccountSchema, eventType
 	return res, nil
 }
 
-func CreateIntegrationEvent(accountIntegration *v2.AccountIntegrationSchema, eventType v2.IntegrationEventType, payload interface{}) error {
+func createIntegrationEvent(accountIntegration *v2.AccountIntegrationSchema, eventType v2.IntegrationEventType, payload interface{}) error {
 	IntegrationEventModel, err := repositories.GetMongoClient().GetModel("IntegrationEvent")
 	if err != nil {
 		return err

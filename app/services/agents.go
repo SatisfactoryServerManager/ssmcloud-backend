@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/v2"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
@@ -19,7 +18,6 @@ import (
 	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
-	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -115,9 +113,14 @@ func CheckAllAgentsLastComms() error {
 		return err
 	}
 
-	allAgents := make([]modelsv1.Agents, 0)
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
 
-	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+	allAgents := make([]modelsv2.AgentSchema, 0)
+
+	if err := AgentModel.FindAll(&allAgents, bson.M{}); err != nil {
 		return err
 	}
 
@@ -137,7 +140,7 @@ func CheckAllAgentsLastComms() error {
 					"updatedAt": time.Now(),
 				}
 
-				if err := mongoose.UpdateModelData(agent, dbUpdate); err != nil {
+				if err := AgentModel.UpdateData(agent, dbUpdate); err != nil {
 					return err
 				}
 				theAccount := &modelsv2.AccountSchema{}
@@ -167,17 +170,44 @@ func CheckAllAgentsLastComms() error {
 
 func PurgeAgentTasks() error {
 
-	allAgents := make([]modelsv1.Agents, 0)
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
 
-	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+	allAgents := make([]modelsv2.AgentSchema, 0)
+
+	if err := AgentModel.FindAll(&allAgents, bson.M{}); err != nil {
 		return err
 	}
 
 	for idx := range allAgents {
 		agent := &allAgents[idx]
 
-		if err := agent.PurgeTasks(); err != nil {
-			return err
+		if len(agent.Tasks) == 0 {
+			continue
+		}
+
+		newTaskList := make([]modelsv2.AgentTask, 0)
+		for _, task := range agent.Tasks {
+
+			if task.Completed {
+				continue
+			}
+
+			newTaskList = append(newTaskList, task)
+		}
+
+		if len(agent.Tasks) != len(newTaskList) {
+
+			dbUpdate := bson.M{
+				"tasks":     newTaskList,
+				"updatedAt": time.Now(),
+			}
+
+			if err := AgentModel.UpdateData(agent, dbUpdate); err != nil {
+				return err
+			}
 		}
 
 	}
@@ -187,25 +217,45 @@ func PurgeAgentTasks() error {
 
 func CheckAgentModsConfigs() error {
 
-	agents := make([]modelsv1.Agents, 0)
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
 
-	if err := mongoose.FindAll(bson.M{}, &agents); err != nil {
+	agents := make([]modelsv2.AgentSchema, 0)
+
+	if err := AgentModel.FindAll(&agents, bson.M{}); err != nil {
 		return fmt.Errorf("error finding agents with error: %s", err.Error())
+	}
+
+	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+	if err != nil {
+		return err
 	}
 
 	for idx := range agents {
 		agent := &agents[idx]
 
-		agent.PopulateModConfig()
+		for modidx := range agent.ModConfig.SelectedMods {
+			mod := &agent.ModConfig.SelectedMods[modidx]
+			if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+				err = fmt.Errorf("error populating mod with error: %s", err.Error())
+				return err
+			}
+		}
+	}
+
+	for idx := range agents {
+		agent := &agents[idx]
 
 		for modidx := range agent.ModConfig.SelectedMods {
 			selectedMod := &agent.ModConfig.SelectedMods[modidx]
 
-			if len(selectedMod.ModObject.Versions) == 0 {
+			if len(selectedMod.Mod.Versions) == 0 {
 				continue
 			}
 
-			latestVersion, _ := semver.NewVersion(selectedMod.ModObject.Versions[0].Version)
+			latestVersion, _ := semver.NewVersion(selectedMod.Mod.Versions[0].Version)
 
 			//installedVersion, _ := semver.NewVersion(selectedMod.InstalledVersion)
 			desiredVersion, _ := semver.NewVersion(selectedMod.DesiredVersion)
@@ -222,7 +272,7 @@ func CheckAgentModsConfigs() error {
 			"updatedAt": time.Now(),
 		}
 
-		if err := mongoose.UpdateModelData(agent, dbUpdate); err != nil {
+		if err := AgentModel.UpdateData(agent, dbUpdate); err != nil {
 			return err
 		}
 	}
@@ -231,6 +281,11 @@ func CheckAgentModsConfigs() error {
 }
 
 func CheckAgentVersions() error {
+
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
 
 	ctx := context.Background()
 
@@ -248,9 +303,9 @@ func CheckAgentVersions() error {
 
 	LatestVersion := releases[0].TagName
 
-	allAgents := make([]modelsv1.Agents, 0)
+	allAgents := make([]modelsv2.AgentSchema, 0)
 
-	if err := mongoose.FindAll(bson.M{}, &allAgents); err != nil {
+	if err := AgentModel.FindAll(&allAgents, bson.M{}); err != nil {
 		return err
 	}
 
@@ -265,7 +320,7 @@ func CheckAgentVersions() error {
 				"updatedAt":          time.Now(),
 			}
 
-			if err := mongoose.UpdateModelData(agent, dbUpdate); err != nil {
+			if err := AgentModel.UpdateData(agent, dbUpdate); err != nil {
 				return fmt.Errorf("error updating account agents with error: %s", err.Error())
 			}
 
@@ -275,46 +330,65 @@ func CheckAgentVersions() error {
 	return nil
 }
 
-func GetAllAgents(accountIdStr string) ([]modelsv1.Agents, error) {
+func GetAllAgents(accountIdStr string) ([]*modelsv2.AgentSchema, error) {
 
-	var theAccount modelsv1.Accounts
-	emptyAgents := make([]modelsv1.Agents, 0)
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return nil, err
+	}
 
 	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
 
 	if err != nil {
-		return emptyAgents, fmt.Errorf("error converting accountid to object id with error: %s", err.Error())
+		return nil, fmt.Errorf("error converting accountid to object id with error: %s", err.Error())
 	}
 
-	if err := mongoose.FindOne(bson.M{"_id": accountId}, &theAccount); err != nil {
-		return emptyAgents, fmt.Errorf("error finding account from session with error: %s", err.Error())
+	theAccount := &modelsv2.AccountSchema{}
+
+	if err := AccountModel.FindOneById(theAccount, accountId); err != nil {
+		return nil, fmt.Errorf("error finding account with error: %s", err.Error())
 	}
 
-	if err := theAccount.PopulateAgents(); err != nil {
-		return emptyAgents, fmt.Errorf("error populating account agents with error: %s", err.Error())
+	allAgents := make([]*modelsv2.AgentSchema, 0)
+
+	if err := AccountModel.PopulateField(theAccount, "Agents"); err != nil {
+		return nil, fmt.Errorf("error populating account agents with error: %s", err.Error())
 	}
 
-	for idx := range theAccount.AgentObjects {
-		agent := &theAccount.AgentObjects[idx]
-
-		agent.PopulateModConfig()
+	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+	if err != nil {
+		return nil, err
 	}
 
-	return theAccount.AgentObjects, nil
+	for idx := range theAccount.Agents {
+		agent := &theAccount.Agents[idx]
+
+		for modidx := range agent.ModConfig.SelectedMods {
+			mod := &agent.ModConfig.SelectedMods[modidx]
+			if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+				err = fmt.Errorf("error populating mod with error: %s", err.Error())
+				return nil, err
+			}
+		}
+
+		allAgents = append(allAgents, agent)
+	}
+
+	return allAgents, nil
 }
 
-func GetAgentById(accountIdStr string, agentIdStr string) (modelsv1.Agents, error) {
+func GetAgentById(accountIdStr string, agentIdStr string) (*modelsv2.AgentSchema, error) {
 
 	agents, err := GetAllAgents(accountIdStr)
 
 	if err != nil {
-		return modelsv1.Agents{}, err
+		return nil, err
 	}
 
 	agentId, err := primitive.ObjectIDFromHex(agentIdStr)
 
 	if err != nil {
-		return modelsv1.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
+		return nil, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
 	}
 
 	for _, agent := range agents {
@@ -323,23 +397,29 @@ func GetAgentById(accountIdStr string, agentIdStr string) (modelsv1.Agents, erro
 		}
 	}
 
-	return modelsv1.Agents{}, errors.New("error cant find agent on the account")
+	return nil, errors.New("error cant find agent on the account")
 }
 
-func GetAgentByIdNoAccount(agentIdStr string) (modelsv1.Agents, error) {
+func GetAgentByIdNoAccount(agentIdStr string) (*modelsv2.AgentSchema, error) {
 
-	agents := make([]modelsv1.Agents, 0)
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return nil, err
+	}
 
-	if err := mongoose.FindAll(bson.M{}, &agents); err != nil {
-		return modelsv1.Agents{}, err
+	agents := make([]modelsv2.AgentSchema, 0)
+
+	if err := AgentModel.FindAll(&agents, bson.M{}); err != nil {
+		return nil, err
 	}
 
 	if len(agentIdStr) < 8 {
-		return modelsv1.Agents{}, errors.New("invalid agent id")
+		return nil, errors.New("invalid agent id")
 	}
 
 	if len(agentIdStr) == 8 {
-		for _, agent := range agents {
+		for idx := range agents {
+			agent := &agents[idx]
 			if strings.HasSuffix(agent.ID.Hex(), agentIdStr) {
 				return agent, nil
 			}
@@ -349,26 +429,32 @@ func GetAgentByIdNoAccount(agentIdStr string) (modelsv1.Agents, error) {
 		agentId, err := primitive.ObjectIDFromHex(agentIdStr)
 
 		if err != nil {
-			return modelsv1.Agents{}, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
+			return nil, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
 		}
 
-		for _, agent := range agents {
+		for idx := range agents {
+			agent := &agents[idx]
 			if agent.ID.Hex() == agentId.Hex() {
 				return agent, nil
 			}
 		}
 	}
 
-	return modelsv1.Agents{}, errors.New("error cant find agent")
+	return nil, errors.New("error cant find agent")
 }
 
 // Agent API Functions
 
-func GetAgentByAPIKey(agentAPIKey string) (modelsv1.Agents, error) {
+func GetAgentByAPIKey(agentAPIKey string) (*modelsv2.AgentSchema, error) {
 
-	var theAgent modelsv1.Agents
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return nil, err
+	}
 
-	if err := mongoose.FindOne(bson.M{"apiKey": agentAPIKey}, &theAgent); err != nil {
+	theAgent := &modelsv2.AgentSchema{}
+
+	if err := AgentModel.FindOne(theAgent, bson.M{"apiKey": agentAPIKey}); err != nil {
 		return theAgent, err
 	}
 
@@ -376,19 +462,24 @@ func GetAgentByAPIKey(agentAPIKey string) (modelsv1.Agents, error) {
 }
 
 func UpdateAgentLastComm(agentAPIKey string) error {
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	agent.Status.LastCommDate = time.Now()
+	theAgent.Status.LastCommDate = time.Now()
 
 	dbUpdate := bson.M{
-		"status":    agent.Status,
+		"status":    theAgent.Status,
 		"updatedAt": time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -402,39 +493,44 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 		return err
 	}
 
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
 	theAccount := &modelsv2.AccountSchema{}
-	filter := bson.M{"agents": bson.M{"$in": bson.A{agent.ID}}}
+	filter := bson.M{"agents": bson.M{"$in": bson.A{theAgent.ID}}}
 
 	if err := AccountModel.FindOne(theAccount, filter); err != nil {
 		return fmt.Errorf("error finding account with error: %s", err.Error())
 	}
 
-	if !agent.Status.Online && online {
+	if !theAgent.Status.Online && online {
 
 		data := models.EventDataAgent{
 			EventData: models.EventData{
 				EventType: string(modelsv2.IntegrationEventTypeAgentOnline),
 				EventTime: time.Now(),
 			},
-			AgentName: agent.AgentName,
+			AgentName: theAgent.AgentName,
 		}
 
 		if err := v2.AddIntegrationEvent(theAccount, modelsv2.IntegrationEventTypeAgentOnline, data); err != nil {
 			return fmt.Errorf("error creating integration event with error: %s", err.Error())
 		}
-	} else if agent.Status.Online && !online {
+	} else if theAgent.Status.Online && !online {
 
 		data := models.EventDataAgent{
 			EventData: models.EventData{
 				EventType: "agent.offline",
 				EventTime: time.Now(),
 			},
-			AgentName: agent.AgentName,
+			AgentName: theAgent.AgentName,
 		}
 
 		if err := v2.AddIntegrationEvent(theAccount, modelsv2.IntegrationEventTypeAgentOffline, data); err != nil {
@@ -442,29 +538,30 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 		}
 	}
 
-	if err := agent.CreateStat(running, cpu, mem); err != nil {
-		return err
-	}
+	//TODO: Fix Agent Stats
+	// if err := agent.CreateStat(running, cpu, mem); err != nil {
+	// 	return err
+	// }
 
-	if err := agent.PurgeStats(); err != nil {
-		return err
-	}
+	// if err := agent.PurgeStats(); err != nil {
+	// 	return err
+	// }
 
-	agent.Status.Online = online
-	agent.Status.Installed = installed
-	agent.Status.Running = running
-	agent.Status.CPU = cpu
-	agent.Status.RAM = float64(mem)
-	agent.Status.InstalledSFVersion = installedSFVersion
-	agent.Status.LatestSFVersion = latestSFVersion
+	theAgent.Status.Online = online
+	theAgent.Status.Installed = installed
+	theAgent.Status.Running = running
+	theAgent.Status.CPU = cpu
+	theAgent.Status.RAM = float64(mem)
+	theAgent.Status.InstalledSFVersion = installedSFVersion
+	theAgent.Status.LatestSFVersion = latestSFVersion
 
 	dbUpdate := bson.M{
-		"status":    agent.Status,
-		"stats":     agent.Stats,
+		"status":    theAgent.Status,
+		"stats":     theAgent.Stats,
 		"updatedAt": time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -476,16 +573,29 @@ func UpdateAgentStatus(agentAPIKey string, online bool, installed bool, running 
 }
 
 func UploadedAgentSave(agentAPIKey string, fileIdentity types.StorageFileIdentity, updateModTime bool) error {
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	var theAccount modelsv1.Accounts
-	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
-		return fmt.Errorf("error finding agent account with error: %s", err.Error())
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return err
 	}
-	objectPath := fmt.Sprintf("%s/%s/saves/%s", theAccount.ID.Hex(), agent.ID.Hex(), fileIdentity.FileName)
+
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAccount := &modelsv2.AccountSchema{}
+	filter := bson.M{"agents": bson.M{"$in": bson.A{theAgent.ID}}}
+
+	if err := AccountModel.FindOne(theAccount, filter); err != nil {
+		return fmt.Errorf("error finding account with error: %s", err.Error())
+	}
+
+	objectPath := fmt.Sprintf("%s/%s/saves/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), fileIdentity.FileName)
 
 	objectUrl, err := repositories.UploadAgentFile(fileIdentity, objectPath)
 	if err != nil {
@@ -494,7 +604,7 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity types.StorageFileIdentit
 
 	agentSaveExists := false
 
-	for _, save := range agent.Saves {
+	for _, save := range theAgent.Saves {
 		if save.FileName == fileIdentity.FileName {
 			agentSaveExists = true
 			break
@@ -502,7 +612,7 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity types.StorageFileIdentit
 	}
 
 	if !agentSaveExists {
-		newAgentSave := modelsv1.AgentSave{
+		newAgentSave := modelsv2.AgentSave{
 			UUID:      fileIdentity.UUID,
 			FileName:  fileIdentity.FileName,
 			FileUrl:   objectUrl,
@@ -514,10 +624,10 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity types.StorageFileIdentit
 			newAgentSave.ModTime = time.Now()
 		}
 
-		agent.Saves = append(agent.Saves, newAgentSave)
+		theAgent.Saves = append(theAgent.Saves, newAgentSave)
 	} else {
-		for idx := range agent.Saves {
-			save := &agent.Saves[idx]
+		for idx := range theAgent.Saves {
+			save := &theAgent.Saves[idx]
 			if save.FileName == fileIdentity.FileName {
 				save.Size = fileIdentity.Filesize
 				save.UpdatedAt = time.Now()
@@ -530,11 +640,11 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity types.StorageFileIdentit
 	}
 
 	dbUpdate := bson.M{
-		"saves":     agent.Saves,
+		"saves":     theAgent.Saves,
 		"updatedAt": time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -546,24 +656,36 @@ func UploadedAgentSave(agentAPIKey string, fileIdentity types.StorageFileIdentit
 }
 
 func UploadedAgentBackup(agentAPIKey string, fileIdentity types.StorageFileIdentity) error {
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	var theAccount modelsv1.Accounts
-	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
-		return fmt.Errorf("error finding agent account with error: %s", err.Error())
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return err
 	}
 
-	objectPath := fmt.Sprintf("%s/%s/backups/%s", theAccount.ID.Hex(), agent.ID.Hex(), fileIdentity.FileName)
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAccount := &modelsv2.AccountSchema{}
+	filter := bson.M{"agents": bson.M{"$in": bson.A{theAgent.ID}}}
+
+	if err := AccountModel.FindOne(theAccount, filter); err != nil {
+		return fmt.Errorf("error finding account with error: %s", err.Error())
+	}
+
+	objectPath := fmt.Sprintf("%s/%s/backups/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), fileIdentity.FileName)
 
 	objectUrl, err := repositories.UploadAgentFile(fileIdentity, objectPath)
 	if err != nil {
 		return fmt.Errorf("error uploading file to minio with error: %s", err)
 	}
 
-	newAgentBackup := modelsv1.AgentBackup{
+	newAgentBackup := modelsv2.AgentBackup{
 		UUID:      fileIdentity.UUID,
 		FileName:  fileIdentity.FileName,
 		Size:      fileIdentity.Filesize,
@@ -571,14 +693,14 @@ func UploadedAgentBackup(agentAPIKey string, fileIdentity types.StorageFileIdent
 		CreatedAt: time.Now(),
 	}
 
-	agent.Backups = append(agent.Backups, newAgentBackup)
+	theAgent.Backups = append(theAgent.Backups, newAgentBackup)
 
 	dbUpdate := bson.M{
-		"backups":   agent.Backups,
+		"backups":   theAgent.Backups,
 		"updatedAt": time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -590,13 +712,28 @@ func UploadedAgentBackup(agentAPIKey string, fileIdentity types.StorageFileIdent
 }
 
 func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity) error {
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	var theAccount modelsv1.Accounts
-	if err := mongoose.FindOne(bson.M{"agents": agent.ID}, &theAccount); err != nil {
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return err
+	}
+
+	AgentLogModel, err := repositories.GetMongoClient().GetModel("AgentLog")
+	if err != nil {
+		return err
+	}
+
+	theAccount := &modelsv2.AccountSchema{}
+	if err := AccountModel.FindOne(theAccount, bson.M{"agents": theAgent.ID}); err != nil {
 		return fmt.Errorf("error finding agent account with error: %s", err.Error())
 	}
 
@@ -606,14 +743,14 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		return fmt.Errorf("error reading log contents with error: %s", err.Error())
 	}
 
-	objectPath := fmt.Sprintf("%s/%s/logs/%s", theAccount.ID.Hex(), agent.ID.Hex(), fileIdentity.FileName)
+	objectPath := fmt.Sprintf("%s/%s/logs/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), fileIdentity.FileName)
 
 	objectUrl, err := repositories.UploadAgentFile(fileIdentity, objectPath)
 	if err != nil {
 		return fmt.Errorf("error uploading file to minio with error: %s", err)
 	}
 
-	if err := agent.PopulateLogs(); err != nil {
+	if err := AgentModel.PopulateField(theAgent, "Logs"); err != nil {
 		return fmt.Errorf("error populating agent logs with error: %s", err.Error())
 	}
 
@@ -626,10 +763,11 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		logType = "Steam"
 	}
 
-	var theLog modelsv1.AgentLogs
+	var theLog *modelsv2.AgentLogSchema
 	hasLog := false
 
-	for _, log := range agent.LogObjects {
+	for idx := range theAgent.Logs {
+		log := &theAgent.Logs[idx]
 		if log.Type == logType {
 			hasLog = true
 			theLog = log
@@ -638,7 +776,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 	}
 
 	if !hasLog {
-		theLog := modelsv1.AgentLogs{
+		theLog := &modelsv2.AgentLogSchema{
 			ID:        primitive.NewObjectID(),
 			FileName:  fileIdentity.FileName,
 			Type:      logType,
@@ -648,18 +786,18 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 			UpdatedAt: time.Now(),
 		}
 
-		if _, err := mongoose.InsertOne(&theLog); err != nil {
+		if err := AgentLogModel.Create(theLog); err != nil {
 			return fmt.Errorf("error inserting new agent log with error: %s", err.Error())
 		}
 
-		agent.Logs = append(agent.Logs, theLog.ID)
+		theAgent.LogIds = append(theAgent.LogIds, theLog.ID)
 
 		dbUpdate := bson.M{
-			"logs":      agent.Logs,
+			"logs":      theAgent.LogIds,
 			"updatedAt": time.Now(),
 		}
 
-		if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+		if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 			return err
 		}
 	}
@@ -675,7 +813,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		"fileUrl":   theLog.FileURL,
 	}
 
-	if err := mongoose.UpdateModelData(&theLog, dbUpdate); err != nil {
+	if err := AgentLogModel.UpdateData(&theLog, dbUpdate); err != nil {
 		return err
 	}
 
@@ -686,37 +824,62 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 	return nil
 }
 
-func GetAgentModConfig(agentAPIKey string) (modelsv1.AgentModConfig, error) {
+func GetAgentModConfig(agentAPIKey string) (*modelsv2.AgentModConfig, error) {
 
-	var theModConfig modelsv1.AgentModConfig
-
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
-		return theModConfig, fmt.Errorf("error finding agent with error: %s", err.Error())
+		return nil, fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	agent.PopulateModConfig()
+	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+	if err != nil {
+		return nil, err
+	}
 
-	return agent.ModConfig, nil
+	for idx := range theAgent.ModConfig.SelectedMods {
+		mod := &theAgent.ModConfig.SelectedMods[idx]
+		if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+			err = fmt.Errorf("error populating mod with error: %s", err.Error())
+			return nil, err
+		}
+	}
+
+	return &theAgent.ModConfig, nil
 
 }
 
-func UpdateAgentModConfig(agentAPIKey string, newConfig modelsv1.AgentModConfig) error {
+func UpdateAgentModConfig(agentAPIKey string, newConfig modelsv2.AgentModConfig) error {
 
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	agent.PopulateModConfig()
+	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
+	if err != nil {
+		return err
+	}
 
-	for idx := range agent.ModConfig.SelectedMods {
-		agentMod := &agent.ModConfig.SelectedMods[idx]
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	for idx := range theAgent.ModConfig.SelectedMods {
+		mod := &theAgent.ModConfig.SelectedMods[idx]
+		if err := ModModel.PopulateField(mod, "Mod"); err != nil {
+			err = fmt.Errorf("error populating mod with error: %s", err.Error())
+			return err
+		}
+	}
+
+	for idx := range theAgent.ModConfig.SelectedMods {
+		agentMod := &theAgent.ModConfig.SelectedMods[idx]
 
 		for newIdx := range newConfig.SelectedMods {
 			newMod := newConfig.SelectedMods[newIdx]
 
-			if newMod.ModObject.ModReference == agentMod.ModObject.ModReference {
+			if newMod.Mod.ModReference == agentMod.Mod.ModReference {
 				agentMod.Installed = newMod.Installed
 				agentMod.InstalledVersion = newMod.InstalledVersion
 				agentMod.Config = newMod.Config
@@ -725,11 +888,11 @@ func UpdateAgentModConfig(agentAPIKey string, newConfig modelsv1.AgentModConfig)
 	}
 
 	dbUpdate := bson.M{
-		"modConfig": agent.ModConfig,
+		"modConfig": theAgent.ModConfig,
 		"updatedAt": time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -740,33 +903,35 @@ func UpdateAgentModConfig(agentAPIKey string, newConfig modelsv1.AgentModConfig)
 	return nil
 }
 
-func GetAgentTasksApi(agentAPIKey string) ([]modelsv1.AgentTask, error) {
-	tasks := make([]modelsv1.AgentTask, 0)
+func GetAgentTasksApi(agentAPIKey string) ([]modelsv2.AgentTask, error) {
+	tasks := make([]modelsv2.AgentTask, 0)
 
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return tasks, fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	if err := agent.PurgeTasks(); err != nil {
-		return tasks, err
-	}
-
-	return agent.Tasks, nil
+	return theAgent.Tasks, nil
 }
 
 func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask modelsv1.AgentTask) error {
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	if err := agent.PurgeTasks(); err != nil {
+	if err := PurgeAgentTasks(); err != nil {
 		return err
 	}
 
-	for idx := range agent.Tasks {
-		task := &agent.Tasks[idx]
+	for idx := range theAgent.Tasks {
+		task := &theAgent.Tasks[idx]
 
 		if task.ID.Hex() != newTask.ID.Hex() {
 			continue
@@ -777,11 +942,11 @@ func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask modelsv1.Age
 	}
 
 	dbUpdate := bson.M{
-		"tasks":     agent.Tasks,
+		"tasks":     theAgent.Tasks,
 		"updatedAt": time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 
@@ -792,22 +957,22 @@ func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask modelsv1.Age
 	return nil
 }
 
-func GetAgentConfig(agentAPIKey string) (app.API_AgentConfig_ResData, error) {
-	var config app.API_AgentConfig_ResData
+func GetAgentConfig(agentAPIKey string) (types.API_AgentConfig_ResData, error) {
+	var config types.API_AgentConfig_ResData
 
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return config, fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	config.Config = agent.Config
-	config.ServerConfig = agent.ServerConfig
+	config.Config = theAgent.Config
+	config.ServerConfig = theAgent.ServerConfig
 
 	return config, nil
 }
 
-func GetAgentSaves(agentAPIKey string) ([]modelsv1.AgentSave, error) {
-	saves := make([]modelsv1.AgentSave, 0)
+func GetAgentSaves(agentAPIKey string) ([]modelsv2.AgentSave, error) {
+	saves := make([]modelsv2.AgentSave, 0)
 	agent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return saves, fmt.Errorf("error finding agent with error: %s", err.Error())
@@ -819,13 +984,19 @@ func GetAgentSaves(agentAPIKey string) ([]modelsv1.AgentSave, error) {
 
 }
 
-func PostAgentSyncSaves(agentAPIKey string, saves []modelsv1.AgentSave) error {
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+func PostAgentSyncSaves(agentAPIKey string, saves []modelsv2.AgentSave) error {
+
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	newSavesList := make([]modelsv1.AgentSave, 0)
+	newSavesList := make([]modelsv2.AgentSave, 0)
 
 	hasChanged := false
 
@@ -835,8 +1006,8 @@ func PostAgentSyncSaves(agentAPIKey string, saves []modelsv1.AgentSave) error {
 
 		found := false
 
-		for agentSaveIdx := range agent.Saves {
-			agentSave := &agent.Saves[agentSaveIdx]
+		for agentSaveIdx := range theAgent.Saves {
+			agentSave := &theAgent.Saves[agentSaveIdx]
 
 			if updatedSave.FileName == agentSave.FileName {
 
@@ -864,7 +1035,7 @@ func PostAgentSyncSaves(agentAPIKey string, saves []modelsv1.AgentSave) error {
 			"updatedAt": time.Now(),
 		}
 
-		if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+		if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 			return err
 		}
 
@@ -874,21 +1045,26 @@ func PostAgentSyncSaves(agentAPIKey string, saves []modelsv1.AgentSave) error {
 }
 
 func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
-	agent, err := GetAgentByAPIKey(agentAPIKey)
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
 	}
 
-	agent.Config.Version = version
-	agent.Config.IP = ip
+	theAgent.Config.Version = version
+	theAgent.Config.IP = ip
 
 	dbUpdate := bson.M{
-		"config.version": agent.Config.Version,
-		"config.ip":      agent.Config.IP,
+		"config.version": theAgent.Config.Version,
+		"config.ip":      theAgent.Config.IP,
 		"updatedAt":      time.Now(),
 	}
 
-	if err := mongoose.UpdateModelData(&agent, dbUpdate); err != nil {
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
 		return err
 	}
 

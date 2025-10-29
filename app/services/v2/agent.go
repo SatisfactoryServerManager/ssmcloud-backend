@@ -6,8 +6,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
@@ -193,7 +193,7 @@ func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID)
 	return nil
 }
 
-func UpdateAgentSettings(theAccount *modelsv2.AccountSchema, PostData *app.APIUpdateServerSettingsRequest) error {
+func UpdateAgentSettings(theAccount *modelsv2.AccountSchema, PostData *types.APIUpdateServerSettingsRequest) error {
 
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {

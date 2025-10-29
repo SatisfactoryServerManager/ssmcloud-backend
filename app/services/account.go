@@ -35,7 +35,7 @@ func InitAccountService() {
 		repositories.GetMongoClient(),
 		"accountCleanupJob", func() {
 			if err := CleanupAccountFiles(); err != nil {
-				fmt.Println(err)
+				logger.GetErrorLogger().Printf("error running cleanup account files job with error: %s", err.Error())
 			}
 		},
 		30*time.Second,
@@ -47,7 +47,7 @@ func InitAccountService() {
 		repositories.GetMongoClient(),
 		"accountWorkflowJob", func() {
 			if err := ProcessWorkflows(); err != nil {
-				fmt.Println(err)
+				logger.GetErrorLogger().Printf("error running account workflow job with error: %s", err.Error())
 			}
 		},
 		5*time.Second,
@@ -59,7 +59,7 @@ func InitAccountService() {
 		repositories.GetMongoClient(),
 		"inactiveAccountsJob", func() {
 			if err := CheckForInactiveAccounts(); err != nil {
-				fmt.Println(err)
+				logger.GetErrorLogger().Printf("error running inactive account job with error: %s", err.Error())
 			}
 		},
 		30*time.Second,
@@ -71,7 +71,7 @@ func InitAccountService() {
 		repositories.GetMongoClient(),
 		"deleteInactiveAccountsJob", func() {
 			if err := DeleteInactiveAccounts(); err != nil {
-				fmt.Println(err)
+				logger.GetErrorLogger().Printf("error running delete inactive accounts job with error: %s", err.Error())
 			}
 		},
 		1*time.Minute,
@@ -150,7 +150,7 @@ func CleanupAccountFiles() error {
 		}
 
 		for idx := range agents {
-			agent := &agents[idx]
+			agent := agents[idx]
 			objectPath := fmt.Sprintf("%s/%s", account.ID.Hex(), agent.ID.Hex())
 			if err := CheckAgentBackups(objectPath, agent); err != nil {
 				return err
@@ -165,13 +165,13 @@ func CleanupAccountFiles() error {
 	return nil
 }
 
-func CheckAgentSaves(baseObjectPath string, obj *modelsv1.Agents) error {
+func CheckAgentSaves(baseObjectPath string, obj *modelsv2.AgentSchema) error {
 
 	if len(obj.Saves) == 0 {
 		return nil
 	}
 
-	newSavesList := make([]modelsv1.AgentSave, 0)
+	newSavesList := make([]modelsv2.AgentSave, 0)
 	for _, save := range obj.Saves {
 		objectPath := fmt.Sprintf("%s/saves/%s", baseObjectPath, save.FileName)
 
@@ -197,13 +197,13 @@ func CheckAgentSaves(baseObjectPath string, obj *modelsv1.Agents) error {
 	return nil
 }
 
-func CheckAgentBackups(baseObjectPath string, obj *modelsv1.Agents) error {
+func CheckAgentBackups(baseObjectPath string, obj *modelsv2.AgentSchema) error {
 
 	if len(obj.Backups) == 0 {
 		return nil
 	}
 
-	newBackupsList := make([]modelsv1.AgentBackup, 0)
+	newBackupsList := make([]modelsv2.AgentBackup, 0)
 	for _, backup := range obj.Backups {
 		objectPath := fmt.Sprintf("%s/backups/%s", baseObjectPath, backup.FileName)
 
@@ -265,61 +265,57 @@ func ProcessWorkflows() error {
 }
 
 func CheckForInactiveAccounts() error {
-	allAccounts := make([]modelsv1.Accounts, 0)
 
-	if err := mongoose.FindAll(bson.M{}, &allAccounts); err != nil {
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return err
+	}
+
+	allAccounts := make([]modelsv2.AccountSchema, 0)
+
+	if err := AccountModel.FindAll(&allAccounts, bson.M{}); err != nil {
 		return err
 	}
 
 	inactivityTimeLimit := time.Now().AddDate(0, -2, 0)
 
 	for idx := range allAccounts {
-		account := &allAccounts[idx]
+		theAccount := &allAccounts[idx]
 
 		lastActiveTime := time.Time{}
 
-		if err := account.PopulateAgents(); err != nil {
+		if err := AccountModel.PopulateField(theAccount, "Agents"); err != nil {
 			return err
 		}
 
-		if err := account.PopulateUsers(); err != nil {
-			return err
-		}
-
-		for _, agent := range account.AgentObjects {
+		for _, agent := range theAccount.Agents {
 			if agent.Status.LastCommDate.After(lastActiveTime) {
 				lastActiveTime = agent.Status.LastCommDate
 			}
 		}
 
-		for _, user := range account.UserObjects {
-			if user.LastActive.After(lastActiveTime) {
-				lastActiveTime = user.LastActive
+		if lastActiveTime.Before(inactivityTimeLimit) && !theAccount.InactivityState.Inactive {
+			theAccount.InactivityState.Inactive = true
+			theAccount.InactivityState.DateInactive = time.Now()
+			theAccount.InactivityState.DeleteDate = time.Now().AddDate(0, 1, 0)
+
+			dbUpdate := bson.M{
+				"inactivityState": theAccount.InactivityState,
+				"updatedAt":       time.Now(),
 			}
-		}
-
-		if lastActiveTime.Before(inactivityTimeLimit) && !account.State.Inactive {
-			account.State.Inactive = true
-			account.State.InactivityDate = time.Now()
-			account.State.DeleteDate = time.Now().AddDate(0, 1, 0)
-
-			dbUpdate := bson.D{{"$set", bson.D{
-				{"state", account.State},
-				{"updatedAt", time.Now()},
-			}}}
-			if err := mongoose.UpdateDataByID(*account, dbUpdate); err != nil {
+			if err := AccountModel.UpdateData(theAccount, dbUpdate); err != nil {
 				return err
 			}
-		} else if lastActiveTime.After(inactivityTimeLimit) && account.State.Inactive {
-			account.State.Inactive = false
-			account.State.InactivityDate = time.Time{}
-			account.State.DeleteDate = time.Time{}
+		} else if lastActiveTime.After(inactivityTimeLimit) && theAccount.InactivityState.Inactive {
+			theAccount.InactivityState.Inactive = false
+			theAccount.InactivityState.DateInactive = time.Time{}
+			theAccount.InactivityState.DeleteDate = time.Time{}
 
-			dbUpdate := bson.D{{"$set", bson.D{
-				{"state", account.State},
-				{"updatedAt", time.Now()},
-			}}}
-			if err := mongoose.UpdateDataByID(*account, dbUpdate); err != nil {
+			dbUpdate := bson.M{
+				"inactivityState": theAccount.InactivityState,
+				"updatedAt":       time.Now(),
+			}
+			if err := AccountModel.UpdateData(theAccount, dbUpdate); err != nil {
 				return err
 			}
 		}

@@ -4,23 +4,23 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
+	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-type AgentHandler struct{}
+type ApiAgentHandler struct{}
 
-func (h *AgentHandler) API_UpdateAgentStatus(c *gin.Context) {
+func (h *ApiAgentHandler) API_UpdateAgentStatus(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
-	var PostData app.API_AgentStatus_PutData
+	var PostData types.API_AgentStatus_PutData
 	if err := c.BindJSON(&PostData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -37,7 +37,7 @@ func (h *AgentHandler) API_UpdateAgentStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (h *AgentHandler) API_UploadAgentSave(c *gin.Context) {
+func (h *ApiAgentHandler) API_UploadAgentSave(c *gin.Context) {
 
 	AgentAPIKey := c.GetString("AgentKey")
 	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
@@ -52,7 +52,7 @@ func (h *AgentHandler) API_UploadAgentSave(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (h *AgentHandler) API_UploadAgentBackup(c *gin.Context) {
+func (h *ApiAgentHandler) API_UploadAgentBackup(c *gin.Context) {
 
 	AgentAPIKey := c.GetString("AgentKey")
 	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
@@ -67,7 +67,7 @@ func (h *AgentHandler) API_UploadAgentBackup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (h *AgentHandler) API_UploadAgentLog(c *gin.Context) {
+func (h *ApiAgentHandler) API_UploadAgentLog(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
 
@@ -81,7 +81,7 @@ func (h *AgentHandler) API_UploadAgentLog(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (h *AgentHandler) API_GetModConfig(c *gin.Context) {
+func (h *ApiAgentHandler) API_GetModConfig(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	config, err := services.GetAgentModConfig(AgentAPIKey)
@@ -94,10 +94,10 @@ func (h *AgentHandler) API_GetModConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
 }
 
-func (h *AgentHandler) API_UpdateModConfig(c *gin.Context) {
+func (h *ApiAgentHandler) API_UpdateModConfig(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
-	var PostData models.AgentModConfig
+	var PostData v2.AgentModConfig
 	if err := c.BindJSON(&PostData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -114,7 +114,7 @@ func (h *AgentHandler) API_UpdateModConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (h *AgentHandler) API_GetAgentTasks(c *gin.Context) {
+func (h *ApiAgentHandler) API_GetAgentTasks(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	tasks, err := services.GetAgentTasksApi(AgentAPIKey)
@@ -127,11 +127,11 @@ func (h *AgentHandler) API_GetAgentTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": tasks})
 }
 
-func (h *AgentHandler) API_UpdateTaskItem(c *gin.Context) {
+func (h *ApiAgentHandler) API_UpdateTaskItem(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	TaskID := c.Param("taskid")
 
-	var PostData app.API_AgentTaskItem_PutData
+	var PostData types.API_AgentTaskItem_PutData
 	if err := c.BindJSON(&PostData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -148,7 +148,7 @@ func (h *AgentHandler) API_UpdateTaskItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (h *AgentHandler) API_GetAgentConfig(c *gin.Context) {
+func (h *ApiAgentHandler) API_GetAgentConfig(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	config, err := services.GetAgentConfig(AgentAPIKey)
@@ -161,10 +161,10 @@ func (h *AgentHandler) API_GetAgentConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
 }
 
-func (h *AgentHandler) API_UpdateAgentConfig(c *gin.Context) {
+func (h *ApiAgentHandler) API_UpdateAgentConfig(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
-	var PostData app.API_AgentConfig_PutData
+	var PostData types.API_AgentConfig_PutData
 	if err := c.BindJSON(&PostData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -181,7 +181,7 @@ func (h *AgentHandler) API_UpdateAgentConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (h *AgentHandler) API_DownloadAgentSave(c *gin.Context) {
+func (h *ApiAgentHandler) API_DownloadAgentSave(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	SaveFileName := c.Param("filename")
 
@@ -201,7 +201,7 @@ func (h *AgentHandler) API_DownloadAgentSave(c *gin.Context) {
 		return
 	}
 
-	var theSave models.AgentSave
+	var theSave v2.AgentSave
 	for _, save := range theAgent.Saves {
 		if save.FileName == SaveFileName {
 			theSave = save
@@ -242,7 +242,7 @@ func (h *AgentHandler) API_DownloadAgentSave(c *gin.Context) {
 	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
 }
 
-func (h *AgentHandler) API_GetSyncSaves(c *gin.Context) {
+func (h *ApiAgentHandler) API_GetSyncSaves(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	saves, err := services.GetAgentSaves(AgentAPIKey)
@@ -255,11 +255,11 @@ func (h *AgentHandler) API_GetSyncSaves(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"saves": saves}})
 }
 
-func (h *AgentHandler) API_PostSyncSaves(c *gin.Context) {
+func (h *ApiAgentHandler) API_PostSyncSaves(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
 	type postdata struct {
-		Saves []models.AgentSave `json:"saves"`
+		Saves []v2.AgentSave `json:"saves"`
 	}
 
 	var PostData postdata
@@ -281,7 +281,7 @@ func (h *AgentHandler) API_PostSyncSaves(c *gin.Context) {
 
 func NewAgentHandler(router *gin.RouterGroup) {
 
-	handler := AgentHandler{}
+	handler := ApiAgentHandler{}
 
 	router.Use(middleware.Middleware_AgentAPIKey())
 

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/MicahParks/keyfunc"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
-	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
+	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/joho/godotenv"
@@ -56,7 +56,7 @@ func Middleware_DecodeJWT() gin.HandlerFunc {
 			return
 		}
 
-		var claims app.Middleware_Session_JWT
+		var claims types.Middleware_Session_JWT
 		err = verifiedToken.Claims(&claims)
 		if err != nil {
 			c.JSON(http.StatusForbidden, gin.H{"success": false, "error": err.Error()})
@@ -72,7 +72,7 @@ func Middleware_DecodeJWT() gin.HandlerFunc {
 
 func Middleware_VerifySession() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		JWTData, _ := c.Keys["SessionJWT"].(app.Middleware_Session_JWT)
+		JWTData, _ := c.Keys["SessionJWT"].(types.Middleware_Session_JWT)
 		SessionID := JWTData.SessionID
 
 		_, err := services.GetAccountSession(SessionID)

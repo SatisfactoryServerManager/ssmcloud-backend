@@ -4,7 +4,7 @@ import v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/v2
 
 func InitAllServices() {
 	InitStorageService()
-	InitModService()
+	v2.InitModService()
 	InitAgentService()
 	InitAccountService()
 	v2.InitIntegrationService()
@@ -12,7 +12,7 @@ func InitAllServices() {
 
 func ShutdownAllServices() error {
 
-	if err := ShutdownModService(); err != nil {
+	if err := v2.ShutdownModService(); err != nil {
 		return err
 	}
 

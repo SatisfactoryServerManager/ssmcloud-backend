@@ -1,22 +1,11 @@
-package app
+package types
 
 import (
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
+	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
-
-type Vector3f struct {
-	X float32 `json:"x"`
-	Y float32 `json:"y"`
-	Z float32 `json:"z"`
-}
-
-type Middleware_Session_JWT struct {
-	SessionID string `json:"sessionId"`
-	AccountID string `json:"accountId"`
-	UserID    string `json:"userId"`
-}
 
 type API_AccountLogin_PostData struct {
 	Email    string `json:"email"`
@@ -66,8 +55,8 @@ type API_AgentTaskItem_PutData struct {
 }
 
 type API_AgentConfig_ResData struct {
-	Config       modelsv1.AgentConfig       `json:"config"`
-	ServerConfig modelsv1.AgentServerConfig `json:"serverConfig"`
+	Config       modelsv2.AgentConfig       `json:"config"`
+	ServerConfig modelsv2.AgentServerConfig `json:"serverConfig"`
 }
 
 type API_AgentConfig_PutData struct {

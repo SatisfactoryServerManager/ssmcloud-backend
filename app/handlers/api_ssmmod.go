@@ -3,18 +3,18 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
 	"github.com/gin-gonic/gin"
 )
 
-type SSMModHandler struct{}
+type ApiSSMModHandler struct{}
 
-func (h *SSMModHandler) API_UpdatePlayers(c *gin.Context) {
+func (h *ApiSSMModHandler) API_UpdatePlayers(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
-	var PostData app.API_UpdatePlayers_PostData
+	var PostData types.API_UpdatePlayers_PostData
 	if err := c.BindJSON(&PostData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -31,10 +31,10 @@ func (h *SSMModHandler) API_UpdatePlayers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func (h *SSMModHandler) API_UpdateBuildings(c *gin.Context) {
+func (h *ApiSSMModHandler) API_UpdateBuildings(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 
-	var PostData app.API_UpdateBuildings_PostData
+	var PostData types.API_UpdateBuildings_PostData
 	if err := c.BindJSON(&PostData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -52,7 +52,7 @@ func (h *SSMModHandler) API_UpdateBuildings(c *gin.Context) {
 }
 
 func NewSSMModHandler(router *gin.RouterGroup) {
-	handler := SSMModHandler{}
+	handler := ApiSSMModHandler{}
 
 	router.Use(middleware.Middleware_AgentAPIKey())
 
