@@ -25,7 +25,7 @@ spec:
                             secretKeyRef:
                                 key: mongodb_server
                                 name: ssmcloud-dev-backend-secret
-                      - name: DB_DB
+                      - name: DB_DATABASE
                         valueFrom:
                             secretKeyRef:
                                 key: mongodb_db
@@ -35,7 +35,7 @@ spec:
                             secretKeyRef:
                                 key: mongodb_user
                                 name: ssmcloud-dev-backend-secret
-                      - name: DB_PASS
+                      - name: DB_PASSWORD
                         valueFrom:
                             secretKeyRef:
                                 key: mongodb_pass
@@ -59,6 +59,8 @@ spec:
                         value: ""
                       - name: STORAGE_MINIO_USESSL
                         value: "true"
+                      - name: STORAGE_MINIO_BUCKET
+                        value: "ssm"
                   name: ssmcloud-dev-backend
                   image: mrhid6/ssmcloud-backend:latest
                   ports:

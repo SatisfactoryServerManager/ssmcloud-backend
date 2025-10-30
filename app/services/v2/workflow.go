@@ -30,7 +30,7 @@ var (
 
 func InitWorkflowService() {
 
-    RegisterWorkflowAction(v2.WorkflowActionType_CreateAgent, CreateAgentAction{})
+	RegisterWorkflowAction(v2.WorkflowActionType_CreateAgent, CreateAgentAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_WaitForOnline, WaitForOnlineAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_InstallServer, InstallServerAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_WaitForInstalled, WaitForInstallAction{})
@@ -56,13 +56,13 @@ func InitWorkflowService() {
 		fmt.Printf("%v\n", err.Error())
 	}
 
-    logger.GetDebugLogger().Println("Initalized Workflow Service")
+	logger.GetDebugLogger().Println("Initalized Workflow Service")
 }
 
 func ShutdownWorkflowService() error {
 	processWorkflowsJob.UnLock(context.TODO())
 
-    logger.GetDebugLogger().Println("Shutdown Workflow Service")
+	logger.GetDebugLogger().Println("Shutdown Workflow Service")
 	return nil
 }
 
@@ -250,7 +250,7 @@ func (a CreateAgentAction) Execute(action *v2.WorkflowAction, d interface{}, the
 	}
 
 	if err := AddAccountAudit(theAccount,
-		v2.AuditType_AgentRemoveFromAccount,
+		v2.AuditType_AgentAddedToAccount,
 		fmt.Sprintf("Agent (%s) was added to the account", newAgent.AgentName),
 	); err != nil {
 		return err

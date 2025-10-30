@@ -40,6 +40,10 @@ func GetMyUserAccountAgents(theAccount *modelsv2.AccountSchema, agentId primitiv
 				singleAgentArray = append(singleAgentArray, agent)
 			}
 		}
+
+		if len(singleAgentArray) == 0 {
+			return nil, errors.New("error cant find agent with id")
+		}
 		return singleAgentArray, nil
 	}
 
@@ -517,4 +521,20 @@ func PurgeAgentStats() error {
 	}
 
 	return nil
+}
+
+func GetAgentStats(theAgent *modelsv2.AgentSchema) ([]*modelsv2.AgentStatSchema, error) {
+
+	AgentStatModel, err := repositories.GetMongoClient().GetModel("AgentStat")
+	if err != nil {
+		return nil, err
+	}
+
+	stats := make([]*modelsv2.AgentStatSchema, 0)
+	if err := AgentStatModel.FindAll(&stats, bson.M{"agentId": theAgent.ID}); err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+
 }

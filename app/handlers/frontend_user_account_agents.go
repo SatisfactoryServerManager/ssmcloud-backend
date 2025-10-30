@@ -597,6 +597,54 @@ func (h *FrontendUserAccountAgentsHandler) API_UploadAgentSave(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+func (handler *FrontendUserAccountAgentsHandler) API_GetAgentStats(c *gin.Context) {
+
+	agentId := c.Query("agentId")
+
+	claims, _ := c.Get("user")
+	user := claims.(jwt.MapClaims)
+	eid := user["sub"].(string)
+
+	oid, err := primitive.ObjectIDFromHex(agentId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theAccount, err := v2.GetMyUserAccount(theUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	agents, err := v2.GetMyUserAccountAgents(theAccount, oid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+	theAgent := agents[0]
+
+	stats, err := v2.GetAgentStats(theAgent)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "stats": stats})
+}
+
 func NewFrontendUserAccountAgentHandler(router *gin.RouterGroup) {
 
 	handler := FrontendUserAccountAgentsHandler{}
@@ -611,6 +659,8 @@ func NewFrontendUserAccountAgentHandler(router *gin.RouterGroup) {
 	router.GET("/mods", handler.API_GetAgentMods)
 	router.POST("/installmod", handler.API_AgentUpdateMod)
 	router.POST("/uninstallmod", handler.API_AgentUninstallMod)
+
+	router.GET("/stats", handler.API_GetAgentStats)
 
 	uploadGroup := router.Group("upload")
 	uploadGroup.Use(middleware.Middleware_UploadFile())
