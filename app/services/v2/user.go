@@ -2,6 +2,7 @@ package v2
 
 import (
 	"fmt"
+	"html/template"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	v1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
@@ -64,5 +65,28 @@ func GetMyUser(id primitive.ObjectID, externalId string, email string, username 
 		}
 	}
 
+	theUser.ProfileImageURL = template.URL(theUser.ProfileImageStr)
+
 	return theUser, nil
+}
+
+func UpdateUserProfilePicture(theUser *models.UserSchema, avatarUrl string) error {
+	UserModel, err := repositories.GetMongoClient().GetModel("User")
+	if err != nil {
+		return err
+	}
+
+	if avatarUrl == "" {
+		return nil
+	}
+
+	if theUser.ProfileImageURL != "" {
+		return nil
+	}
+
+	if err := UserModel.UpdateData(theUser, bson.M{"profileImageUrl": avatarUrl}); err != nil {
+		return fmt.Errorf("error updating user avatar with error: %s", err.Error())
+	}
+
+	return nil
 }
