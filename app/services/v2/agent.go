@@ -395,7 +395,6 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 			}
 
 			fmt.Printf("Installing Mod %s\n", k)
-			fmt.Printf("%+v\n", dbMod)
 
 			newSelectedMod := modelsv2.AgentModConfigSelectedModSchema{
 				ModId:            dbMod.ID,

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var (
@@ -66,7 +68,11 @@ func GetMyAccountIntegrationsEvents(integrationId primitive.ObjectID) ([]v2.Inte
 	}
 
 	events := make([]v2.IntegrationEventSchema, 0)
-	if err := IntegrationEventModel.FindAll(&events, bson.M{"integrationId": integrationId}); err != nil {
+
+	findOptions := options.Find().
+		SetSort(bson.D{{Key: "created_at", Value: -1}})
+
+	if err := IntegrationEventModel.FindAllWithOptions(&events, bson.M{"integrationId": integrationId}, findOptions); err != nil {
 		return nil, err
 	}
 
@@ -283,6 +289,10 @@ func processEvent(ev *v2.IntegrationEventSchema) error {
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	ev.Response = string(bodyBytes)
+	ev.ResponseCode = resp.StatusCode
+
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("unexpected status %d from %s", resp.StatusCode, ev.URL)
 	}
@@ -301,9 +311,11 @@ func markSent(ev *v2.IntegrationEventSchema) {
 
 	update := bson.M{
 		"$set": bson.M{
-			"status":     "sent",
-			"sent_at":    now,
-			"last_error": "",
+			"status":       "sent",
+			"response":     ev.Response,
+			"responseCode": ev.ResponseCode,
+			"sent_at":      now,
+			"last_error":   "",
 		},
 		"$unset": bson.M{"processing_by": "", "processing_until": ""},
 	}
@@ -336,6 +348,8 @@ func markFailed(ev *v2.IntegrationEventSchema, err error) {
 		"$set": bson.M{
 			"status":          status,
 			"last_error":      err.Error(),
+			"response":        ev.Response,
+			"responseCode":    ev.ResponseCode,
 			"next_attempt_at": nextTime,
 		},
 		"$unset": bson.M{"processing_by": "", "processing_until": ""},

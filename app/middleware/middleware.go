@@ -1,25 +1,27 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/MicahParks/keyfunc"
+	"github.com/MicahParks/keyfunc/v3"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
-	jwks *keyfunc.JWKS
+	jwks keyfunc.Keyfunc
 )
 
 func init() {
@@ -28,10 +30,11 @@ func init() {
 
 	jwksURL := issuer + "/jwks/"
 	var err error
-	jwks, err = keyfunc.Get(jwksURL, keyfunc.Options{
-		RefreshInterval:   time.Hour,
-		RefreshUnknownKID: true,
-	})
+	jwks, err = keyfunc.NewDefaultCtx(context.Background(), []string{jwksURL}) // Context is used to end the refresh goroutine.
+	if err != nil {
+		log.Fatalf("Failed to create a keyfunc.Keyfunc from the server's URL.\nError: %s", err)
+	}
+
 	if err != nil {
 		panic(fmt.Sprintf("failed to get JWKS: %v", err))
 	}
@@ -109,7 +112,7 @@ func Middleware_CheckFrontendAccessToken() gin.HandlerFunc {
 			return
 		}
 
-		token, err := jwt.Parse(tokenStr, jwks.Keyfunc)
+		token, err := jwt.Parse(tokenStr, jwks.Keyfunc, jwt.WithLeeway(30*time.Second))
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": fmt.Sprintf("invalid token: %v", err)})
 			c.Abort()

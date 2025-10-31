@@ -3,11 +3,11 @@ module github.com/SatisfactoryServerManager/ssmcloud-backend
 go 1.25
 
 require (
-	github.com/MicahParks/keyfunc v1.9.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.27
+	github.com/MicahParks/keyfunc/v3 v3.7.0
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.29
 	github.com/TwiN/go-away v1.8.1
 	github.com/gin-gonic/gin v1.11.0
-	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/gtuk/discordwebhook v1.2.0
 	github.com/joho/godotenv v1.5.1
@@ -21,6 +21,7 @@ require (
 )
 
 require (
+	github.com/MicahParks/jwkset v0.11.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.2 // indirect
 	github.com/bytedance/sonic/loader v0.4.0 // indirect
@@ -71,6 +72,7 @@ require (
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )

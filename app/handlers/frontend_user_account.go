@@ -6,7 +6,7 @@ import (
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/v2"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
