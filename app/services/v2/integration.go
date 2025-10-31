@@ -17,6 +17,7 @@ import (
 	"github.com/gtuk/discordwebhook"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -55,6 +56,21 @@ func ShutdownIntegrationService() error {
 
 	logger.GetDebugLogger().Println("Shutdown Integration Service")
 	return nil
+}
+
+func GetMyAccountIntegrationsEvents(integrationId primitive.ObjectID) ([]v2.IntegrationEventSchema, error) {
+
+	IntegrationEventModel, err := repositories.GetMongoClient().GetModel("IntegrationEvent")
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]v2.IntegrationEventSchema, 0)
+	if err := IntegrationEventModel.FindAll(&events, bson.M{"integrationId": integrationId}); err != nil {
+		return nil, err
+	}
+
+	return events, nil
 }
 
 func AddIntegrationEvent(theAccount *v2.AccountSchema, eventType v2.IntegrationEventType, payload interface{}) error {

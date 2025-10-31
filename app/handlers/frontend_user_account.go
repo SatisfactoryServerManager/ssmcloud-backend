@@ -243,6 +243,36 @@ func (hander *FrontendUserAccountHandler) API_GetMyAccountIntegrations(c *gin.Co
 	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "integrations": integrations})
 }
 
+func (handler *FrontendUserAccountHandler) API_GetMyAccountIntegrationsEvents(c *gin.Context) {
+	claims, _ := c.Get("user")
+	user := claims.(jwt.MapClaims)
+	eid := user["sub"].(string)
+
+	integrationId, err := primitive.ObjectIDFromHex(c.Query("integrationId"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	_, err = v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	events, err := v2.GetMyAccountIntegrationsEvents(integrationId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "events": events})
+}
+
 func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Context) {
 
 	claims, _ := c.Get("user")
@@ -326,6 +356,7 @@ func NewFrontendUserAccountHandler(router *gin.RouterGroup) {
 	accountGroup.GET("/audit", handler.API_GetMyAccountAudit)
 	accountGroup.GET("/users", handler.API_GetMyAccountUsers)
 	accountGroup.GET("/integrations", handler.API_GetMyAccountIntegrations)
+	accountGroup.GET("/integrations/events", handler.API_GetMyAccountIntegrationsEvents)
 	accountGroup.POST("/integrations/add", handler.API_AddAccountIntegrations)
 
 	agentsGroup := accountGroup.Group("agents")
