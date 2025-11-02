@@ -3,6 +3,7 @@ package v2
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
@@ -310,6 +311,65 @@ func AddAccountIntegration(theAccount *models.AccountSchema, name string, integr
 	}
 
 	if err := AddAccountAudit(theAccount, models.AuditType_IntegrationAddedToAccount, "A new integration has been added to the account"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UpdateAccountIntegration(integrationId primitive.ObjectID, name string, integrationType models.IntegrationType, url string, eventTypes []models.IntegrationEventType) error {
+	IntergrationsModel, err := repositories.GetMongoClient().GetModel("AccountIntegration")
+	if err != nil {
+		return err
+	}
+
+	theIntegration := &models.AccountIntegrationSchema{}
+
+	if err := IntergrationsModel.FindOneById(theIntegration, integrationId); err != nil {
+		return fmt.Errorf("error finding integration with error: %s", err.Error())
+	}
+
+	updateData := bson.M{}
+	if theIntegration.Name != name {
+		updateData["name"] = name
+	}
+
+	if theIntegration.Type != integrationType {
+		updateData["type"] = integrationType
+	}
+
+	if theIntegration.Url != url {
+		updateData["url"] = url
+	}
+
+	if !reflect.DeepEqual(theIntegration.EventTypes, eventTypes) {
+		updateData["eventTypes"] = eventTypes
+	}
+
+	if err := IntergrationsModel.UpdateData(theIntegration, updateData); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteAccountIntegration(integrationId primitive.ObjectID) error {
+	IntergrationsModel, err := repositories.GetMongoClient().GetModel("AccountIntegration")
+	if err != nil {
+		return err
+	}
+
+	IntergrationEventsModel, err := repositories.GetMongoClient().GetModel("IntegrationEvent")
+	if err != nil {
+		return err
+	}
+
+	if err := IntergrationsModel.DeleteById(integrationId); err != nil {
+		return err
+	}
+
+	filter := bson.M{"integrationId": integrationId}
+	if err := IntergrationEventsModel.Delete(filter); err != nil {
 		return err
 	}
 
