@@ -777,7 +777,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 			ID:        primitive.NewObjectID(),
 			FileName:  fileIdentity.FileName,
 			Type:      logType,
-			Snippet:   fileContents,
+			LogLines:  strings.Split(fileContents, "\n"),
 			FileURL:   objectUrl,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -799,12 +799,12 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		}
 	}
 
-	theLog.Snippet = fileContents
+	theLog.LogLines = strings.Split(fileContents, "\n")
 	theLog.FileName = fileIdentity.FileName
 	theLog.FileURL = objectUrl
 
 	dbUpdate := bson.M{
-		"snippet":   theLog.Snippet,
+		"lines":     theLog.LogLines,
 		"fileName":  theLog.FileName,
 		"updatedAt": time.Now(),
 		"fileUrl":   theLog.FileURL,
@@ -1065,6 +1065,90 @@ func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
 
 	if err := AgentModel.RawUpdateData(theAgent, dbUpdate); err != nil {
 		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func AddAgentLogLine(agentAPIKey string, source string, line string, timestamp int64) error {
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	AgentLogModel, err := repositories.GetMongoClient().GetModel("AgentLog")
+	if err != nil {
+		return fmt.Errorf("failed to get AgentLog model: %s", err.Error())
+	}
+	// Ensure the agent's Logs are populated so we can find/update the correct log
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return fmt.Errorf("failed to get Agent model: %s", err.Error())
+	}
+
+	if err := AgentModel.PopulateField(theAgent, "Logs"); err != nil {
+		return fmt.Errorf("failed to populate agent logs: %s", err.Error())
+	}
+
+	var theLog *modelsv2.AgentLogSchema
+
+	for idx := range theAgent.Logs {
+		log := &theAgent.Logs[idx]
+		if log.Type == source {
+			theLog = log
+			break
+		}
+	}
+
+	// If no log exists for this source, create it and persist
+	if theLog == nil {
+		newLog := &modelsv2.AgentLogSchema{
+			ID:        primitive.NewObjectID(),
+			Type:      source,
+			LogLines:  []string{line},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		if err := AgentLogModel.Create(newLog); err != nil {
+			return fmt.Errorf("error inserting new agent log with error: %s", err.Error())
+		}
+
+		// attach to agent and update agent record
+		theAgent.LogIds = append(theAgent.LogIds, newLog.ID)
+		dbUpdate := bson.M{
+			"logs":      theAgent.LogIds,
+			"updatedAt": time.Now(),
+		}
+
+		if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
+			return err
+		}
+
+		// update last comm for agent
+		if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	// Append the new line to the existing log's LogLines
+	theLog.LogLines = append(theLog.LogLines, line)
+	theLog.UpdatedAt = time.Now()
+
+	// Persist the updated LogLines to the AgentLog model
+	dbUpdate := bson.M{
+		"lines":     theLog.LogLines,
+		"updatedAt": theLog.UpdatedAt,
+	}
+
+	if err := AgentLogModel.UpdateData(theLog, dbUpdate); err != nil {
+		return fmt.Errorf("failed to update agent log lines: %s", err.Error())
 	}
 
 	if err := UpdateAgentLastComm(agentAPIKey); err != nil {

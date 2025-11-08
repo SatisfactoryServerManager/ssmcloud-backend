@@ -13,6 +13,12 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+type LogUpdate struct {
+	Source    string `json:"source"`
+	Line      string `json:"line"`
+	Timestamp int64  `json:"timestamp"`
+}
+
 type ApiAgentHandler struct{}
 
 func (h *ApiAgentHandler) API_UpdateAgentStatus(c *gin.Context) {
@@ -70,6 +76,26 @@ func (h *ApiAgentHandler) API_UploadAgentLog(c *gin.Context) {
 	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
 
 	err := services.UploadedAgentLog(AgentAPIKey, FileIdentity)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *ApiAgentHandler) API_PostLogLine(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	var logUpdate LogUpdate
+	if err := c.BindJSON(&logUpdate); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := services.AddAgentLogLine(AgentAPIKey, logUpdate.Source, logUpdate.Line, logUpdate.Timestamp)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -313,5 +339,6 @@ func NewAgentHandler(router *gin.RouterGroup) {
 	uploadGroup.POST("/backup", handler.API_UploadAgentBackup)
 	uploadGroup.POST("/log", handler.API_UploadAgentLog)
 
+	router.POST("/log/line", handler.API_PostLogLine)
 	router.GET("/saves/download/:filename", handler.API_DownloadAgentSave)
 }
