@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/repositories"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/app/services/v2"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/types"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
@@ -26,6 +27,7 @@ var (
 	purgeAgentTasksJob         *joblock.JobLockTask
 	checkAgentModsConfigsJob   *joblock.JobLockTask
 	checkAgentVersionsJob      *joblock.JobLockTask
+	uploadPendingLogsJob       *joblock.JobLockTask
 )
 
 func InitAgentService() {
@@ -91,6 +93,22 @@ func InitAgentService() {
 	if err := checkAgentVersionsJob.Run(ctx); err != nil {
 		fmt.Printf("%v\n", err.Error())
 	}
+
+	uploadPendingLogsJob, _ = joblock.NewJobLockTask(
+		repositories.GetMongoClient(),
+		"uploadPendingLogsJob", func() {
+			if err := UploadPendingLogs(); err != nil {
+				fmt.Println(err)
+			}
+		},
+		30*time.Second, // Run every 30 seconds
+		1*time.Minute,  // Lock for 1 minute
+		false,
+	)
+
+	if err := uploadPendingLogsJob.Run(ctx); err != nil {
+		fmt.Printf("%v\n", err.Error())
+	}
 }
 
 func ShutdownAgentService() error {
@@ -100,6 +118,7 @@ func ShutdownAgentService() error {
 	purgeAgentTasksJob.UnLock(ctx)
 	checkAgentModsConfigsJob.UnLock(ctx)
 	checkAgentVersionsJob.UnLock(ctx)
+	uploadPendingLogsJob.UnLock(ctx)
 
 	logger.GetDebugLogger().Println("Shutdown Agent Service")
 	return nil
@@ -734,18 +753,19 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		return fmt.Errorf("error finding agent account with error: %s", err.Error())
 	}
 
-	fileContents, err := utils.ReadLastNBtyesFromFile(fileIdentity.LocalFilePath, 4000)
+	file, err := os.Open(fileIdentity.LocalFilePath)
+	if err != nil {
+		return err
+	}
+
+	buf, err := io.ReadAll(file)
 
 	if err != nil {
 		return fmt.Errorf("error reading log contents with error: %s", err.Error())
 	}
 
-	objectPath := fmt.Sprintf("%s/%s/logs/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), fileIdentity.FileName)
-
-	objectUrl, err := repositories.UploadAgentFile(fileIdentity, objectPath)
-	if err != nil {
-		return fmt.Errorf("error uploading file to minio with error: %s", err)
-	}
+	fileContents := string(buf)
+	file.Close()
 
 	if err := AgentModel.PopulateField(theAgent, "Logs"); err != nil {
 		return fmt.Errorf("error populating agent logs with error: %s", err.Error())
@@ -774,13 +794,13 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 
 	if !hasLog {
 		theLog := &modelsv2.AgentLogSchema{
-			ID:        primitive.NewObjectID(),
-			FileName:  fileIdentity.FileName,
-			Type:      logType,
-			LogLines:  strings.Split(fileContents, "\n"),
-			FileURL:   objectUrl,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			ID:            primitive.NewObjectID(),
+			FileName:      fileIdentity.FileName,
+			Type:          logType,
+			LogLines:      strings.Split(fileContents, "\n"),
+			PendingUpload: true,
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
 		}
 
 		if err := AgentLogModel.Create(theLog); err != nil {
@@ -801,13 +821,12 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 
 	theLog.LogLines = strings.Split(fileContents, "\n")
 	theLog.FileName = fileIdentity.FileName
-	theLog.FileURL = objectUrl
 
 	dbUpdate := bson.M{
-		"lines":     theLog.LogLines,
-		"fileName":  theLog.FileName,
-		"updatedAt": time.Now(),
-		"fileUrl":   theLog.FileURL,
+		"lines":         theLog.LogLines,
+		"fileName":      theLog.FileName,
+		"pendingUpload": true,
+		"updatedAt":     time.Now(),
 	}
 
 	if err := AgentLogModel.UpdateData(theLog, dbUpdate); err != nil {
@@ -1041,6 +1060,92 @@ func PostAgentSyncSaves(agentAPIKey string, saves []modelsv2.AgentSave) error {
 	return nil
 }
 
+func UploadPendingLogs() error {
+	AgentLogModel, err := repositories.GetMongoClient().GetModel("AgentLog")
+	if err != nil {
+		return fmt.Errorf("failed to get AgentLog model: %s", err.Error())
+	}
+
+	// Find all logs with pendingUpload = true
+	pendingLogs := make([]modelsv2.AgentLogSchema, 0)
+	if err := AgentLogModel.FindAll(&pendingLogs, bson.M{"pendingUpload": true}); err != nil {
+		return fmt.Errorf("failed to find pending logs: %s", err.Error())
+	}
+
+	for idx := range pendingLogs {
+		theLog := &pendingLogs[idx]
+
+		// Get the agent that owns this log
+		AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+		if err != nil {
+			continue
+		}
+
+		theAgent := &modelsv2.AgentSchema{}
+		if err := AgentModel.FindOne(theAgent, bson.M{"logs": theLog.ID}); err != nil {
+			logger.GetErrorLogger().Printf("Failed to find agent for log %s: %s", theLog.ID.Hex(), err.Error())
+			continue
+		}
+
+		// Get the account that owns this agent
+		AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+		if err != nil {
+			continue
+		}
+
+		theAccount := &modelsv2.AccountSchema{}
+		if err := AccountModel.FindOne(theAccount, bson.M{"agents": theAgent.ID}); err != nil {
+			logger.GetErrorLogger().Printf("Failed to find account for agent %s: %s", theAgent.ID.Hex(), err.Error())
+			continue
+		}
+
+		// Create temporary file with log content
+		tempFile, err := os.CreateTemp("", "ssm-log-*")
+		if err != nil {
+			logger.GetErrorLogger().Printf("Failed to create temp file: %s", err.Error())
+			continue
+		}
+		defer os.Remove(tempFile.Name())
+
+		// Write log lines to file
+		content := strings.Join(theLog.LogLines, "\n")
+		if _, err := tempFile.WriteString(content); err != nil {
+			logger.GetErrorLogger().Printf("Failed to write to temp file: %s", err.Error())
+			continue
+		}
+		tempFile.Close()
+
+		// Prepare upload
+		fileIdentity := types.StorageFileIdentity{
+			UUID:          primitive.NewObjectID().Hex(),
+			FileName:      theLog.FileName,
+			LocalFilePath: tempFile.Name(),
+		}
+
+		// Upload to Minio
+		objectPath := fmt.Sprintf("%s/%s/logs/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theLog.FileName)
+		objectUrl, err := repositories.UploadAgentFile(fileIdentity, objectPath)
+		if err != nil {
+			logger.GetErrorLogger().Printf("Failed to upload log %s: %s", theLog.ID.Hex(), err.Error())
+			continue
+		}
+
+		// Update log with new URL and clear pending flag
+		dbUpdate := bson.M{
+			"fileUrl":       objectUrl,
+			"pendingUpload": false,
+			"updatedAt":     time.Now(),
+		}
+
+		if err := AgentLogModel.UpdateData(theLog, dbUpdate); err != nil {
+			logger.GetErrorLogger().Printf("Failed to update log %s: %s", theLog.ID.Hex(), err.Error())
+			continue
+		}
+	}
+
+	return nil
+}
+
 func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
 	if err != nil {
@@ -1104,36 +1209,8 @@ func AddAgentLogLine(agentAPIKey string, source string, line string, timestamp i
 		}
 	}
 
-	// If no log exists for this source, create it and persist
+	// If no log exists for this source, return due to the full file being uploaded separately
 	if theLog == nil {
-		newLog := &modelsv2.AgentLogSchema{
-			ID:        primitive.NewObjectID(),
-			Type:      source,
-			LogLines:  []string{line},
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-
-		if err := AgentLogModel.Create(newLog); err != nil {
-			return fmt.Errorf("error inserting new agent log with error: %s", err.Error())
-		}
-
-		// attach to agent and update agent record
-		theAgent.LogIds = append(theAgent.LogIds, newLog.ID)
-		dbUpdate := bson.M{
-			"logs":      theAgent.LogIds,
-			"updatedAt": time.Now(),
-		}
-
-		if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
-			return err
-		}
-
-		// update last comm for agent
-		if err := UpdateAgentLastComm(agentAPIKey); err != nil {
-			return err
-		}
-
 		return nil
 	}
 
@@ -1141,14 +1218,15 @@ func AddAgentLogLine(agentAPIKey string, source string, line string, timestamp i
 	theLog.LogLines = append(theLog.LogLines, line)
 	theLog.UpdatedAt = time.Now()
 
-	// Persist the updated LogLines to the AgentLog model
+	// Update the log entry with new content and mark for upload
 	dbUpdate := bson.M{
-		"lines":     theLog.LogLines,
-		"updatedAt": theLog.UpdatedAt,
+		"lines":         theLog.LogLines,
+		"updatedAt":     theLog.UpdatedAt,
+		"pendingUpload": true,
 	}
 
 	if err := AgentLogModel.UpdateData(theLog, dbUpdate); err != nil {
-		return fmt.Errorf("failed to update agent log lines: %s", err.Error())
+		return fmt.Errorf("failed to update agent log: %s", err.Error())
 	}
 
 	if err := UpdateAgentLastComm(agentAPIKey); err != nil {

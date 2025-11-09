@@ -62,6 +62,10 @@ func CreateSSMBucket() error {
 
 func getMimeTypeByExtension(file string) string {
 	ext := filepath.Ext(file)
+	if ext == ".log" {
+		return "text/plain"
+	}
+
 	return mime.TypeByExtension(ext)
 }
 
@@ -100,9 +104,7 @@ func UploadAgentFile(fileIdentity types.StorageFileIdentity, objectPath string) 
 
 	objectURL := fmt.Sprintf("%s/%s/%s", minioClient.EndpointURL().String(), bucketName, objectPath)
 
-	if err := os.Remove(fileIdentity.LocalFilePath); err != nil {
-		return "", err
-	}
+	_ = os.Remove(fileIdentity.LocalFilePath)
 
 	return objectURL, nil
 }

@@ -16,6 +16,8 @@ github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.29 h1:Nq38RKyL8VqY1
 github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.29/go.mod h1:kZH0TGdW9Vjv7RB1NeRyO4yMeg13UKQZMbnFRdFXWN8=
 github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.30 h1:JCjR3/7Cwa2qE3aOS1HVEKN1ft0xhYskvArwcZFpybw=
 github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.30/go.mod h1:kZH0TGdW9Vjv7RB1NeRyO4yMeg13UKQZMbnFRdFXWN8=
+github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.31 h1:L0QzFGaau+FPMNyyJCs1RqOMtrp6vctnv1LF3i5SR4w=
+github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.31/go.mod h1:kZH0TGdW9Vjv7RB1NeRyO4yMeg13UKQZMbnFRdFXWN8=
 github.com/TwiN/go-away v1.8.1 h1:zbbr0ISBkDSbnUFHrnRUhbCR/7+9ONMWtIi1BiQWX8Y=
 github.com/TwiN/go-away v1.8.1/go.mod h1:nSQEvd/FYBNmnC27RGJdPi91LXYMG8SrRc1o1w+VmKY=
 github.com/bytedance/gopkg v0.1.3 h1:TPBSwH8RsouGCBcMBktLt1AymVo2TVsBVCY4b6TnZ/M=
