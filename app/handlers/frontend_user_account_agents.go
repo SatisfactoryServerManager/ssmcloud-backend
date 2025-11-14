@@ -194,6 +194,7 @@ func (handler *FrontendUserAccountAgentsHandler) API_GetAgentLog(c *gin.Context)
 
 	id := c.Query("_id")
 	logType := c.Query("type")
+	lastIndex, _ := strconv.Atoi(c.Query("lastIndex"))
 
 	if id == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "agent id is empty", "success": false})
@@ -244,6 +245,17 @@ func (handler *FrontendUserAccountAgentsHandler) API_GetAgentLog(c *gin.Context)
 		c.Abort()
 		return
 	}
+
+	if lastIndex > len(theLog.LogLines)-1 {
+		lastIndex = 0
+	}
+
+	end := lastIndex + 500
+	if end > len(theLog.LogLines) {
+		end = len(theLog.LogLines)
+	}
+
+	theLog.LogLines = theLog.LogLines[lastIndex:end]
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "agentLog": theLog})
 }
