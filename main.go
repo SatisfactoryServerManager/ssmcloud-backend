@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/mrhid6/go-mongoose/mongoose"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -43,9 +45,14 @@ func main() {
 	handlers.NewV1Handler(apiGroup)
 	handlers.NewV2Handler(apiGroup)
 
-    httpBind := ":3000"
-    if os.Getenv("HOST_PORT") != "" {
+	httpBind := ":3000"
+	if os.Getenv("HOST_PORT") != "" {
 		httpBind = os.Getenv("HOST_PORT")
+	}
+
+	grpcBind := ":8443"
+	if os.Getenv("GRPC_PORT") != "" {
+		grpcBind = os.Getenv("GRPC_PORT")
 	}
 
 	srv := &http.Server{
@@ -59,9 +66,30 @@ func main() {
 		}
 	}()
 
+	grpcServer := grpc.NewServer()
+
+	go func() {
+		lis, err := net.Listen("tcp", grpcBind)
+		if err != nil {
+			log.Fatalf("failed to listen: %v", err)
+		}
+
+		services.InitGRPCServices(grpcServer)
+
+		log.Printf("grpc server listening at %v", lis.Addr())
+
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
 	wait := gracefulShutdown(context.Background(), 30*time.Second, map[string]operation{
 		"gin": func(ctx context.Context) error {
 			return srv.Shutdown(ctx)
+		},
+		"grpc": func(ctx context.Context) error {
+			grpcServer.GracefulStop()
+			return nil
 		},
 		"services": func(ctx context.Context) error {
 			return services.ShutdownAllServices()

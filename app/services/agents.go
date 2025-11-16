@@ -209,7 +209,7 @@ func PurgeAgentTasks() error {
 		newTaskList := make([]modelsv2.AgentTask, 0)
 		for _, task := range agent.Tasks {
 
-			if task.Completed {
+			if task.Completed || task.Retries > 30 {
 				continue
 			}
 
@@ -955,6 +955,88 @@ func UpdateAgentTaskItem(agentAPIKey string, taskId string, newTask modelsv2.Age
 
 		task.Completed = newTask.Completed
 		task.Retries = newTask.Retries
+	}
+
+	dbUpdate := bson.M{
+		"tasks":     theAgent.Tasks,
+		"updatedAt": time.Now(),
+	}
+
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func MarkAgentTaskCompleted(agentAPIKey string, taskId string) error {
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	if err := PurgeAgentTasks(); err != nil {
+		return err
+	}
+
+	for idx := range theAgent.Tasks {
+		task := &theAgent.Tasks[idx]
+
+		if task.ID.Hex() != taskId {
+			continue
+		}
+
+		task.Completed = true
+	}
+
+	dbUpdate := bson.M{
+		"tasks":     theAgent.Tasks,
+		"updatedAt": time.Now(),
+	}
+
+	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
+		return err
+	}
+
+	if err := UpdateAgentLastComm(agentAPIKey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func MarkAgentTaskFailed(agentAPIKey string, taskId string) error {
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return err
+	}
+
+	theAgent, err := GetAgentByAPIKey(agentAPIKey)
+	if err != nil {
+		return fmt.Errorf("error finding agent with error: %s", err.Error())
+	}
+
+	if err := PurgeAgentTasks(); err != nil {
+		return err
+	}
+
+	for idx := range theAgent.Tasks {
+		task := &theAgent.Tasks[idx]
+
+		if task.ID.Hex() != taskId {
+			continue
+		}
+
+		task.Retries = task.Retries + 1
 	}
 
 	dbUpdate := bson.M{
