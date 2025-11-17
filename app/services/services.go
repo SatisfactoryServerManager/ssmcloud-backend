@@ -33,7 +33,5 @@ func ShutdownAllServices() error {
 		return err
 	}
 
-	ShutdownGRPCServices()
-
 	return nil
 }

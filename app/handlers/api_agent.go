@@ -319,16 +319,8 @@ func NewAgentHandler(router *gin.RouterGroup) {
 
 	router.Use(middleware.Middleware_AgentAPIKey())
 
-	router.PUT("/status", handler.API_UpdateAgentStatus)
-
 	router.GET("/modconfig", handler.API_GetModConfig)
 	router.PUT("/modconfig", handler.API_UpdateModConfig)
-
-	router.GET("/tasks", handler.API_GetAgentTasks)
-	router.PUT("/tasks/:taskid", handler.API_UpdateTaskItem)
-
-	router.GET("/config", handler.API_GetAgentConfig)
-	router.PUT("/config", handler.API_UpdateAgentConfig)
 
 	router.GET("/save/sync", handler.API_GetSyncSaves)
 	router.POST("/save/sync", handler.API_PostSyncSaves)

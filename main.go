@@ -14,10 +14,13 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/config"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"google.golang.org/grpc"
+
+	grpcHandler "github.com/SatisfactoryServerManager/ssmcloud-backend/app/handlers/grpc"
 )
 
 func main() {
@@ -50,7 +53,7 @@ func main() {
 		httpBind = os.Getenv("HOST_PORT")
 	}
 
-	grpcBind := ":8443"
+	grpcBind := ":50051"
 	if os.Getenv("GRPC_PORT") != "" {
 		grpcBind = os.Getenv("GRPC_PORT")
 	}
@@ -71,15 +74,17 @@ func main() {
 	go func() {
 		lis, err := net.Listen("tcp", grpcBind)
 		if err != nil {
-			log.Fatalf("failed to listen: %v", err)
+			logger.GetErrorLogger().Printf("failed to listen: %v", err)
+			panic(err)
 		}
 
-		services.InitGRPCServices(grpcServer)
+		grpcHandler.InitgRPCHandlers(grpcServer)
 
-		log.Printf("grpc server listening at %v", lis.Addr())
+		logger.GetInfoLogger().Printf("gRPC server listening at %v", lis.Addr())
 
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
+			logger.GetErrorLogger().Printf("failed to serve: %v", err)
+			panic(err)
 		}
 	}()
 
@@ -88,6 +93,7 @@ func main() {
 			return srv.Shutdown(ctx)
 		},
 		"grpc": func(ctx context.Context) error {
+			grpcHandler.ShutdownGRPCServices()
 			grpcServer.GracefulStop()
 			return nil
 		},

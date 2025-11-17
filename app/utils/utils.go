@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,10 @@ import (
 	"math/rand"
 	"os"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 func CheckError(err error) {
@@ -105,4 +110,20 @@ func ReadLastNBtyesFromFile(fname string, nbytes int64) (string, error) {
 func TrackTime(start time.Time, name string) {
 	elapsed := time.Since(start)
 	fmt.Printf("%s took %s\n", name, elapsed)
+}
+
+func GetAPIKeyFromContext(ctx context.Context) (*string, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "missing metadata")
+	}
+
+	apiKeys := md["x-api-key"]
+	if len(apiKeys) == 0 {
+		return nil, status.Errorf(codes.Unauthenticated, "missing API key")
+	}
+
+	apiKey := &apiKeys[0]
+
+	return apiKey, nil
 }
