@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -126,4 +127,9 @@ func GetAPIKeyFromContext(ctx context.Context) (*string, error) {
 	apiKey := &apiKeys[0]
 
 	return apiKey, nil
+}
+
+func StructToPBStruct(a interface{}, b interface{}) {
+	bytes, _ := json.Marshal(a)
+	json.Unmarshal(bytes, b)
 }

@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.7.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.46
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.50
 	github.com/TwiN/go-away v1.8.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
@@ -18,7 +18,7 @@ require (
 	github.com/mrhid6/go-mongoose-lock v0.0.5
 	github.com/satisfactorymodding/ficsit-resolver v0.0.6
 	go.mongodb.org/mongo-driver v1.17.6
-	google.golang.org/grpc v1.76.0
+	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10
 )
 

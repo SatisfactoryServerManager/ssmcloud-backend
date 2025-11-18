@@ -1261,7 +1261,7 @@ func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
 	return nil
 }
 
-func AddAgentLogLine(agentAPIKey string, source string, line string, timestamp int64) error {
+func AddAgentLogLine(agentAPIKey string, source string, line string, inital bool) error {
 	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
 		return fmt.Errorf("error finding agent with error: %s", err.Error())
@@ -1294,6 +1294,10 @@ func AddAgentLogLine(agentAPIKey string, source string, line string, timestamp i
 	// If no log exists for this source, return due to the full file being uploaded separately
 	if theLog == nil {
 		return nil
+	}
+
+	if inital {
+		theLog.LogLines = make([]string, 0)
 	}
 
 	// Append the new line to the existing log's LogLines

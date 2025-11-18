@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto"
@@ -75,7 +76,9 @@ func (h *Handler) StreamLog(stream pb.AgentLogService_StreamLogServer) error {
 			return err
 
 		case msg := <-msgChan:
-			fmt.Printf("log line %s, %+v\n", *apiKey, msg)
+			if err := services.AddAgentLogLine(*apiKey, msg.Type, msg.Line, msg.Inital); err != nil {
+				return err
+			}
 		}
 	}
 }
@@ -91,5 +94,5 @@ func ShutdownAgentLogHandler() {
 
 	// clean map
 	activeStreams = make(map[string]context.CancelFunc)
-    logger.GetDebugLogger().Println("Shutdown gRPC log handler")
+	logger.GetDebugLogger().Println("Shutdown gRPC log handler")
 }

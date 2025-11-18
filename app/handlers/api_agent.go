@@ -96,7 +96,7 @@ func (h *ApiAgentHandler) API_PostLogLine(c *gin.Context) {
 		return
 	}
 
-	err := services.AddAgentLogLine(AgentAPIKey, logUpdate.Source, logUpdate.Line, logUpdate.Timestamp)
+	err := services.AddAgentLogLine(AgentAPIKey, logUpdate.Source, logUpdate.Line, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -332,6 +332,5 @@ func NewAgentHandler(router *gin.RouterGroup) {
 	uploadGroup.POST("/backup", handler.API_UploadAgentBackup)
 	uploadGroup.POST("/log", handler.API_UploadAgentLog)
 
-	router.POST("/log/line", handler.API_PostLogLine)
 	router.GET("/saves/download/:filename", handler.API_DownloadAgentSave)
 }
