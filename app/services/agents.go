@@ -864,7 +864,7 @@ func GetAgentModConfig(agentAPIKey string) (*modelsv2.AgentModConfig, error) {
 
 }
 
-func UpdateAgentModConfig(agentAPIKey string, newConfig modelsv2.AgentModConfig) error {
+func UpdateAgentModConfig(agentAPIKey string, newConfig *modelsv2.AgentModConfig) error {
 
 	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {

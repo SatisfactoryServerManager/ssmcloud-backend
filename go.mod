@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.7.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.50
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.52
 	github.com/TwiN/go-away v1.8.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
@@ -19,7 +19,6 @@ require (
 	github.com/satisfactorymodding/ficsit-resolver v0.0.6
 	go.mongodb.org/mongo-driver v1.17.6
 	google.golang.org/grpc v1.77.0
-	google.golang.org/protobuf v1.36.10
 )
 
 require (
@@ -77,5 +76,6 @@ require (
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251111163417-95abcf5c77ba // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

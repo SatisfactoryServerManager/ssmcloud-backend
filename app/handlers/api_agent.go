@@ -129,7 +129,7 @@ func (h *ApiAgentHandler) API_UpdateModConfig(c *gin.Context) {
 		return
 	}
 
-	err := services.UpdateAgentModConfig(AgentAPIKey, PostData)
+	err := services.UpdateAgentModConfig(AgentAPIKey, &PostData)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()

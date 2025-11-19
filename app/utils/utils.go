@@ -133,3 +133,8 @@ func StructToPBStruct(a interface{}, b interface{}) {
 	bytes, _ := json.Marshal(a)
 	json.Unmarshal(bytes, b)
 }
+
+func ToJSON(a interface{}) string {
+	bytes, _ := json.Marshal(a)
+	return string(bytes)
+}

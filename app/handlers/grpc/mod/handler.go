@@ -2,7 +2,6 @@ package mod
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/services"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils"
@@ -22,8 +21,6 @@ func (s *Handler) GetModConfig(ctx context.Context, _ *pb.Empty) (*pb.AgentModCo
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("GetModConfig called by", apiKey)
 
 	agentModConfig, err := services.GetAgentModConfig(*apiKey)
 	if err != nil {
@@ -49,9 +46,7 @@ func (s *Handler) UpdateModConfig(ctx context.Context, req *pb.AgentModConfigReq
 		return nil, err
 	}
 
-	fmt.Println("UpdateModConfig called by:", apiKey)
-
-	updatedModConfig := v2.AgentModConfig{}
+	updatedModConfig := &v2.AgentModConfig{}
 	utils.StructToPBStruct(req.Config, updatedModConfig)
 
 	if err := services.UpdateAgentModConfig(*apiKey, updatedModConfig); err != nil {
