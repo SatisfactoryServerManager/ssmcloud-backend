@@ -246,7 +246,7 @@ func (handler *FrontendUserAccountAgentsHandler) API_GetAgentLog(c *gin.Context)
 		return
 	}
 
-	if lastIndex > len(theLog.LogLines)-1 {
+	if lastIndex > len(theLog.LogLines) {
 		lastIndex = 0
 	}
 

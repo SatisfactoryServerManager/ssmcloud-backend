@@ -15,7 +15,6 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/app/utils/logger"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
-	"github.com/google/go-github/github"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"go.mongodb.org/mongo-driver/bson"
@@ -75,7 +74,7 @@ func InitAgentService() {
 				fmt.Println(err)
 			}
 		},
-		30*time.Minute,
+		1*time.Minute,
 		1*time.Minute,
 		false,
 	)
@@ -305,21 +304,7 @@ func CheckAgentVersions() error {
 		return err
 	}
 
-	ctx := context.Background()
-
-	client := github.NewClient(nil)
-	opt := &github.ListOptions{Page: 1, PerPage: 10}
-	releases, _, err := client.Repositories.ListReleases(ctx, "SatisfactoryServerManager", "SSMAgent", opt)
-
-	if err != nil {
-		return err
-	}
-
-	if len(releases) == 0 {
-		return fmt.Errorf("error releases returned empty array")
-	}
-
-	LatestVersion := releases[0].TagName
+	LatestVersion := os.Getenv("LATEST_AGENT_VERSION")
 
 	allAgents := make([]modelsv2.AgentSchema, 0)
 
@@ -330,8 +315,8 @@ func CheckAgentVersions() error {
 	for idx := range allAgents {
 		agent := &allAgents[idx]
 
-		if agent.LatestAgentVersion != *LatestVersion {
-			agent.LatestAgentVersion = *LatestVersion
+		if agent.LatestAgentVersion != LatestVersion {
+			agent.LatestAgentVersion = LatestVersion
 
 			dbUpdate := bson.M{
 				"latestAgentVersion": agent.LatestAgentVersion,

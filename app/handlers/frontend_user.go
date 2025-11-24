@@ -46,10 +46,13 @@ func (handler *FrontendUserHandler) API_GetMyUser(c *gin.Context) {
 		return
 	}
 
-	if err := v2.UpdateUserProfilePicture(theUser, user["avatar"].(string)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
+	avatarUrl, ok := user["avatar"].(string)
+	if ok {
+		if err := v2.UpdateUserProfilePicture(theUser, avatarUrl); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+			c.Abort()
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "user": theUser})

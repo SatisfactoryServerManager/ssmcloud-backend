@@ -21,26 +21,6 @@ type LogUpdate struct {
 
 type ApiAgentHandler struct{}
 
-func (h *ApiAgentHandler) API_UpdateAgentStatus(c *gin.Context) {
-	AgentAPIKey := c.GetString("AgentKey")
-
-	var PostData types.API_AgentStatus_PutData
-	if err := c.BindJSON(&PostData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	err := services.UpdateAgentStatus(AgentAPIKey, PostData.Online, PostData.Installed, PostData.Running, PostData.CPU, PostData.MEM, PostData.InstalledSFVersion, PostData.LatestSFVersion)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
 func (h *ApiAgentHandler) API_UploadAgentSave(c *gin.Context) {
 
 	AgentAPIKey := c.GetString("AgentKey")
@@ -78,127 +58,6 @@ func (h *ApiAgentHandler) API_UploadAgentLog(c *gin.Context) {
 	err := services.UploadedAgentLog(AgentAPIKey, FileIdentity)
 	if err != nil {
 		fmt.Printf("%+v\n", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-func (h *ApiAgentHandler) API_PostLogLine(c *gin.Context) {
-	AgentAPIKey := c.GetString("AgentKey")
-
-	var logUpdate LogUpdate
-	if err := c.BindJSON(&logUpdate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	err := services.AddAgentLogLine(AgentAPIKey, logUpdate.Source, logUpdate.Line, false)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-func (h *ApiAgentHandler) API_GetModConfig(c *gin.Context) {
-	AgentAPIKey := c.GetString("AgentKey")
-
-	config, err := services.GetAgentModConfig(AgentAPIKey)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
-}
-
-func (h *ApiAgentHandler) API_UpdateModConfig(c *gin.Context) {
-	AgentAPIKey := c.GetString("AgentKey")
-
-	var PostData v2.AgentModConfig
-	if err := c.BindJSON(&PostData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	err := services.UpdateAgentModConfig(AgentAPIKey, &PostData)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-func (h *ApiAgentHandler) API_GetAgentTasks(c *gin.Context) {
-	AgentAPIKey := c.GetString("AgentKey")
-
-	tasks, err := services.GetAgentTasksApi(AgentAPIKey)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": tasks})
-}
-
-func (h *ApiAgentHandler) API_UpdateTaskItem(c *gin.Context) {
-	AgentAPIKey := c.GetString("AgentKey")
-	TaskID := c.Param("taskid")
-
-	var PostData types.API_AgentTaskItem_PutData
-	if err := c.BindJSON(&PostData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	err := services.UpdateAgentTaskItem(AgentAPIKey, TaskID, PostData.Item)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-func (h *ApiAgentHandler) API_GetAgentConfig(c *gin.Context) {
-	AgentAPIKey := c.GetString("AgentKey")
-
-	config, err := services.GetAgentConfig(AgentAPIKey)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
-}
-
-func (h *ApiAgentHandler) API_UpdateAgentConfig(c *gin.Context) {
-	AgentAPIKey := c.GetString("AgentKey")
-
-	var PostData types.API_AgentConfig_PutData
-	if err := c.BindJSON(&PostData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	err := services.UpdateAgentConfigApi(AgentAPIKey, PostData.Version, PostData.IP)
-	if err != nil {
-		fmt.Printf("%+v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return
@@ -318,9 +177,6 @@ func NewAgentHandler(router *gin.RouterGroup) {
 	handler := ApiAgentHandler{}
 
 	router.Use(middleware.Middleware_AgentAPIKey())
-
-	router.GET("/modconfig", handler.API_GetModConfig)
-	router.PUT("/modconfig", handler.API_UpdateModConfig)
 
 	router.GET("/save/sync", handler.API_GetSyncSaves)
 	router.POST("/save/sync", handler.API_PostSyncSaves)
