@@ -19,6 +19,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/mrhid6/go-mongoose/mongoose"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	grpcHandler "github.com/SatisfactoryServerManager/ssmcloud-backend/app/handlers/grpc"
 )
@@ -81,6 +82,8 @@ func main() {
 		grpcHandler.InitgRPCHandlers(grpcServer)
 
 		logger.GetInfoLogger().Printf("gRPC server listening at %v", lis.Addr())
+
+		reflection.Register(grpcServer)
 
 		if err := grpcServer.Serve(lis); err != nil {
 			logger.GetErrorLogger().Printf("failed to serve: %v", err)
