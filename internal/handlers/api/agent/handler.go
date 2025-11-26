@@ -1,0 +1,192 @@
+package agent
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/middleware"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
+	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
+)
+
+type LogUpdate struct {
+	Source    string `json:"source"`
+	Line      string `json:"line"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+type ApiAgentHandler struct{}
+
+func (h *ApiAgentHandler) API_UploadAgentSave(c *gin.Context) {
+
+	AgentAPIKey := c.GetString("AgentKey")
+	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
+
+	err := agent.UploadedAgentSave(AgentAPIKey, FileIdentity, false)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *ApiAgentHandler) API_UploadAgentBackup(c *gin.Context) {
+
+	AgentAPIKey := c.GetString("AgentKey")
+	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
+
+	err := agent.UploadedAgentBackup(AgentAPIKey, FileIdentity)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *ApiAgentHandler) API_UploadAgentLog(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+	FileIdentity := c.Keys["FileIdentity"].(types.StorageFileIdentity)
+
+	err := agent.UploadedAgentLog(AgentAPIKey, FileIdentity)
+	if err != nil {
+		fmt.Printf("%+v\n", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *ApiAgentHandler) API_DownloadAgentSave(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+	SaveFileName := c.Param("filename")
+
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theAgent, err := agent.GetAgentByAPIKey(AgentAPIKey)
+	if err != nil {
+		err = fmt.Errorf("error finding agent with error: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	theAccount := &v2.AccountSchema{}
+	if err := AccountModel.FindOne(theAccount, bson.M{"agents": theAgent.ID}); err != nil {
+		err = fmt.Errorf("error finding agent account with error: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	var theSave *v2.AgentSave
+	for idx := range theAgent.Saves {
+		save := &theAgent.Saves[idx]
+		if save.FileName == SaveFileName {
+			theSave = save
+			break
+		}
+	}
+
+	if theSave == nil || theSave.FileName == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "save file not found", "success": false})
+		c.Abort()
+		return
+	}
+
+	objectPath := fmt.Sprintf("%s/%s/saves/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theSave.FileName)
+
+	object, err := repositories.GetAgentFile(objectPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	defer object.Close()
+
+	objectInfo, err := object.Stat()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	// Set headers to force file download
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theSave.FileName))
+	c.Header("Content-Type", objectInfo.ContentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
+
+	// Stream the file to the response
+	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
+}
+
+func (h *ApiAgentHandler) API_GetSyncSaves(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	saves, err := agent.GetAgentSaves(AgentAPIKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"saves": saves}})
+}
+
+func (h *ApiAgentHandler) API_PostSyncSaves(c *gin.Context) {
+	AgentAPIKey := c.GetString("AgentKey")
+
+	type postdata struct {
+		Saves []v2.AgentSave `json:"saves"`
+	}
+
+	var PostData postdata
+	if err := c.BindJSON(&PostData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	err := agent.PostAgentSyncSaves(AgentAPIKey, PostData.Saves)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		c.Abort()
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func NewAgentHandler(router *gin.RouterGroup) {
+
+	handler := ApiAgentHandler{}
+
+	router.Use(middleware.Middleware_AgentAPIKey())
+
+	router.GET("/save/sync", handler.API_GetSyncSaves)
+	router.POST("/save/sync", handler.API_PostSyncSaves)
+
+	uploadGroup := router.Group("upload")
+	uploadGroup.Use(middleware.Middleware_UploadFile())
+
+	uploadGroup.POST("/save", handler.API_UploadAgentSave)
+	uploadGroup.POST("/backup", handler.API_UploadAgentBackup)
+	uploadGroup.POST("/log", handler.API_UploadAgentLog)
+
+	router.GET("/saves/download/:filename", handler.API_DownloadAgentSave)
+}
