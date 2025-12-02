@@ -1,3 +1,6 @@
+## 1.0.67 (December 02, 2025)
+  - feat: Auto create account join code on migration
+
 ## 1.0.66 (December 02, 2025)
 
 -   Merge pull request #1 from SatisfactoryServerManager/dev
