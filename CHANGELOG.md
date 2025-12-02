@@ -1,3 +1,38 @@
+## 1.0.64 (December 02, 2025)
+  - Merge pull request #1 from SatisfactoryServerManager/dev
+  - ci: Fixed pipeline
+  - ci: Fixed pipeline
+  - feat: restructure go files
+  - feat: gRPC reflection api
+  - feat: Removed api handlers now handled by grpc
+  - feat: Mod Handler
+  - feat: Log and mod handlers
+  - feat: Grpc changes
+  - feat: Proto functions
+  - feat: Log limits
+  - feat: updates log lines file upload
+  - feat: new log handling
+  - feat: Update/Delete Integration
+  - feat: Integration events endpoint
+  - feat: get integration & events
+  - feat: User avatar
+  - feat: Agent stats
+  - fix: Fixed log update function
+  - feat: Cleanup of old code
+  - feat: Switched to use env variables
+  - feat: Updated agent service for v2 models
+  - feat: Integration processing
+  - feat: Add audit events for functions
+  - feat: Add integration and updated resource package
+  - feat: get account integrations
+  - feat: Mod config settings
+  - feat: Updates to mod installs on agents
+  - feat: Mods data
+  - fix: Fixed workflow endpoint
+  - feat: Accounts page
+  - fix: Fixed ci for dev branch
+  - feat: New v2 endpoints
+
 ## 1.0.63 (August 18, 2025)
   - chore: Bump deps
 

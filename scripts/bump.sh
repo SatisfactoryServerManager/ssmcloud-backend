@@ -62,7 +62,7 @@ if [ -f VERSION ]; then
     cat CHANGELOG.md >>tmpfile
     mv tmpfile CHANGELOG.md
 
-    sed -i "s/Version = \"v[0-9]*\.[0-9]*\.[0-9]*\"/Version = \"v$INPUT_STRING\"/g" app/utils/config/config.go
+    sed -i "s/Version = \"v[0-9]*\.[0-9]*\.[0-9]*\"/Version = \"v$INPUT_STRING\"/g" internal/utils/config/config.go
 
     echo -e "$ADJUSTMENTS_MSG"
     read
