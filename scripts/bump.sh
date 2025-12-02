@@ -67,7 +67,7 @@ if [ -f VERSION ]; then
     echo -e "$ADJUSTMENTS_MSG"
     read
     echo -e "$PUSHING_MSG"
-    git add CHANGELOG.md VERSION app/utils/config/config.go
+    git add CHANGELOG.md VERSION internal/utils/config/config.go
     git commit -m "Bump version to ${INPUT_STRING}."
     git push
     git tag -a -m "Tag version ${INPUT_STRING}." "v$INPUT_STRING"

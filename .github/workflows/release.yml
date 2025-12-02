@@ -14,9 +14,9 @@ jobs:
               with:
                   go-version-file: "go.mod"
             - name: Install dependencies
-              run: go get .
+              run: go mod tidy
             - name: Build
-              run: go build -o ./release/linux/ssmcloud-backend .
+              run: go build -o ./release/linux/ssmcloud-backend cmd/backend/main.go
             - run: if [ ! -f ./release/linux/ssmcloud-backend ]; then exit 1; fi
             - run: mkdir -p ./docker/release >/dev/null && cp ./release/linux/* ./docker/release/.
             - uses: vimtor/action-zip@v1
@@ -55,9 +55,9 @@ jobs:
               with:
                   go-version-file: "go.mod"
             - name: Install dependencies
-              run: go get .
+              run: go mod tidy
             - name: Build
-              run: go build -o ./release/windows/ssmcloud-backend.exe .
+              run: go build -o ./release/windows/ssmcloud-backend.exe cmd/backend/main.go
             - uses: vimtor/action-zip@v1
               with:
                   files: release/windows/ssmcloud-backend.exe
