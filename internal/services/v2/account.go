@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	goaway "github.com/TwiN/go-away"
 	"go.mongodb.org/mongo-driver/bson"
@@ -150,12 +151,25 @@ func GetMyUserAccount(theUser *models.UserSchema) (*models.AccountSchema, error)
 		return nil, err
 	}
 
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return nil, err
+	}
+
 	if theUser.ActiveAccountId.IsZero() {
 		return nil, nil
 	}
 
 	if err := UserModel.PopulateField(theUser, "ActiveAccount"); err != nil {
 		return nil, fmt.Errorf("error populating active account with error: %s", err.Error())
+	}
+
+	if theUser.ActiveAccount.JoinCode == "" {
+		theUser.ActiveAccount.JoinCode = utils.RandStringBytes(16)
+		update := bson.M{"joinCode": theUser.ActiveAccount.JoinCode}
+		if err := AccountModel.UpdateData(&theUser.ActiveAccount, update); err != nil {
+			return nil, fmt.Errorf("error updating account join code with error: %s", err.Error())
+		}
 	}
 
 	return &theUser.ActiveAccount, nil
@@ -168,6 +182,11 @@ func GetMyUserLinkedAccounts(theUser *models.UserSchema) (*[]models.AccountSchem
 		return nil, err
 	}
 
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return nil, err
+	}
+
 	if len(theUser.LinkedAccountIds) == 0 {
 		emptyAccounts := make([]models.AccountSchema, 0)
 		return &emptyAccounts, nil
@@ -175,6 +194,18 @@ func GetMyUserLinkedAccounts(theUser *models.UserSchema) (*[]models.AccountSchem
 
 	if err := UserModel.PopulateField(theUser, "LinkedAccounts"); err != nil {
 		return nil, fmt.Errorf("error populating linked accounts with error: %s", err.Error())
+	}
+
+	for idx := range theUser.LinkedAccounts {
+		account := &theUser.LinkedAccounts[idx]
+
+		if account.JoinCode == "" {
+			account.JoinCode = utils.RandStringBytes(16)
+			update := bson.M{"joinCode": account.JoinCode}
+			if err := AccountModel.UpdateData(account, update); err != nil {
+				return nil, fmt.Errorf("error updating account join code with error: %s", err.Error())
+			}
+		}
 	}
 
 	return &theUser.LinkedAccounts, nil
