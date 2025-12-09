@@ -1,3 +1,6 @@
+## 1.0.68 (December 09, 2025)
+  - fix: Fixed storage temp uploaded file not being deleted
+
 ## 1.0.67 (December 02, 2025)
   - feat: Auto create account join code on migration
 
