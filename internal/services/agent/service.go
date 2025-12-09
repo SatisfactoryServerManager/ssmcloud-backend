@@ -765,7 +765,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 		logType = "Steam"
 	}
 
-	if err := os.Remove(fileIdentity.FileName); err != nil {
+	if err := os.Remove(fileIdentity.LocalFilePath); err != nil {
 		return fmt.Errorf("error removing temp uploaded log file with error: %s", err.Error())
 	}
 
