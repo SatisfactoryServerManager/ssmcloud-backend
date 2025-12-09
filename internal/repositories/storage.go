@@ -7,56 +7,77 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
+	ssmtypes "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 var (
-	MinioClient *minio.Client
-	bucketName  string
+	S3Client   *s3.Client
+	bucketName string
 )
 
-func GetMinioClient() (*minio.Client, error) {
-	if MinioClient == nil {
-
-		endpoint := os.Getenv("STORAGE_MINIO_ENDPOINT")
-		accessKeyID := os.Getenv("STORAGE_MINIO_ACCESSKEYID")
-		secretAccessKey := os.Getenv("STORAGE_MINIO_SECRETKEY")
-		useSSL := os.Getenv("STORAGE_MINIO_USESSL") == "true"
-
-		minioClient, err := minio.New(endpoint, &minio.Options{
-			Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-			Secure: useSSL,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		MinioClient = minioClient
+func GetS3Client() (*s3.Client, error) {
+	if S3Client != nil {
+		return S3Client, nil
 	}
 
-	return MinioClient, nil
+	endpoint := os.Getenv("STORAGE_S3_ENDPOINT")
+	accessKey := os.Getenv("STORAGE_S3_ACCESSKEYID")
+	secretKey := os.Getenv("STORAGE_S3_SECRETKEY")
+	region := os.Getenv("STORAGE_S3_REGION")
+
+	if endpoint == "" {
+		return nil, fmt.Errorf("STORAGE_S3_ENDPOINT is not set")
+	}
+
+	cfg, err := config.LoadDefaultConfig(
+		context.Background(),
+		config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
+		),
+		config.WithBaseEndpoint(endpoint),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	S3Client = s3.NewFromConfig(cfg, func(o *s3.Options) {
+		// Required for Garage, MinIO, Ceph, etc.
+		o.UsePathStyle = false
+		o.Region = region
+	})
+
+	return S3Client, nil
 }
 
 func CreateSSMBucket() error {
-	bucketName = os.Getenv("STORAGE_MINIO_BUCKET")
-	minioClient, err := GetMinioClient()
+	bucketName = os.Getenv("STORAGE_S3_BUCKET")
+	client, err := GetS3Client()
+	if err != nil {
+		return err
+	}
+
+	_, headErr := client.HeadBucket(context.Background(), &s3.HeadBucketInput{
+		Bucket: aws.String(bucketName),
+	})
+	if headErr == nil {
+		return nil // exists
+	}
+
+	// Try to create bucket
+	_, err = client.CreateBucket(context.Background(), &s3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+	})
 
 	if err != nil {
 		return err
 	}
 
-	err = minioClient.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{})
-	if err != nil {
-		// Check if the bucket already exists
-		exists, errBucketExists := minioClient.BucketExists(context.Background(), bucketName)
-		if errBucketExists == nil && exists {
-			return nil
-		} else {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -65,14 +86,11 @@ func getMimeTypeByExtension(file string) string {
 	if ext == ".log" {
 		return "text/plain"
 	}
-
 	return mime.TypeByExtension(ext)
 }
 
-func UploadAgentFile(fileIdentity types.StorageFileIdentity, objectPath string) (string, error) {
-
-	minioClient, err := GetMinioClient()
-
+func UploadAgentFile(fileIdentity ssmtypes.StorageFileIdentity, objectPath string) (string, error) {
+	client, err := GetS3Client()
 	if err != nil {
 		return "", err
 	}
@@ -81,94 +99,106 @@ func UploadAgentFile(fileIdentity types.StorageFileIdentity, objectPath string) 
 	if err != nil {
 		return "", err
 	}
-
 	defer file.Close()
 
-	fileStat, err := file.Stat()
+	stat, err := file.Stat()
 	if err != nil {
 		return "", err
 	}
 
-	_, err = minioClient.PutObject(
-		context.Background(),
-		bucketName,
-		objectPath,
-		file,
-		fileStat.Size(),
-		minio.PutObjectOptions{ContentType: getMimeTypeByExtension(fileIdentity.FileName)},
-	)
+	size := stat.Size()
+
+	uploader := s3manager.NewUploader(client)
+
+	_, err = uploader.Upload(context.Background(), &s3.PutObjectInput{
+		Bucket:        aws.String(bucketName),
+		Key:           aws.String(objectPath),
+		Body:          file,
+		ContentType:   aws.String(getMimeTypeByExtension(fileIdentity.FileName)),
+		ContentLength: &size,
+	})
 
 	if err != nil {
 		return "", err
 	}
 
-	objectURL := fmt.Sprintf("%s/%s/%s", minioClient.EndpointURL().String(), bucketName, objectPath)
+	// Build object URL
+	endpoint := os.Getenv("STORAGE_S3_ENDPOINT")
+	objectURL := fmt.Sprintf("%s/%s/%s", endpoint, bucketName, objectPath)
 
 	_ = os.Remove(fileIdentity.LocalFilePath)
 
 	return objectURL, nil
 }
 
-func GetAgentFile(objectPath string) (*minio.Object, error) {
-	minioClient, err := GetMinioClient()
+func GetAgentFile(objectPath string) (*s3.GetObjectOutput, error) {
+	client, err := GetS3Client()
+	if err != nil {
+		return nil, err
+	}
+
+	bucket := os.Getenv("STORAGE_S3_BUCKET")
+
+	resp, err := client.GetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(objectPath),
+	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	object, err := minioClient.GetObject(context.Background(), bucketName, objectPath, minio.GetObjectOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	return object, nil
+	return resp, nil
 }
 
 func HasAgentFile(objectPath string) bool {
-
-	minioClient, err := GetMinioClient()
-
+	client, err := GetS3Client()
 	if err != nil {
 		fmt.Println(err.Error())
 		return false
 	}
 
-	_, err = minioClient.StatObject(context.Background(), bucketName, objectPath, minio.StatObjectOptions{})
+	_, err = client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectPath),
+	})
+
 	return err == nil
 }
 
 func DeleteAccountFolder(accountId string) error {
-
 	if accountId == "" {
 		return nil
 	}
 
-	minioClient, err := GetMinioClient()
-
+	client, err := GetS3Client()
 	if err != nil {
 		return err
 	}
 
 	ctx := context.Background()
+	prefix := accountId + "/"
 
-	// List all objects under the given prefix (folder)
-	objectCh := minioClient.ListObjects(ctx, bucketName, minio.ListObjectsOptions{
-		Prefix:    accountId + "/", // Only list objects under this "folder"
-		Recursive: true,            // List recursively
+	// List objects
+	resp, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucketName),
+		Prefix: aws.String(prefix),
 	})
+	if err != nil {
+		return err
+	}
 
-	// Iterate over the objects and delete them
-	for object := range objectCh {
-		if object.Err != nil {
-			return object.Err
-		}
-
-		// Delete each object
-		err := minioClient.RemoveObject(ctx, bucketName, object.Key, minio.RemoveObjectOptions{})
+	// Delete each object
+	for _, obj := range resp.Contents {
+		_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: aws.String(bucketName),
+			Key:    obj.Key,
+		})
 		if err != nil {
 			return err
 		}
-		fmt.Println("Deleted:", object.Key)
+
+		fmt.Println("Deleted:", *obj.Key)
 	}
 
 	return nil

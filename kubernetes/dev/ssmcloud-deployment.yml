@@ -45,21 +45,21 @@ spec:
                             secretKeyRef:
                                 key: jwt_key
                                 name: ssmcloud-dev-backend-secret
-                      - name: STORAGE_MINIO_SECRETKEY
+                      - name: STORAGE_S3_SECRETKEY
                         valueFrom:
                             secretKeyRef:
                                 key: minio_secretkey
                                 name: ssmcloud-dev-backend-secret
-                      - name: STORAGE_MINIO_ACCESSKEYID
+                      - name: STORAGE_S3_ACCESSKEYID
                         valueFrom:
                             secretKeyRef:
                                 key: minio_accesskeyid
                                 name: ssmcloud-dev-backend-secret
-                      - name: STORAGE_MINIO_ENDPOINT
+                      - name: STORAGE_S3_ENDPOINT
                         value: ""
-                      - name: STORAGE_MINIO_USESSL
+                      - name: STORAGE_S3_USESSL
                         value: "true"
-                      - name: STORAGE_MINIO_BUCKET
+                      - name: STORAGE_S3_BUCKET
                         value: "ssm"
                   name: ssmcloud-dev-backend
                   image: mrhid6/ssmcloud-backend:latest

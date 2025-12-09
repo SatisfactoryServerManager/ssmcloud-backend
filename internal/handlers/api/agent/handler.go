@@ -70,29 +70,32 @@ func (h *ApiAgentHandler) API_DownloadAgentSave(c *gin.Context) {
 	AgentAPIKey := c.GetString("AgentKey")
 	SaveFileName := c.Param("filename")
 
+	// --- Find account ---
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
 	theAgent, err := agent.GetAgentByAPIKey(AgentAPIKey)
 	if err != nil {
-		err = fmt.Errorf("error finding agent with error: %s", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   fmt.Sprintf("error finding agent: %s", err),
+			"success": false,
+		})
 		return
 	}
 
 	theAccount := &v2.AccountSchema{}
 	if err := AccountModel.FindOne(theAccount, bson.M{"agents": theAgent.ID}); err != nil {
-		err = fmt.Errorf("error finding agent account with error: %s", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   fmt.Sprintf("error finding agent account: %s", err),
+			"success": false,
+		})
 		return
 	}
 
+	// --- Find save file ---
 	var theSave *v2.AgentSave
 	for idx := range theAgent.Saves {
 		save := &theAgent.Saves[idx]
@@ -102,37 +105,41 @@ func (h *ApiAgentHandler) API_DownloadAgentSave(c *gin.Context) {
 		}
 	}
 
-	if theSave == nil || theSave.FileName == "" {
+	if theSave == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "save file not found", "success": false})
-		c.Abort()
 		return
 	}
 
-	objectPath := fmt.Sprintf("%s/%s/saves/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theSave.FileName)
+	objectPath := fmt.Sprintf("%s/%s/saves/%s",
+		theAccount.ID.Hex(),
+		theAgent.ID.Hex(),
+		theSave.FileName,
+	)
 
-	object, err := repositories.GetAgentFile(objectPath)
+	// --- Get object from S3 ---
+	obj, err := repositories.GetAgentFile(objectPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
+	defer obj.Body.Close()
 
-	defer object.Close()
-
-	objectInfo, err := object.Stat()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
+	// --- Extract metadata ---
+	size := obj.ContentLength
+	contentType := "application/octet-stream"
+	if obj.ContentType != nil {
+		contentType = *obj.ContentType
 	}
 
-	// Set headers to force file download
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theSave.FileName))
-	c.Header("Content-Type", objectInfo.ContentType)
-	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
+	// --- Prepare download headers ---
+	c.Header("Content-Disposition",
+		fmt.Sprintf(`attachment; filename="%s"`, theSave.FileName),
+	)
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", size))
 
-	// Stream the file to the response
-	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
+	// --- Stream object body to client ---
+	c.DataFromReader(http.StatusOK, *size, contentType, obj.Body, nil)
 }
 
 func (h *ApiAgentHandler) API_GetSyncSaves(c *gin.Context) {

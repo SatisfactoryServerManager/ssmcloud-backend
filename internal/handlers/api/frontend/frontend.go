@@ -51,85 +51,94 @@ func (handler *FrontendHandler) API_DownloadBackup(c *gin.Context) {
 	user := claims.(jwt.MapClaims)
 	eid := user["sub"].(string)
 
+	// Validate agent ID
 	id := c.Query("agentid")
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent id", "success": false})
 		return
 	}
 
 	uuid := c.Query("uuid")
-
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
+	if uuid == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing uuid", "success": false})
 		return
 	}
 
+	// Get user
+	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
+		return
+	}
+
+	// Get account
 	theAccount, err := v2.GetMyUserAccount(theUser)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
+	// Get agent
 	agents, err := v2.GetMyUserAccountAgents(theAccount, oid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
+	if err != nil || len(agents) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "agent not found", "success": false})
 		return
 	}
 	theAgent := agents[0]
 
+	// Find backup
 	var theBackup *models.AgentBackup
 	for idx := range theAgent.Backups {
-		backup := &theAgent.Backups[idx]
-		if backup.UUID == uuid {
-			theBackup = backup
+		if theAgent.Backups[idx].UUID == uuid {
+			theBackup = &theAgent.Backups[idx]
+			break
 		}
 	}
 
 	if theBackup == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "cant find backup on agent", "success": false})
-		c.Abort()
+		c.JSON(http.StatusNotFound, gin.H{"error": "backup not found", "success": false})
 		return
 	}
 
 	if theBackup.FileName == "" {
-		c.JSON(http.StatusNotFound, gin.H{"error": "backup file not found", "success": false})
-		c.Abort()
+		c.JSON(http.StatusNotFound, gin.H{"error": "backup file has no filename", "success": false})
 		return
 	}
 
-	objectPath := fmt.Sprintf("%s/%s/backups/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theBackup.FileName)
-	fmt.Println(objectPath)
+	// Build object path
+	objectPath := fmt.Sprintf("%s/%s/backups/%s",
+		theAccount.ID.Hex(),
+		theAgent.ID.Hex(),
+		theBackup.FileName,
+	)
 
-	object, err := repositories.GetAgentFile(objectPath)
+	fmt.Println("Downloading:", objectPath)
+
+	// --- AWS S3 GetObject ---
+	obj, err := repositories.GetAgentFile(objectPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
+	defer obj.Body.Close()
 
-	defer object.Close()
-
-	objectInfo, err := object.Stat()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
+	// Determine metadata
+	size := obj.ContentLength
+	contentType := "application/octet-stream"
+	if obj.ContentType != nil {
+		contentType = *obj.ContentType
 	}
 
-	// Set headers to force file download
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theBackup.FileName))
-	c.Header("Content-Type", objectInfo.ContentType)
-	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
+	// Force download
+	c.Header("Content-Disposition",
+		fmt.Sprintf(`attachment; filename="%s"`, theBackup.FileName),
+	)
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", *size))
 
-	// Stream the file to the response
-	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
+	// Stream S3 object to client
+	c.DataFromReader(http.StatusOK, *size, contentType, obj.Body, nil)
 }
 
 func (handler *FrontendHandler) API_DownloadSave(c *gin.Context) {
@@ -141,80 +150,80 @@ func (handler *FrontendHandler) API_DownloadSave(c *gin.Context) {
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
 	uuid := c.Query("uuid")
 
 	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
-
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
 	theAccount, err := v2.GetMyUserAccount(theUser)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
 	agents, err := v2.GetMyUserAccountAgents(theAccount, oid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 	theAgent := agents[0]
 
+	// Find the save
 	var theSave *models.AgentSave
 	for idx := range theAgent.Saves {
 		save := &theAgent.Saves[idx]
 		if save.UUID == uuid {
 			theSave = save
+			break
 		}
 	}
 
 	if theSave == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "cant find save on agent", "success": false})
-		c.Abort()
 		return
 	}
 
 	if theSave.FileName == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "save file not found", "success": false})
-		c.Abort()
 		return
 	}
 
-	objectPath := fmt.Sprintf("%s/%s/saves/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theSave.FileName)
+	objectPath := fmt.Sprintf("%s/%s/saves/%s",
+		theAccount.ID.Hex(),
+		theAgent.ID.Hex(),
+		theSave.FileName,
+	)
 
-	object, err := repositories.GetAgentFile(objectPath)
+	// --- AWS S3 GetObject ---
+	obj, err := repositories.GetAgentFile(objectPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
+	defer obj.Body.Close()
 
-	defer object.Close()
-
-	objectInfo, err := object.Stat()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
+	// Determine metadata
+	size := obj.ContentLength
+	contentType := "application/octet-stream"
+	if obj.ContentType != nil {
+		contentType = *obj.ContentType
 	}
 
-	// Set headers to force file download
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theSave.FileName))
-	c.Header("Content-Type", objectInfo.ContentType)
-	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
+	// Force download
+	c.Header("Content-Disposition",
+		fmt.Sprintf(`attachment; filename="%s"`, theSave.FileName),
+	)
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", size))
 
-	// Stream the file to the response
-	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
+	// Stream S3 object to client
+	c.DataFromReader(http.StatusOK, *size, contentType, obj.Body, nil)
 }
 
 func (handler *FrontendHandler) API_DownloadLog(c *gin.Context) {
@@ -226,7 +235,6 @@ func (handler *FrontendHandler) API_DownloadLog(c *gin.Context) {
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
@@ -235,36 +243,31 @@ func (handler *FrontendHandler) API_DownloadLog(c *gin.Context) {
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
 	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
-
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
 	theAccount, err := v2.GetMyUserAccount(theUser)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
 	agents, err := v2.GetMyUserAccountAgents(theAccount, oid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 	theAgent := agents[0]
 
+	// Load Logs field
 	if err := AgentModel.PopulateField(theAgent, "Logs"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
 
@@ -273,47 +276,50 @@ func (handler *FrontendHandler) API_DownloadLog(c *gin.Context) {
 		log := &theAgent.Logs[idx]
 		if log.Type == Type {
 			theLog = log
+			break
 		}
 	}
 
 	if theLog == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "cant find log on agent", "success": false})
-		c.Abort()
 		return
 	}
 
 	if theLog.FileName == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "log file not found", "success": false})
-		c.Abort()
 		return
 	}
 
-	objectPath := fmt.Sprintf("%s/%s/logs/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), theLog.FileName)
+	objectPath := fmt.Sprintf("%s/%s/logs/%s",
+		theAccount.ID.Hex(),
+		theAgent.ID.Hex(),
+		theLog.FileName,
+	)
 
-	object, err := repositories.GetAgentFile(objectPath)
-	if err != nil {
-
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	defer object.Close()
-
-	objectInfo, err := object.Stat()
+	// --- AWS S3 download ---
+	obj, err := repositories.GetAgentFile(objectPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
 		return
 	}
+	defer obj.Body.Close()
 
-	// Set headers to force file download
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", theLog.FileName))
-	c.Header("Content-Type", objectInfo.ContentType)
-	c.Header("Content-Length", fmt.Sprintf("%d", objectInfo.Size))
+	// Extract metadata
+	size := obj.ContentLength
+	contentType := "text/plain"
+	if obj.ContentType != nil {
+		contentType = *obj.ContentType
+	}
 
-	// Stream the file to the response
-	c.DataFromReader(http.StatusOK, objectInfo.Size, objectInfo.ContentType, object, nil)
+	// --- Download headers ---
+	c.Header("Content-Disposition",
+		fmt.Sprintf(`attachment; filename="%s"`, theLog.FileName),
+	)
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", size))
+
+	// --- Stream the log file ---
+	c.DataFromReader(http.StatusOK, *size, contentType, obj.Body, nil)
 }
 
 func NewFrontendHandler(router gin.RouterGroup) {
