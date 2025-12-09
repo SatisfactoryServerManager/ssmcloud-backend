@@ -1,3 +1,6 @@
+## 1.0.69 (December 09, 2025)
+  - fix: Fixed remove uploaded temp file
+
 ## 1.0.68 (December 09, 2025)
   - fix: Fixed storage temp uploaded file not being deleted
 
