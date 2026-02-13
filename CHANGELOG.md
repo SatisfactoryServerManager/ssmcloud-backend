@@ -1,3 +1,6 @@
+## 1.0.70 (February 13, 2026)
+  - feat: start moving http to grpc for frontend
+
 ## 1.0.69 (December 09, 2025)
   - fix: Fixed remove uploaded temp file
 
