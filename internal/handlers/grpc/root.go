@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/handlers/grpc/config"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/handlers/grpc/frontend"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/handlers/grpc/logs"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/handlers/grpc/mod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/handlers/grpc/state"
@@ -19,6 +20,7 @@ func InitgRPCHandlers(grpcServer *grpc.Server) {
 	pb.RegisterAgentStateServiceServer(grpcServer, &state.Handler{})
 	pb.RegisterAgentTaskServiceServer(grpcServer, &task.Handler{})
 	pb.RegisterAgentModConfigServiceServer(grpcServer, &mod.Handler{})
+	pb.RegisterFrontendServiceServer(grpcServer, &frontend.Handler{})
 	logger.GetDebugLogger().Println("Initalized all gRPC services")
 }
 

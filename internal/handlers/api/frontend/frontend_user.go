@@ -2,11 +2,8 @@ package frontend
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/v2"
-	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -66,24 +63,9 @@ func (handler *FrontendUserHandler) API_CreateUser(c *gin.Context) {
 	sub := user["sub"].(string)
 	username := user["preferred_username"].(string)
 
-	UserModel, err := repositories.GetMongoClient().GetModel("User")
+	NewUser, err := v2.CreateUser(sub, email, username)
+
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	NewUser := &models.UserSchema{
-		ID:         primitive.NewObjectID(),
-		ExternalID: sub,
-		Email:      email,
-		Username:   username,
-		APIKeys:    make([]models.UserAPIKey, 0),
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-	}
-
-	if err := UserModel.Create(NewUser); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return

@@ -3,6 +3,7 @@ package v2
 import (
 	"fmt"
 	"html/template"
+	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	v1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
@@ -68,6 +69,30 @@ func GetMyUser(id primitive.ObjectID, externalId string, email string, username 
 	theUser.ProfileImageURL = template.URL(theUser.ProfileImageStr)
 
 	return theUser, nil
+}
+
+func CreateUser(eid string, email string, username string) (*models.UserSchema, error) {
+
+	UserModel, err := repositories.GetMongoClient().GetModel("User")
+	if err != nil {
+		return nil, err
+	}
+
+	NewUser := &models.UserSchema{
+		ID:         primitive.NewObjectID(),
+		ExternalID: eid,
+		Email:      email,
+		Username:   username,
+		APIKeys:    make([]models.UserAPIKey, 0),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	if err := UserModel.Create(NewUser); err != nil {
+		return nil, err
+	}
+
+	return NewUser, nil
 }
 
 func UpdateUserProfilePicture(theUser *models.UserSchema, avatarUrl string) error {
