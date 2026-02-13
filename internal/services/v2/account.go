@@ -175,7 +175,7 @@ func GetMyUserAccount(theUser *models.UserSchema) (*models.AccountSchema, error)
 	return &theUser.ActiveAccount, nil
 }
 
-func GetMyUserLinkedAccounts(theUser *models.UserSchema) (*[]models.AccountSchema, error) {
+func GetMyUserLinkedAccounts(theUser *models.UserSchema) ([]models.AccountSchema, error) {
 
 	UserModel, err := repositories.GetMongoClient().GetModel("User")
 	if err != nil {
@@ -189,7 +189,7 @@ func GetMyUserLinkedAccounts(theUser *models.UserSchema) (*[]models.AccountSchem
 
 	if len(theUser.LinkedAccountIds) == 0 {
 		emptyAccounts := make([]models.AccountSchema, 0)
-		return &emptyAccounts, nil
+		return emptyAccounts, nil
 	}
 
 	if err := UserModel.PopulateField(theUser, "LinkedAccounts"); err != nil {
@@ -208,7 +208,7 @@ func GetMyUserLinkedAccounts(theUser *models.UserSchema) (*[]models.AccountSchem
 		}
 	}
 
-	return &theUser.LinkedAccounts, nil
+	return theUser.LinkedAccounts, nil
 }
 
 func GetMyAccountAudit(theUser *models.UserSchema) (*[]models.AccountAuditSchema, error) {
