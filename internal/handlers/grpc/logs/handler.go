@@ -9,7 +9,8 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
-	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto"
+	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
+	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 )
 
 type Handler struct {
@@ -67,11 +68,11 @@ func (h *Handler) StreamLog(stream pb.AgentLogService_StreamLogServer) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return stream.SendAndClose(&pb.Empty{})
+			return stream.SendAndClose(&pbModels.SSMEmpty{})
 
 		case err := <-errChan:
 			if err == io.EOF {
-				return stream.SendAndClose(&pb.Empty{})
+				return stream.SendAndClose(&pbModels.SSMEmpty{})
 			}
 			return err
 

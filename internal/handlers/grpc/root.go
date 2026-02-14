@@ -10,7 +10,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	"google.golang.org/grpc"
 
-	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto"
+	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 )
 
 func InitgRPCHandlers(grpcServer *grpc.Server) {

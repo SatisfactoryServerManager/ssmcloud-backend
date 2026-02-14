@@ -7,14 +7,15 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
-	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto"
+	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
+	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 )
 
 type Handler struct {
 	pb.UnimplementedAgentModConfigServiceServer
 }
 
-func (s *Handler) GetModConfig(ctx context.Context, _ *pb.Empty) (*pb.AgentModConfigResponse, error) {
+func (s *Handler) GetModConfig(ctx context.Context, _ *pbModels.SSMEmpty) (*pb.AgentModConfigResponse, error) {
 
 	// Extract API key
 	apiKey, err := utils.GetAPIKeyFromContext(ctx)
@@ -29,7 +30,7 @@ func (s *Handler) GetModConfig(ctx context.Context, _ *pb.Empty) (*pb.AgentModCo
 	}
 
 	// ---- SEND INITIAL MOD LIST ----
-	configData := &pb.ModConfig{}
+	configData := &pbModels.ModConfig{}
 	utils.StructToPBStruct(agentModConfig, configData)
 
 	resData := &pb.AgentModConfigResponse{
@@ -39,7 +40,7 @@ func (s *Handler) GetModConfig(ctx context.Context, _ *pb.Empty) (*pb.AgentModCo
 	return resData, nil
 }
 
-func (s *Handler) UpdateModConfig(ctx context.Context, req *pb.AgentModConfigRequest) (*pb.Empty, error) {
+func (s *Handler) UpdateModConfig(ctx context.Context, req *pb.AgentModConfigRequest) (*pbModels.SSMEmpty, error) {
 	// Extract API key
 	apiKey, err := utils.GetAPIKeyFromContext(ctx)
 	if err != nil {
@@ -53,5 +54,5 @@ func (s *Handler) UpdateModConfig(ctx context.Context, req *pb.AgentModConfigReq
 		return nil, err
 	}
 
-	return &pb.Empty{}, nil
+	return &pbModels.SSMEmpty{}, nil
 }

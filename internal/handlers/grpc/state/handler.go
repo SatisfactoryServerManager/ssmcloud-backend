@@ -9,7 +9,8 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
-	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto"
+	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
+	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 )
 
 type Handler struct {
@@ -67,11 +68,11 @@ func (s *Handler) UpdateAgentStateStream(stream pb.AgentStateService_UpdateAgent
 	for {
 		select {
 		case <-ctx.Done():
-			return stream.SendAndClose(&pb.Empty{})
+			return stream.SendAndClose(&pbModels.SSMEmpty{})
 
 		case err := <-errChan:
 			if err == io.EOF {
-				return stream.SendAndClose(&pb.Empty{})
+				return stream.SendAndClose(&pbModels.SSMEmpty{})
 			}
 			return err
 
@@ -88,7 +89,7 @@ func (s *Handler) UpdateAgentStateStream(stream pb.AgentStateService_UpdateAgent
 	}
 }
 
-func (s *Handler) UpdateAgentState(ctx context.Context, msg *pb.AgentStateRequest) (*pb.Empty, error) {
+func (s *Handler) UpdateAgentState(ctx context.Context, msg *pb.AgentStateRequest) (*pbModels.SSMEmpty, error) {
 	apiKey, err := utils.GetAPIKeyFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -98,7 +99,7 @@ func (s *Handler) UpdateAgentState(ctx context.Context, msg *pb.AgentStateReques
 		return nil, err
 	}
 
-	return &pb.Empty{}, nil
+	return &pbModels.SSMEmpty{}, nil
 }
 
 func ShutdownAgentStateHandler() {

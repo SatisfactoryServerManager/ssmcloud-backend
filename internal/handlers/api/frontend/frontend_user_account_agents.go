@@ -187,79 +187,6 @@ func (handler *FrontendUserAccountAgentsHandler) API_UpdateAgentSettings(c *gin.
 	c.JSON(http.StatusOK, gin.H{"success": true, "error": ""})
 }
 
-func (handler *FrontendUserAccountAgentsHandler) API_GetAgentLog(c *gin.Context) {
-	claims, _ := c.Get("user")
-	user := claims.(jwt.MapClaims)
-	eid := user["sub"].(string)
-
-	id := c.Query("_id")
-	logType := c.Query("type")
-	lastIndex, _ := strconv.Atoi(c.Query("lastIndex"))
-
-	if id == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "agent id is empty", "success": false})
-		c.Abort()
-		return
-	}
-
-	oid, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	account, err := v2.GetMyUserAccount(theUser)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	if len(agents) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "agent was not found", "success": false})
-		c.Abort()
-		return
-	}
-
-	theAgent := agents[0]
-
-	theLog, err := v2.GetAgentLog(theAgent, logType)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	if lastIndex > len(theLog.LogLines) {
-		lastIndex = 0
-	}
-
-	end := lastIndex + 500
-	if end > len(theLog.LogLines) {
-		end = len(theLog.LogLines)
-	}
-
-	theLog.LogLines = theLog.LogLines[lastIndex:end]
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "agentLog": theLog})
-}
-
 func (handler *FrontendUserAccountAgentsHandler) API_CreateAgentTask(c *gin.Context) {
 	claims, _ := c.Get("user")
 	user := claims.(jwt.MapClaims)
@@ -665,7 +592,6 @@ func NewFrontendUserAccountAgentHandler(router *gin.RouterGroup) {
 	router.POST("/", handler.API_CreateAgent)
 	router.DELETE("/", handler.API_DeleteAgent)
 	router.POST("/settings", handler.API_UpdateAgentSettings)
-	router.GET("/log", handler.API_GetAgentLog)
 	router.POST("/tasks", handler.API_CreateAgentTask)
 
 	router.GET("/mods", handler.API_GetAgentMods)

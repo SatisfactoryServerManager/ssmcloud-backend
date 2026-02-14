@@ -7,14 +7,15 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
-	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto"
+	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
+	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 )
 
 type Handler struct {
 	pb.UnimplementedAgentTaskServiceServer
 }
 
-func (s *Handler) GetAgentTasks(ctx context.Context, in *pb.Empty) (*pb.AgentTaskList, error) {
+func (s *Handler) GetAgentTasks(ctx context.Context, in *pbModels.SSMEmpty) (*pb.AgentTaskList, error) {
 	apiKey, err := utils.GetAPIKeyFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -40,7 +41,7 @@ func (s *Handler) GetAgentTasks(ctx context.Context, in *pb.Empty) (*pb.AgentTas
 	return result, nil
 }
 
-func (s *Handler) MarkAgentTaskCompleted(ctx context.Context, in *pb.AgentTaskCompletedRequest) (*pb.Empty, error) {
+func (s *Handler) MarkAgentTaskCompleted(ctx context.Context, in *pb.AgentTaskCompletedRequest) (*pbModels.SSMEmpty, error) {
 
 	apiKey, err := utils.GetAPIKeyFromContext(ctx)
 	if err != nil {
@@ -51,10 +52,10 @@ func (s *Handler) MarkAgentTaskCompleted(ctx context.Context, in *pb.AgentTaskCo
 		return nil, err
 	}
 
-	return &pb.Empty{}, nil
+	return &pbModels.SSMEmpty{}, nil
 }
 
-func (s *Handler) MarkAgentTaskFailed(ctx context.Context, in *pb.AgentTaskFailedRequest) (*pb.Empty, error) {
+func (s *Handler) MarkAgentTaskFailed(ctx context.Context, in *pb.AgentTaskFailedRequest) (*pbModels.SSMEmpty, error) {
 
 	apiKey, err := utils.GetAPIKeyFromContext(ctx)
 	if err != nil {
@@ -65,5 +66,5 @@ func (s *Handler) MarkAgentTaskFailed(ctx context.Context, in *pb.AgentTaskFaile
 		return nil, err
 	}
 
-	return &pb.Empty{}, nil
+	return &pbModels.SSMEmpty{}, nil
 }
