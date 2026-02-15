@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.7.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.71
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.74
 	github.com/TwiN/go-away v1.8.1
 	github.com/aws/aws-sdk-go-v2 v1.40.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.3
