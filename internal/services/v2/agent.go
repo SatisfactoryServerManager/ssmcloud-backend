@@ -196,35 +196,11 @@ func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID)
 	return nil
 }
 
-func UpdateAgentSettings(theAccount *modelsv2.AccountSchema, PostData *types.APIUpdateServerSettingsRequest) error {
-
-	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
-	if err != nil {
-		return fmt.Errorf("error getting account model with error: %s", err.Error())
-	}
+func UpdateAgentSettings(theAgent *modelsv2.AgentSchema, PostData *types.APIUpdateServerSettings) error {
 
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
 	if err != nil {
 		return fmt.Errorf("error getting agent model with error: %s", err.Error())
-	}
-
-	if err := AccountModel.PopulateField(theAccount, "Agents"); err != nil {
-		return fmt.Errorf("error populating account agents with error: %s", err.Error())
-	}
-
-	oid, err := primitive.ObjectIDFromHex(PostData.ID)
-	if err != nil {
-		return err
-	}
-
-	var theAgent *modelsv2.AgentSchema
-	for idx := range theAccount.Agents {
-		agent := &theAccount.Agents[idx]
-
-		if agent.ID.Hex() == oid.Hex() {
-			theAgent = agent
-			break
-		}
 	}
 
 	updateData := bson.M{}

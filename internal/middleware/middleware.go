@@ -34,10 +34,6 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to create a keyfunc.Keyfunc from the server's URL.\nError: %s", err)
 	}
-
-	if err != nil {
-		panic(fmt.Sprintf("failed to get JWKS: %v", err))
-	}
 }
 
 func Middleware_AgentAPIKey() gin.HandlerFunc {

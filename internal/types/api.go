@@ -91,5 +91,5 @@ type APIUpdateServerSettings struct {
 
 type APIUpdateServerSettingsRequest struct {
 	APIUpdateServerSettings
-	ID string `json:"agentId"`
+	ID primitive.ObjectID `json:"agentId"`
 }

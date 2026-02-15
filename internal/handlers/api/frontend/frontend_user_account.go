@@ -144,74 +144,6 @@ func (handler *FrontendUserAccountHandler) API_GetMyAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "account": account})
 }
 
-func (handler *FrontendUserAccountHandler) API_GetMyAccountAudit(c *gin.Context) {
-	claims, _ := c.Get("user")
-	user := claims.(jwt.MapClaims)
-	eid := user["sub"].(string)
-
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	allAudits, err := v2.GetMyAccountAudit(theUser)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	filteredAudits := make([]models.AccountAuditSchema, 0)
-	filter := models.AuditType(c.Query("auditType"))
-
-	if filter != "" {
-		for _, audit := range *allAudits {
-			if audit.Type == filter {
-				filteredAudits = append(filteredAudits, audit)
-			}
-		}
-	} else {
-		filteredAudits = *allAudits
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "audit": filteredAudits})
-}
-
-func (handler *FrontendUserAccountHandler) API_GetMyAccountUsers(c *gin.Context) {
-	claims, _ := c.Get("user")
-	user := claims.(jwt.MapClaims)
-	eid := user["sub"].(string)
-
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	theAccount, err := v2.GetMyUserAccount(theUser)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	users, err := v2.GetMyAccountUsers(theAccount)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "users": users})
-
-}
-
 func (hander *FrontendUserAccountHandler) API_GetMyAccountIntegrations(c *gin.Context) {
 	claims, _ := c.Get("user")
 	user := claims.(jwt.MapClaims)
@@ -360,42 +292,16 @@ func (hander *FrontendUserAccountHandler) API_DeleteAccountIntegration(c *gin.Co
 	c.JSON(http.StatusOK, gin.H{"success": true, "error": ""})
 }
 
-func (handler *FrontendUserAccountHandler) API_GetMyLinkedAccounts(c *gin.Context) {
-	claims, _ := c.Get("user")
-	user := claims.(jwt.MapClaims)
-	eid := user["sub"].(string)
-
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, eid, "", "")
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	accounts, err := v2.GetMyUserLinkedAccounts(theUser)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
-		c.Abort()
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "error": "", "accounts": accounts})
-}
-
 func NewFrontendUserAccountHandler(router *gin.RouterGroup) {
 
 	handler := FrontendUserAccountHandler{}
 
-	router.GET("/accounts", handler.API_GetMyLinkedAccounts)
 	router.POST("/accounts", handler.API_CreateAccount)
 	router.POST("/accounts/join", handler.API_JoinAccount)
 	router.GET("/accounts/switch", handler.API_SwitchAccount)
 
 	accountGroup := router.Group("account")
 	accountGroup.GET("/", handler.API_GetMyAccount)
-	accountGroup.GET("/audit", handler.API_GetMyAccountAudit)
-	accountGroup.GET("/users", handler.API_GetMyAccountUsers)
 	accountGroup.GET("/integrations", handler.API_GetMyAccountIntegrations)
 	accountGroup.GET("/integrations/events", handler.API_GetMyAccountIntegrationsEvents)
 	accountGroup.POST("/integrations/add", handler.API_AddAccountIntegrations)
