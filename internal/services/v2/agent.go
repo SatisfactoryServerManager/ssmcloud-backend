@@ -16,7 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func GetMyUserAccountAgents(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID) ([]*modelsv2.AgentSchema, error) {
+func GetUserAccountAgents(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID) ([]*modelsv2.AgentSchema, error) {
 
 	if theAccount == nil {
 		emptyArray := make([]*modelsv2.AgentSchema, 0)
@@ -55,7 +55,7 @@ func GetMyUserAccountAgents(theAccount *modelsv2.AccountSchema, agentId primitiv
 	return resArray, nil
 }
 
-func CreateAgentWorkflow(accountId primitive.ObjectID, PostData *modelsv2.CreateAgentWorkflowData) (string, error) {
+func NewWorkflow_CreateAgent(accountId primitive.ObjectID, PostData *modelsv2.CreateAgentWorkflowData) (string, error) {
 
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {

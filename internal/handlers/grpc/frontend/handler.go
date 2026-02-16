@@ -20,6 +20,7 @@ import (
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/utils/mapper"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -50,7 +51,7 @@ func (s *Handler) CheckUserExistsOrCreate(ctx context.Context, in *pb.CheckUserE
 		return nil, err
 	}
 
-	theUser, _ := v2.GetMyUser(primitive.NilObjectID, in.Eid, in.Email, in.Username)
+	theUser, _ := v2.GetUser(primitive.NilObjectID, in.Eid, in.Email, in.Username)
 
 	if theUser == nil {
 		if _, err := v2.CreateUser(in.Eid, in.Email, in.Username); err != nil {
@@ -60,29 +61,29 @@ func (s *Handler) CheckUserExistsOrCreate(ctx context.Context, in *pb.CheckUserE
 	return nil, nil
 }
 
-func (s *Handler) GetMyUser(ctx context.Context, in *pb.GetMyUserRequest) (*pb.GetMyUserResponse, error) {
+func (s *Handler) GetUser(ctx context.Context, in *pb.GetUserRequest) (*pb.GetUserResponse, error) {
 
 	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
 	pbUser := mapper.MapUserSchemaToProto(theUser)
 
-	return &pb.GetMyUserResponse{User: pbUser}, nil
+	return &pb.GetUserResponse{User: pbUser}, nil
 }
 
-func (s *Handler) GetMyUserLinkedAccounts(ctx context.Context, in *pb.GetMyUserLinkedAccountsRequest) (*pb.GetMyUserLinkedAccountsResponse, error) {
+func (s *Handler) GetUserLinkedAccounts(ctx context.Context, in *pb.GetUserLinkedAccountsRequest) (*pb.GetUserLinkedAccountsResponse, error) {
 
 	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -102,49 +103,49 @@ func (s *Handler) GetMyUserLinkedAccounts(ctx context.Context, in *pb.GetMyUserL
 		pbLinkedAccounts = append(pbLinkedAccounts, mapper.MapAccountSchemaToProto(&linkedAccounts[i]))
 	}
 
-	return &pb.GetMyUserLinkedAccountsResponse{
+	return &pb.GetUserLinkedAccountsResponse{
 		LinkedAccounts: pbLinkedAccounts,
 	}, nil
 }
 
-func (s *Handler) GetMyUserActiveAccount(ctx context.Context, in *pb.GetMyUserActiveAccountRequest) (*pb.GetMyUserActiveAccountResponse, error) {
+func (s *Handler) GetUserActiveAccount(ctx context.Context, in *pb.GetUserActiveAccountRequest) (*pb.GetUserActiveAccountResponse, error) {
 	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetMyUserAccount(theUser)
+	activeAccount, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
 
 	pbActiveAccount := mapper.MapAccountSchemaToProto(activeAccount)
 
-	return &pb.GetMyUserActiveAccountResponse{
+	return &pb.GetUserActiveAccountResponse{
 		ActiveAccount: pbActiveAccount,
 	}, nil
 }
 
-func (s *Handler) GetMyUserActiveAccountAgents(ctx context.Context, in *pb.GetMyUserActiveAccountAgentsRequest) (*pb.GetMyUserActiveAccountAgentsResponse, error) {
+func (s *Handler) GetUserActiveAccountAgents(ctx context.Context, in *pb.GetUserActiveAccountAgentsRequest) (*pb.GetUserActiveAccountAgentsResponse, error) {
 	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetMyUserAccount(theUser)
+	activeAccount, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(activeAccount, primitive.NilObjectID)
+	agents, err := v2.GetUserAccountAgents(activeAccount, primitive.NilObjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -159,27 +160,27 @@ func (s *Handler) GetMyUserActiveAccountAgents(ctx context.Context, in *pb.GetMy
 		pbAgents = append(pbAgents, mapper.MapAgentToProto(agents[i]))
 	}
 
-	return &pb.GetMyUserActiveAccountAgentsResponse{
+	return &pb.GetUserActiveAccountAgentsResponse{
 		Agents: pbAgents,
 	}, nil
 }
 
-func (s *Handler) GetMyUserActiveAccountUsers(ctx context.Context, in *pb.GetMyUserActiveAccountUsersRequest) (*pb.GetMyUserActiveAccountUsersResponse, error) {
+func (s *Handler) GetUserActiveAccountUsers(ctx context.Context, in *pb.GetUserActiveAccountUsersRequest) (*pb.GetUserActiveAccountUsersResponse, error) {
 	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetMyUserAccount(theUser)
+	activeAccount, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
 
-	users, err := v2.GetMyAccountUsers(activeAccount)
+	users, err := v2.GetUserAccountUsers(activeAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -190,22 +191,22 @@ func (s *Handler) GetMyUserActiveAccountUsers(ctx context.Context, in *pb.GetMyU
 		pbUsers = append(pbUsers, mapper.MapUserSchemaToProto(&(*users)[i]))
 	}
 
-	return &pb.GetMyUserActiveAccountUsersResponse{
+	return &pb.GetUserActiveAccountUsersResponse{
 		Users: pbUsers,
 	}, nil
 }
 
-func (s *Handler) GetMyUserActiveAccountAudits(ctx context.Context, in *pb.GetMyUserActiveAccountAuditsRequest) (*pb.GetMyUserActiveAccountAuditsResponse, error) {
+func (s *Handler) GetUserActiveAccountAudits(ctx context.Context, in *pb.GetUserActiveAccountAuditsRequest) (*pb.GetUserActiveAccountAuditsResponse, error) {
 	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	audits, err := v2.GetMyAccountAudit(theUser)
+	audits, err := v2.GetUserAccountAudit(theUser)
 	if err != nil {
 		return nil, err
 	}
@@ -223,27 +224,52 @@ func (s *Handler) GetMyUserActiveAccountAudits(ctx context.Context, in *pb.GetMy
 		filteredAudits = *audits
 	}
 
-	return &pb.GetMyUserActiveAccountAuditsResponse{
+	return &pb.GetUserActiveAccountAuditsResponse{
 		Audits: mapper.MapAccountAudits(filteredAudits),
 	}, nil
 }
 
-func (s *Handler) GetMyUserActiveAccountSingleAgent(ctx context.Context, in *pb.GetMyUserActiveAccountSingleAgentRequest) (*pb.GetMyUserActiveAccountSingleAgentResponse, error) {
+func (s *Handler) GetUserActiveAccountIntegrations(ctx context.Context, in *pb.GetUserActiveAccountIntegrationsRequest) (*pb.GetUserActiveAccountIntegrationsResponse, error) {
 	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetMyUserAccount(theUser)
+	activeAccount, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(activeAccount, primitive.NilObjectID)
+	integrations, err := v2.GetMyAccountIntegrations(activeAccount)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.GetUserActiveAccountIntegrationsResponse{
+		Integrations: mapper.MapAccountIntegrations(*integrations),
+	}, nil
+}
+
+func (s *Handler) GetAgent(ctx context.Context, in *pb.GetAgentRequest) (*pb.GetAgentResponse, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	activeAccount, err := v2.GetUserActiveAccount(theUser)
+	if err != nil {
+		return nil, err
+	}
+
+	agents, err := v2.GetUserAccountAgents(activeAccount, primitive.NilObjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +280,7 @@ func (s *Handler) GetMyUserActiveAccountSingleAgent(ctx context.Context, in *pb.
 
 	for i := range agents {
 		if agents[i].ID.Hex() == in.AgentId {
-			return &pb.GetMyUserActiveAccountSingleAgentResponse{
+			return &pb.GetAgentResponse{
 				Agent: mapper.MapAgentToProto(agents[i]),
 			}, nil
 		}
@@ -273,19 +299,19 @@ func (s *Handler) GetAgentLog(ctx context.Context, in *pb.GetAgentLogRequest) (*
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetMyUserAccount(theUser)
+	account, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
+	agents, err := v2.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -327,19 +353,19 @@ func (s *Handler) GetAgentStats(ctx context.Context, in *pb.GetAgentStatsRequest
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetMyUserAccount(theUser)
+	account, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
+	agents, err := v2.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -376,19 +402,19 @@ func (s *Handler) CreateAgentTask(ctx context.Context, in *pb.CreateAgentTaskReq
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetMyUserAccount(theUser)
+	account, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
+	agents, err := v2.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -416,19 +442,19 @@ func (s *Handler) GetAgentMods(ctx context.Context, in *pb.GetAgentModsRequest) 
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetMyUserAccount(theUser)
+	account, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
+	agents, err := v2.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -487,19 +513,19 @@ func (s *Handler) InstallAgentMod(ctx context.Context, in *pb.InstallAgentModReq
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetMyUserAccount(theUser)
+	account, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
+	agents, err := v2.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -527,19 +553,19 @@ func (s *Handler) UninstallAgentMod(ctx context.Context, in *pb.UninstallAgentMo
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetMyUserAccount(theUser)
+	account, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
+	agents, err := v2.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -567,19 +593,19 @@ func (s *Handler) UpdateAgentSettings(ctx context.Context, in *pb.UpdateAgentSet
 		return nil, err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetMyUserAccount(theUser)
+	account, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
+	agents, err := v2.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -706,7 +732,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 		return err
 	}
 
-	theUser, err := v2.GetMyUser(primitive.ObjectID{}, metadata.Eid, "", "")
+	theUser, err := v2.GetUser(primitive.ObjectID{}, metadata.Eid, "", "")
 
 	if err != nil {
 		stream.SendAndClose(&pb.UploadSaveFileResponse{
@@ -715,7 +741,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 		return err
 	}
 
-	account, err := v2.GetMyUserAccount(theUser)
+	account, err := v2.GetUserActiveAccount(theUser)
 	if err != nil {
 		stream.SendAndClose(&pb.UploadSaveFileResponse{
 			Message: "account not found",
@@ -724,7 +750,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 
 	}
 
-	agents, err := v2.GetMyUserAccountAgents(account, oid)
+	agents, err := v2.GetUserAccountAgents(account, oid)
 	if err != nil {
 		stream.SendAndClose(&pb.UploadSaveFileResponse{
 			Message: "error getting agents",
@@ -754,4 +780,197 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 	return stream.SendAndClose(&pb.UploadSaveFileResponse{
 		Message: "upload successful",
 	})
+}
+
+func (s *Handler) CreateAgent(ctx context.Context, in *pb.CreateAgentRequest) (*pb.CreateAgentResponse, error) {
+
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+
+	if err != nil {
+		return nil, err
+	}
+
+	account, err := v2.GetUserActiveAccount(theUser)
+	if err != nil {
+		return nil, err
+
+	}
+	workflowData := &modelsV2.CreateAgentWorkflowData{
+		AgentName:  in.AgentName,
+		Port:       int(in.Port),
+		Memory:     int64(in.Memory),
+		AdminPass:  in.AdminPass,
+		ClientPass: in.ClientPass,
+		APIKey:     in.ApiKey,
+	}
+
+	workflowId, err := v2.NewWorkflow_CreateAgent(account.ID, workflowData)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.CreateAgentResponse{
+		WorkflowId: workflowId,
+	}, nil
+}
+
+func (s *Handler) DeleteAgent(ctx context.Context, in *pb.DeleteAgentRequest) (*pbModels.SSMEmpty, error) {
+
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	if err != nil {
+		return nil, err
+	}
+
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+
+	if err != nil {
+		return nil, err
+	}
+
+	account, err := v2.GetUserActiveAccount(theUser)
+	if err != nil {
+		return nil, err
+
+	}
+
+	if err := v2.DeleteAgent(account, oid); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (s *Handler) SwitchActiveAccount(ctx context.Context, in *pb.SwitchActiveAccountRequest) (*pbModels.SSMEmpty, error) {
+
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	oid, err := primitive.ObjectIDFromHex(in.AccountId)
+	if err != nil {
+		return nil, err
+	}
+
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := v2.SwitchAccount(theUser, oid); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (s *Handler) CreateAccount(ctx context.Context, in *pb.CreateAccountRequest) (*pbModels.SSMEmpty, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := v2.CreateAccount(theUser, in.AccountName); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (s *Handler) JoinAccount(ctx context.Context, in *pb.JoinAccountRequest) (*pbModels.SSMEmpty, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := v2.JoinAccount(theUser, in.JoinCode); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (s *Handler) DeleteAccount(ctx context.Context, in *pb.DeleteAccountRequest) (*pbModels.SSMEmpty, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	oid, err := primitive.ObjectIDFromHex(in.AccountId)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := v2.DeleteAccount(theUser, oid); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (s *Handler) GetAgentWorkflow(ctx context.Context, in *pb.GetAgentWorkflowRequest) (*pb.GetAgentWorkflowResponse, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	WorkflowModel, err := repositories.GetMongoClient().GetModel("Workflow")
+	if err != nil {
+		return nil, err
+	}
+
+	WorkflowId, err := primitive.ObjectIDFromHex(in.WorkflowId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	theWorkflow := &modelsV2.WorkflowSchema{}
+
+	if err := WorkflowModel.FindOne(theWorkflow, bson.M{"_id": WorkflowId}); err != nil {
+		return nil, err
+	}
+
+	return &pb.GetAgentWorkflowResponse{
+		Workflow: mapper.MapWorkflowToProto(theWorkflow),
+	}, nil
+}
+
+func (s *Handler) GetAccountIntegrationEvents(ctx context.Context, in *pb.GetAccountIntegrationEventsRequest) (*pb.GetAccountIntegrationEventsResponse, error) {
+
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	integrationId, err := primitive.ObjectIDFromHex(in.IntegrationId)
+	if err != nil {
+		return nil, err
+	}
+
+	events, err := v2.GetMyAccountIntegrationsEvents(integrationId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.GetAccountIntegrationEventsResponse{
+		Events: mapper.MapIntegrationEventsToProto(events),
+	}, nil
 }

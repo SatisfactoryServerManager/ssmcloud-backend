@@ -9,6 +9,8 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
+            - name: "Remove replace from go mod file"
+              run: sed -i '/^replace.*ssmcloud-resources/d' go.mod
             - name: Setup Go
               uses: actions/setup-go@v5
               with:
@@ -55,7 +57,9 @@ jobs:
               with:
                   go-version-file: "go.mod"
             - name: Install dependencies
-              run: go mod tidy
+              run: |
+                  sed -i '/^replace.*ssmcloud-resources/d' go.mod
+                  go mod tidy
             - name: Build
               run: go build -o ./release/windows/ssmcloud-backend.exe cmd/backend/main.go
             - uses: vimtor/action-zip@v1

@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func GetMyUser(id primitive.ObjectID, externalId string, email string, username string) (*models.UserSchema, error) {
+func GetUser(id primitive.ObjectID, externalId string, email string, username string) (*models.UserSchema, error) {
 
 	UserModel, err := repositories.GetMongoClient().GetModel("User")
 	if err != nil {
