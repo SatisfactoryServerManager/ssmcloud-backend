@@ -1,3 +1,11 @@
+## 1.0.71 (March 16, 2026)
+  - feat: added more grpc functions
+  - feat: more movement to full grpc communications
+  - feat: more gRPC functions
+  - feat: more grpc functions
+  - feat: More grpc functions for frontend
+  - feat: More grpc frontend functions
+
 ## 1.0.70 (February 13, 2026)
   - feat: start moving http to grpc for frontend
 
