@@ -58,7 +58,7 @@ jobs:
           go-version-file: "go.mod"
       - name: Install dependencies
         run: |
-          go mod edit -dropreplace=github.com/SatisfactoryServerManager/ssmcloud-resources || true
+          go mod edit -dropreplace="github.com/SatisfactoryServerManager/ssmcloud-resources" || $true
           go mod tidy
       - name: Build
         run: go build -o ./release/windows/ssmcloud-backend.exe cmd/backend/main.go
