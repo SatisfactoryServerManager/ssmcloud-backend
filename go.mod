@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.7.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.86
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.87
 	github.com/TwiN/go-away v1.8.1
 	github.com/aws/aws-sdk-go-v2 v1.40.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.3
@@ -23,6 +23,8 @@ require (
 	go.mongodb.org/mongo-driver v1.17.6
 	google.golang.org/grpc v1.77.0
 )
+
+replace github.com/SatisfactoryServerManager/ssmcloud-resources => ../ssmcloud-resources
 
 require (
 	github.com/MicahParks/jwkset v0.11.0 // indirect
@@ -85,5 +87,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251111163417-95abcf5c77ba // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
-
-replace github.com/SatisfactoryServerManager/ssmcloud-resources => ../ssmcloud-resources
