@@ -1,3 +1,6 @@
+## 1.0.72 (March 16, 2026)
+
+
 ## 1.0.71 (March 16, 2026)
   - feat: added more grpc functions
   - feat: more movement to full grpc communications
