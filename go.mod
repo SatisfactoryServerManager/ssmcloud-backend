@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.87
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.88
 	github.com/TwiN/go-away v1.8.1
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
@@ -20,7 +20,7 @@ require (
 	github.com/mrhid6/go-mongoose v0.1.0
 	github.com/mrhid6/go-mongoose-lock v0.0.6
 	github.com/satisfactorymodding/ficsit-resolver v0.0.6
-	go.mongodb.org/mongo-driver v1.17.9
+	go.mongodb.org/mongo-driver/v2 v2.6.0
 	google.golang.org/grpc v1.81.0
 )
 
@@ -54,7 +54,6 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/golang/snappy v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -63,7 +62,6 @@ require (
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/montanaflynn/stats v0.9.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
@@ -75,7 +73,6 @@ require (
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	golang.org/x/arch v0.26.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
