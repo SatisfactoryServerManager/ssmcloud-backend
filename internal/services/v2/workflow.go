@@ -11,7 +11,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 var workflowActionRegistry = map[string]v2.IWorkflowAction{}

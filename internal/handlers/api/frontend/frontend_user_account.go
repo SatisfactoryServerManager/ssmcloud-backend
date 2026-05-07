@@ -7,7 +7,7 @@ import (
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type FrontendUserAccountHandler struct{}
@@ -32,7 +32,7 @@ func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Con
 		return
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, eid, "", "")
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
@@ -61,7 +61,7 @@ func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Con
 func (hander *FrontendUserAccountHandler) API_UpdateAccountIntegration(c *gin.Context) {
 
 	type APIPostAccountIntegrationsData struct {
-		IntegrationId primitive.ObjectID            `json:"integrationId"`
+		IntegrationId bson.ObjectID            `json:"integrationId"`
 		Name          string                        `json:"name"`
 		Type          models.IntegrationType        `json:"type"`
 		URL           string                        `json:"url"`
@@ -87,8 +87,8 @@ func (hander *FrontendUserAccountHandler) API_UpdateAccountIntegration(c *gin.Co
 
 // func (hander *FrontendUserAccountHandler) API_DeleteAccountIntegration(c *gin.Context) {
 
-// 	accountId, _ := primitive.ObjectIDFromHex(c.Query("accountId"))
-// 	id, _ := primitive.ObjectIDFromHex(c.Query("integrationId"))
+// 	accountId, _ := bson.ObjectIDFromHex(c.Query("accountId"))
+// 	id, _ := bson.ObjectIDFromHex(c.Query("integrationId"))
 
 // 	err := v2.DeleteAccountIntegration(id)
 // 	if err != nil {

@@ -12,11 +12,10 @@ import (
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func GetUserAccountAgents(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID) ([]*modelsv2.AgentSchema, error) {
+func GetUserAccountAgents(theAccount *modelsv2.AccountSchema, agentId bson.ObjectID) ([]*modelsv2.AgentSchema, error) {
 
 	if theAccount == nil {
 		emptyArray := make([]*modelsv2.AgentSchema, 0)
@@ -55,7 +54,7 @@ func GetUserAccountAgents(theAccount *modelsv2.AccountSchema, agentId primitive.
 	return resArray, nil
 }
 
-func NewWorkflow_CreateAgent(accountId primitive.ObjectID, PostData *modelsv2.CreateAgentWorkflowData) (string, error) {
+func NewWorkflow_CreateAgent(accountId bson.ObjectID, PostData *modelsv2.CreateAgentWorkflowData) (string, error) {
 
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {
@@ -114,7 +113,7 @@ func NewWorkflow_CreateAgent(accountId primitive.ObjectID, PostData *modelsv2.Cr
 	}
 
 	workflow := modelsv2.WorkflowSchema{
-		ID:   primitive.NewObjectID(),
+		ID:   bson.NewObjectID(),
 		Type: modelsv2.WorkflowType_CreateAgent,
 		Data: PostData,
 		Actions: []modelsv2.WorkflowAction{
@@ -135,7 +134,7 @@ func NewWorkflow_CreateAgent(accountId primitive.ObjectID, PostData *modelsv2.Cr
 	return workflow.ID.Hex(), nil
 }
 
-func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID) error {
+func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId bson.ObjectID) error {
 
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {
@@ -163,7 +162,7 @@ func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId primitive.ObjectID)
 		return errors.New("error finding agent with that id")
 	}
 
-	newAgents := make(primitive.A, 0)
+	newAgents := make(bson.A, 0)
 	for _, agent := range theAccount.Agents {
 		if agent.ID.Hex() != agentId.Hex() {
 			newAgents = append(newAgents, agent.ID)

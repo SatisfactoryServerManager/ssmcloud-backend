@@ -7,8 +7,7 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const (
@@ -47,10 +46,10 @@ func paginateSlice[T any](in []T, page, pageSize int) ([]T, int) {
 // ---- Users ----
 
 func AdminGetUser(userId, externalId, email string) (*models.UserSchema, error) {
-	var oid primitive.ObjectID
+	var oid bson.ObjectID
 	var err error
 	if userId != "" {
-		oid, err = primitive.ObjectIDFromHex(userId)
+		oid, err = bson.ObjectIDFromHex(userId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid user_id")
 		}
@@ -93,7 +92,7 @@ func AdminUpdateUser(userId, externalId, email, username string) (*models.UserSc
 		return nil, errors.New("missing user_id")
 	}
 
-	oid, err := primitive.ObjectIDFromHex(userId)
+	oid, err := bson.ObjectIDFromHex(userId)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user_id")
 	}
@@ -139,7 +138,7 @@ func AdminDeleteUser(userId string) error {
 	if userId == "" {
 		return errors.New("missing user_id")
 	}
-	oid, err := primitive.ObjectIDFromHex(userId)
+	oid, err := bson.ObjectIDFromHex(userId)
 	if err != nil {
 		return fmt.Errorf("invalid user_id")
 	}
@@ -159,7 +158,7 @@ func AdminGetAccount(accountId string) (*models.AccountSchema, error) {
 		return nil, errors.New("missing account_id")
 	}
 
-	oid, err := primitive.ObjectIDFromHex(accountId)
+	oid, err := bson.ObjectIDFromHex(accountId)
 	if err != nil {
 		return nil, fmt.Errorf("invalid account_id")
 	}
@@ -206,7 +205,7 @@ func AdminUpdateAccount(accountId, accountName string) (*models.AccountSchema, e
 		return nil, errors.New("missing account_id")
 	}
 
-	oid, err := primitive.ObjectIDFromHex(accountId)
+	oid, err := bson.ObjectIDFromHex(accountId)
 	if err != nil {
 		return nil, fmt.Errorf("invalid account_id")
 	}
@@ -245,7 +244,7 @@ func AdminDeleteAccount(accountId string) error {
 		return errors.New("missing account_id")
 	}
 
-	oid, err := primitive.ObjectIDFromHex(accountId)
+	oid, err := bson.ObjectIDFromHex(accountId)
 	if err != nil {
 		return fmt.Errorf("invalid account_id")
 	}
@@ -267,21 +266,21 @@ func AdminDeleteAccount(accountId string) error {
 
 	// Delete agents (also removes from account)
 	for _, agentId := range theAccount.AgentIds {
-		if id, ok := agentId.(primitive.ObjectID); ok {
+		if id, ok := agentId.(bson.ObjectID); ok {
 			_ = DeleteAgent(theAccount, id)
 		}
 	}
 
 	// Delete audits
 	for _, auditId := range theAccount.AuditIds {
-		if id, ok := auditId.(primitive.ObjectID); ok {
+		if id, ok := auditId.(bson.ObjectID); ok {
 			_ = DeleteAccountAudit(theAccount, id)
 		}
 	}
 
 	// Delete integrations
 	for _, integrationId := range theAccount.IntegrationIds {
-		if id, ok := integrationId.(primitive.ObjectID); ok {
+		if id, ok := integrationId.(bson.ObjectID); ok {
 			_ = DeleteAccountIntegration(theAccount, id)
 		}
 	}
@@ -292,9 +291,9 @@ func AdminDeleteAccount(accountId string) error {
 	_ = UserModel.FindAll(&users, filter)
 	for i := range users {
 		u := &users[i]
-		newLinked := make(primitive.A, 0)
+		newLinked := make(bson.A, 0)
 		for _, la := range u.LinkedAccountIds {
-			if laId, ok := la.(primitive.ObjectID); ok {
+			if laId, ok := la.(bson.ObjectID); ok {
 				if laId.Hex() != oid.Hex() {
 					newLinked = append(newLinked, laId)
 				}
@@ -303,9 +302,9 @@ func AdminDeleteAccount(accountId string) error {
 		u.LinkedAccountIds = newLinked
 		if u.ActiveAccountId.Hex() == oid.Hex() {
 			if len(newLinked) > 0 {
-				u.ActiveAccountId = newLinked[0].(primitive.ObjectID)
+				u.ActiveAccountId = newLinked[0].(bson.ObjectID)
 			} else {
-				u.ActiveAccountId = primitive.NilObjectID
+				u.ActiveAccountId = bson.NilObjectID
 			}
 		}
 		_ = UserModel.UpdateData(u, bson.M{"linkedAccounts": u.LinkedAccountIds, "activeAccount": u.ActiveAccountId, "updatedAt": time.Now()})
@@ -324,7 +323,7 @@ func AdminGetAgent(agentId string) (*models.AgentSchema, error) {
 		return nil, errors.New("missing agent_id")
 	}
 
-	oid, err := primitive.ObjectIDFromHex(agentId)
+	oid, err := bson.ObjectIDFromHex(agentId)
 	if err != nil {
 		return nil, fmt.Errorf("invalid agent_id")
 	}
@@ -371,7 +370,7 @@ func AdminUpdateAgent(agentId, agentName, apiKey string) (*models.AgentSchema, e
 		return nil, errors.New("missing agent_id")
 	}
 
-	oid, err := primitive.ObjectIDFromHex(agentId)
+	oid, err := bson.ObjectIDFromHex(agentId)
 	if err != nil {
 		return nil, fmt.Errorf("invalid agent_id")
 	}
@@ -414,7 +413,7 @@ func AdminDeleteAgent(agentId string) error {
 		return errors.New("missing agent_id")
 	}
 
-	oid, err := primitive.ObjectIDFromHex(agentId)
+	oid, err := bson.ObjectIDFromHex(agentId)
 	if err != nil {
 		return fmt.Errorf("invalid agent_id")
 	}
@@ -429,9 +428,9 @@ func AdminDeleteAgent(agentId string) error {
 	_ = AccountModel.FindAll(&accounts, bson.M{"agents": bson.M{"$in": bson.A{oid}}})
 	for i := range accounts {
 		a := &accounts[i]
-		newAgents := make(primitive.A, 0)
+		newAgents := make(bson.A, 0)
 		for _, aId := range a.AgentIds {
-			if aOid, ok := aId.(primitive.ObjectID); ok {
+			if aOid, ok := aId.(bson.ObjectID); ok {
 				if aOid.Hex() != oid.Hex() {
 					newAgents = append(newAgents, aOid)
 				}
@@ -456,11 +455,11 @@ func AdminAddUserToAccount(userId, accountId string, setActive bool) error {
 		return errors.New("missing user_id or account_id")
 	}
 
-	uOid, err := primitive.ObjectIDFromHex(userId)
+	uOid, err := bson.ObjectIDFromHex(userId)
 	if err != nil {
 		return fmt.Errorf("invalid user_id")
 	}
-	aOid, err := primitive.ObjectIDFromHex(accountId)
+	aOid, err := bson.ObjectIDFromHex(accountId)
 	if err != nil {
 		return fmt.Errorf("invalid account_id")
 	}
@@ -485,7 +484,7 @@ func AdminAddUserToAccount(userId, accountId string, setActive bool) error {
 	}
 
 	for _, existing := range theUser.LinkedAccountIds {
-		if eId, ok := existing.(primitive.ObjectID); ok {
+		if eId, ok := existing.(bson.ObjectID); ok {
 			if eId.Hex() == aOid.Hex() {
 				// Already linked
 				if setActive && (theUser.ActiveAccountId.IsZero() || theUser.ActiveAccountId.Hex() != aOid.Hex()) {
@@ -517,7 +516,7 @@ func AdminListUserAccounts(userId string) ([]models.AccountSchema, string, error
 		return nil, "", errors.New("missing user_id")
 	}
 
-	uOid, err := primitive.ObjectIDFromHex(userId)
+	uOid, err := bson.ObjectIDFromHex(userId)
 	if err != nil {
 		return nil, "", fmt.Errorf("invalid user_id")
 	}
@@ -536,9 +535,9 @@ func AdminListUserAccounts(userId string) ([]models.AccountSchema, string, error
 		return nil, "", err
 	}
 
-	ids := make(primitive.A, 0, len(theUser.LinkedAccountIds))
+	ids := make(bson.A, 0, len(theUser.LinkedAccountIds))
 	for _, la := range theUser.LinkedAccountIds {
-		if oid, ok := la.(primitive.ObjectID); ok {
+		if oid, ok := la.(bson.ObjectID); ok {
 			ids = append(ids, oid)
 		}
 	}
@@ -565,11 +564,11 @@ func AdminRemoveUserFromAccount(userId, accountId string) error {
 		return errors.New("missing user_id or account_id")
 	}
 
-	uOid, err := primitive.ObjectIDFromHex(userId)
+	uOid, err := bson.ObjectIDFromHex(userId)
 	if err != nil {
 		return fmt.Errorf("invalid user_id")
 	}
-	aOid, err := primitive.ObjectIDFromHex(accountId)
+	aOid, err := bson.ObjectIDFromHex(accountId)
 	if err != nil {
 		return fmt.Errorf("invalid account_id")
 	}
@@ -593,10 +592,10 @@ func AdminRemoveUserFromAccount(userId, accountId string) error {
 		return err
 	}
 
-	newLinked := make(primitive.A, 0, len(theUser.LinkedAccountIds))
+	newLinked := make(bson.A, 0, len(theUser.LinkedAccountIds))
 	removed := false
 	for _, existing := range theUser.LinkedAccountIds {
-		if eId, ok := existing.(primitive.ObjectID); ok {
+		if eId, ok := existing.(bson.ObjectID); ok {
 			if eId.Hex() == aOid.Hex() {
 				removed = true
 				continue
@@ -612,9 +611,9 @@ func AdminRemoveUserFromAccount(userId, accountId string) error {
 	theUser.LinkedAccountIds = newLinked
 	if theUser.ActiveAccountId.Hex() == aOid.Hex() {
 		if len(newLinked) > 0 {
-			theUser.ActiveAccountId = newLinked[0].(primitive.ObjectID)
+			theUser.ActiveAccountId = newLinked[0].(bson.ObjectID)
 		} else {
-			theUser.ActiveAccountId = primitive.NilObjectID
+			theUser.ActiveAccountId = bson.NilObjectID
 		}
 	}
 
@@ -633,11 +632,11 @@ func AdminSetUserActiveAccount(userId, accountId string) error {
 		return errors.New("missing user_id or account_id")
 	}
 
-	uOid, err := primitive.ObjectIDFromHex(userId)
+	uOid, err := bson.ObjectIDFromHex(userId)
 	if err != nil {
 		return fmt.Errorf("invalid user_id")
 	}
-	aOid, err := primitive.ObjectIDFromHex(accountId)
+	aOid, err := bson.ObjectIDFromHex(accountId)
 	if err != nil {
 		return fmt.Errorf("invalid account_id")
 	}
@@ -654,7 +653,7 @@ func AdminSetUserActiveAccount(userId, accountId string) error {
 
 	linked := false
 	for _, existing := range theUser.LinkedAccountIds {
-		if eId, ok := existing.(primitive.ObjectID); ok {
+		if eId, ok := existing.(bson.ObjectID); ok {
 			if eId.Hex() == aOid.Hex() {
 				linked = true
 				break

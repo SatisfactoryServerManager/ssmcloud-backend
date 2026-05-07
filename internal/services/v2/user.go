@@ -9,11 +9,10 @@ import (
 	v1 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v1"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/mrhid6/go-mongoose/mongoose"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func GetUser(id primitive.ObjectID, externalId string, email string, username string) (*models.UserSchema, error) {
+func GetUser(id bson.ObjectID, externalId string, email string, username string) (*models.UserSchema, error) {
 
 	UserModel, err := repositories.GetMongoClient().GetModel("User")
 	if err != nil {
@@ -54,7 +53,7 @@ func GetUser(id primitive.ObjectID, externalId string, email string, username st
 			for _, account := range accounts {
 				theUser.LinkedAccountIds = append(theUser.LinkedAccountIds, account.ID)
 			}
-			theUser.ActiveAccountId = theUser.LinkedAccountIds[0].(primitive.ObjectID)
+			theUser.ActiveAccountId = theUser.LinkedAccountIds[0].(bson.ObjectID)
 
 			update := bson.M{
 				"linkedAccounts": theUser.LinkedAccountIds,
@@ -79,7 +78,7 @@ func CreateUser(eid string, email string, username string) (*models.UserSchema, 
 	}
 
 	NewUser := &models.UserSchema{
-		ID:         primitive.NewObjectID(),
+		ID:         bson.NewObjectID(),
 		ExternalID: eid,
 		Email:      email,
 		Username:   username,

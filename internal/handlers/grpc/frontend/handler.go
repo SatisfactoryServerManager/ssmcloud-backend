@@ -20,8 +20,7 @@ import (
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/utils/mapper"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -51,7 +50,7 @@ func (s *Handler) CheckUserExistsOrCreate(ctx context.Context, in *pb.CheckUserE
 		return nil, err
 	}
 
-	theUser, _ := v2.GetUser(primitive.NilObjectID, in.Eid, in.Email, in.Username)
+	theUser, _ := v2.GetUser(bson.NilObjectID, in.Eid, in.Email, in.Username)
 
 	if theUser == nil {
 		if _, err := v2.CreateUser(in.Eid, in.Email, in.Username); err != nil {
@@ -67,7 +66,7 @@ func (s *Handler) GetUser(ctx context.Context, in *pb.GetUserRequest) (*pb.GetUs
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +82,7 @@ func (s *Handler) GetUserLinkedAccounts(ctx context.Context, in *pb.GetUserLinke
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +112,7 @@ func (s *Handler) GetUserActiveAccount(ctx context.Context, in *pb.GetUserActive
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +134,7 @@ func (s *Handler) GetUserActiveAccountAgents(ctx context.Context, in *pb.GetUser
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +144,7 @@ func (s *Handler) GetUserActiveAccountAgents(ctx context.Context, in *pb.GetUser
 		return nil, err
 	}
 
-	agents, err := v2.GetUserAccountAgents(activeAccount, primitive.NilObjectID)
+	agents, err := v2.GetUserAccountAgents(activeAccount, bson.NilObjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +169,7 @@ func (s *Handler) GetUserActiveAccountUsers(ctx context.Context, in *pb.GetUserA
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +200,7 @@ func (s *Handler) GetUserActiveAccountAudits(ctx context.Context, in *pb.GetUser
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +233,7 @@ func (s *Handler) GetUserActiveAccountIntegrations(ctx context.Context, in *pb.G
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +258,7 @@ func (s *Handler) GetAgent(ctx context.Context, in *pb.GetAgentRequest) (*pb.Get
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.NilObjectID, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +268,7 @@ func (s *Handler) GetAgent(ctx context.Context, in *pb.GetAgentRequest) (*pb.Get
 		return nil, err
 	}
 
-	agents, err := v2.GetUserAccountAgents(activeAccount, primitive.NilObjectID)
+	agents, err := v2.GetUserAccountAgents(activeAccount, bson.NilObjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -294,12 +293,12 @@ func (s *Handler) GetAgentLog(ctx context.Context, in *pb.GetAgentLogRequest) (*
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	oid, err := bson.ObjectIDFromHex(in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -348,12 +347,12 @@ func (s *Handler) GetAgentStats(ctx context.Context, in *pb.GetAgentStatsRequest
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	oid, err := bson.ObjectIDFromHex(in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -397,12 +396,12 @@ func (s *Handler) CreateAgentTask(ctx context.Context, in *pb.CreateAgentTaskReq
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	oid, err := bson.ObjectIDFromHex(in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -437,12 +436,12 @@ func (s *Handler) GetAgentMods(ctx context.Context, in *pb.GetAgentModsRequest) 
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	oid, err := bson.ObjectIDFromHex(in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -508,12 +507,12 @@ func (s *Handler) InstallAgentMod(ctx context.Context, in *pb.InstallAgentModReq
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	oid, err := bson.ObjectIDFromHex(in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -548,12 +547,12 @@ func (s *Handler) UninstallAgentMod(ctx context.Context, in *pb.UninstallAgentMo
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	oid, err := bson.ObjectIDFromHex(in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -588,12 +587,12 @@ func (s *Handler) UpdateAgentSettings(ctx context.Context, in *pb.UpdateAgentSet
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	oid, err := bson.ObjectIDFromHex(in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -724,7 +723,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 		}
 	}
 
-	oid, err := primitive.ObjectIDFromHex(metadata.AgentId)
+	oid, err := bson.ObjectIDFromHex(metadata.AgentId)
 	if err != nil {
 		stream.SendAndClose(&pb.UploadSaveFileResponse{
 			Message: "invalid agent id",
@@ -732,7 +731,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 		return err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, metadata.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, metadata.Eid, "", "")
 
 	if err != nil {
 		stream.SendAndClose(&pb.UploadSaveFileResponse{
@@ -788,7 +787,7 @@ func (s *Handler) CreateAgent(ctx context.Context, in *pb.CreateAgentRequest) (*
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -824,12 +823,12 @@ func (s *Handler) DeleteAgent(ctx context.Context, in *pb.DeleteAgentRequest) (*
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AgentId)
+	oid, err := bson.ObjectIDFromHex(in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
@@ -854,12 +853,12 @@ func (s *Handler) SwitchActiveAccount(ctx context.Context, in *pb.SwitchActiveAc
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AccountId)
+	oid, err := bson.ObjectIDFromHex(in.AccountId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -876,7 +875,7 @@ func (s *Handler) CreateAccount(ctx context.Context, in *pb.CreateAccountRequest
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -893,7 +892,7 @@ func (s *Handler) JoinAccount(ctx context.Context, in *pb.JoinAccountRequest) (*
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -910,12 +909,12 @@ func (s *Handler) DeleteAccount(ctx context.Context, in *pb.DeleteAccountRequest
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, in.Eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	oid, err := primitive.ObjectIDFromHex(in.AccountId)
+	oid, err := bson.ObjectIDFromHex(in.AccountId)
 	if err != nil {
 		return nil, err
 	}
@@ -937,7 +936,7 @@ func (s *Handler) GetAgentWorkflow(ctx context.Context, in *pb.GetAgentWorkflowR
 		return nil, err
 	}
 
-	WorkflowId, err := primitive.ObjectIDFromHex(in.WorkflowId)
+	WorkflowId, err := bson.ObjectIDFromHex(in.WorkflowId)
 
 	if err != nil {
 		return nil, err
@@ -960,7 +959,7 @@ func (s *Handler) GetAccountIntegrationEvents(ctx context.Context, in *pb.GetAcc
 		return nil, err
 	}
 
-	integrationId, err := primitive.ObjectIDFromHex(in.IntegrationId)
+	integrationId, err := bson.ObjectIDFromHex(in.IntegrationId)
 	if err != nil {
 		return nil, err
 	}

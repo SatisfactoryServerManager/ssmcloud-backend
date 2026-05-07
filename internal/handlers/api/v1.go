@@ -10,7 +10,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/config"
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type V1Handler struct{}

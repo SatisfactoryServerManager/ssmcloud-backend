@@ -17,10 +17,9 @@ import (
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gtuk/discordwebhook"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 var (
@@ -60,7 +59,7 @@ func ShutdownIntegrationService() error {
 	return nil
 }
 
-func GetMyAccountIntegrationsEvents(integrationId primitive.ObjectID) ([]v2.IntegrationEventSchema, error) {
+func GetMyAccountIntegrationsEvents(integrationId bson.ObjectID) ([]v2.IntegrationEventSchema, error) {
 
 	IntegrationEventModel, err := repositories.GetMongoClient().GetModel("IntegrationEvent")
 	if err != nil {

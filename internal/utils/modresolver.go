@@ -6,7 +6,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type SSMProvider struct{}

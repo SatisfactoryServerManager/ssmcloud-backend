@@ -17,8 +17,7 @@ import (
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 var (
@@ -340,7 +339,7 @@ func GetAllAgents(accountIdStr string) ([]*modelsv2.AgentSchema, error) {
 		return nil, err
 	}
 
-	accountId, err := primitive.ObjectIDFromHex(accountIdStr)
+	accountId, err := bson.ObjectIDFromHex(accountIdStr)
 
 	if err != nil {
 		return nil, fmt.Errorf("error converting accountid to object id with error: %s", err.Error())
@@ -388,7 +387,7 @@ func GetAgentById(accountIdStr string, agentIdStr string) (*modelsv2.AgentSchema
 		return nil, err
 	}
 
-	agentId, err := primitive.ObjectIDFromHex(agentIdStr)
+	agentId, err := bson.ObjectIDFromHex(agentIdStr)
 
 	if err != nil {
 		return nil, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
@@ -429,7 +428,7 @@ func GetAgentByIdNoAccount(agentIdStr string) (*modelsv2.AgentSchema, error) {
 		}
 	} else {
 
-		agentId, err := primitive.ObjectIDFromHex(agentIdStr)
+		agentId, err := bson.ObjectIDFromHex(agentIdStr)
 
 		if err != nil {
 			return nil, fmt.Errorf("error converting agentid to object id with error: %s", err.Error())
@@ -783,7 +782,7 @@ func UploadedAgentLog(agentAPIKey string, fileIdentity types.StorageFileIdentity
 
 	if !hasLog {
 		theLog := &modelsv2.AgentLogSchema{
-			ID:            primitive.NewObjectID(),
+			ID:            bson.NewObjectID(),
 			FileName:      fileIdentity.FileName,
 			Type:          logType,
 			LogLines:      strings.Split(fileContents, "\n"),
@@ -1188,7 +1187,7 @@ func UploadPendingLogs() error {
 
 		// Prepare upload
 		fileIdentity := types.StorageFileIdentity{
-			UUID:          primitive.NewObjectID().Hex(),
+			UUID:          bson.NewObjectID().Hex(),
 			FileName:      theLog.FileName,
 			LocalFilePath: tempFile.Name(),
 		}

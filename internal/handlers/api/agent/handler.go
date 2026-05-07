@@ -10,7 +10,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type LogUpdate struct {

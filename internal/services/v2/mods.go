@@ -15,10 +15,9 @@ import (
 	"github.com/machinebox/graphql"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"github.com/mrhid6/go-mongoose/mongoose"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 var (
@@ -213,7 +212,7 @@ func UpdateModsInDB() error {
 
 			if errors.Is(err, mongo.ErrNoDocuments) {
 				// create mod if not exist
-				apiMod.ID = primitive.NewObjectID()
+				apiMod.ID = bson.NewObjectID()
 
 				ModsModel.Create(apiMod)
 

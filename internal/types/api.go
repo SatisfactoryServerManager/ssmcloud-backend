@@ -3,12 +3,12 @@ package types
 import (
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type API_AccountAgentMod_PostData struct {
 	ModReference string             `json:"modReference"`
-	AgentID      primitive.ObjectID `json:"agentId"`
+	AgentID      bson.ObjectID `json:"agentId"`
 }
 
 type API_AgentStatus_PutData struct {
@@ -91,5 +91,5 @@ type APIUpdateServerSettings struct {
 
 type APIUpdateServerSettingsRequest struct {
 	APIUpdateServerSettings
-	ID primitive.ObjectID `json:"agentId"`
+	ID bson.ObjectID `json:"agentId"`
 }

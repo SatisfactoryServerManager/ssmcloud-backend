@@ -10,8 +10,7 @@ import (
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type FrontendHandler struct{}
@@ -27,7 +26,7 @@ func (hander *FrontendHandler) API_GetWorkflows(c *gin.Context) {
 
 	WorkflowIDString := c.Query("workflowId")
 
-	WorkflowId, err := primitive.ObjectIDFromHex(WorkflowIDString)
+	WorkflowId, err := bson.ObjectIDFromHex(WorkflowIDString)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
@@ -53,7 +52,7 @@ func (handler *FrontendHandler) API_DownloadBackup(c *gin.Context) {
 
 	// Validate agent ID
 	id := c.Query("agentid")
-	oid, err := primitive.ObjectIDFromHex(id)
+	oid, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid agent id", "success": false})
 		return
@@ -66,7 +65,7 @@ func (handler *FrontendHandler) API_DownloadBackup(c *gin.Context) {
 	}
 
 	// Get user
-	theUser, err := v2.GetUser(primitive.ObjectID{}, eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, eid, "", "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
@@ -147,7 +146,7 @@ func (handler *FrontendHandler) API_DownloadSave(c *gin.Context) {
 	eid := user["sub"].(string)
 
 	id := c.Query("agentid")
-	oid, err := primitive.ObjectIDFromHex(id)
+	oid, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
@@ -155,7 +154,7 @@ func (handler *FrontendHandler) API_DownloadSave(c *gin.Context) {
 
 	uuid := c.Query("uuid")
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, eid, "", "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
@@ -232,7 +231,7 @@ func (handler *FrontendHandler) API_DownloadLog(c *gin.Context) {
 	eid := user["sub"].(string)
 
 	id := c.Query("agentid")
-	oid, err := primitive.ObjectIDFromHex(id)
+	oid, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
@@ -246,7 +245,7 @@ func (handler *FrontendHandler) API_DownloadLog(c *gin.Context) {
 		return
 	}
 
-	theUser, err := v2.GetUser(primitive.ObjectID{}, eid, "", "")
+	theUser, err := v2.GetUser(bson.ObjectID{}, eid, "", "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return

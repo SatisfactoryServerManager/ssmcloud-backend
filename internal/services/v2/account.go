@@ -10,8 +10,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	goaway "github.com/TwiN/go-away"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func CreateAccount(theUser *models.UserSchema, accountName string) error {
@@ -86,7 +85,7 @@ func JoinAccount(theUser *models.UserSchema, joinCode string) error {
 	}
 
 	for _, accountId := range theUser.LinkedAccountIds {
-		if accountId.(primitive.ObjectID).Hex() == existingAccount.ID.Hex() {
+		if accountId.(bson.ObjectID).Hex() == existingAccount.ID.Hex() {
 			return errors.New("account is already linked")
 		}
 	}
@@ -113,7 +112,7 @@ func JoinAccount(theUser *models.UserSchema, joinCode string) error {
 	return nil
 }
 
-func SwitchAccount(theUser *models.UserSchema, accountId primitive.ObjectID) error {
+func SwitchAccount(theUser *models.UserSchema, accountId bson.ObjectID) error {
 
 	UserModel, err := repositories.GetMongoClient().GetModel("User")
 	if err != nil {
@@ -122,7 +121,7 @@ func SwitchAccount(theUser *models.UserSchema, accountId primitive.ObjectID) err
 
 	found := false
 	for _, id := range theUser.LinkedAccountIds {
-		if id.(primitive.ObjectID).Hex() == accountId.Hex() {
+		if id.(bson.ObjectID).Hex() == accountId.Hex() {
 			found = true
 		}
 	}
@@ -144,7 +143,7 @@ func SwitchAccount(theUser *models.UserSchema, accountId primitive.ObjectID) err
 	return nil
 }
 
-func DeleteAccount(theUser *models.UserSchema, accountId primitive.ObjectID) error {
+func DeleteAccount(theUser *models.UserSchema, accountId bson.ObjectID) error {
 
 	UserModel, err := repositories.GetMongoClient().GetModel("User")
 	if err != nil {
@@ -163,26 +162,26 @@ func DeleteAccount(theUser *models.UserSchema, accountId primitive.ObjectID) err
 	}
 
 	for _, agentId := range theAccount.AgentIds {
-		if err := DeleteAgent(theAccount, agentId.(primitive.ObjectID)); err != nil {
+		if err := DeleteAgent(theAccount, agentId.(bson.ObjectID)); err != nil {
 			return fmt.Errorf("error deleting account agent with error: %s", err.Error())
 		}
 	}
 
 	for _, auditId := range theAccount.AuditIds {
-		if err := DeleteAccountAudit(theAccount, auditId.(primitive.ObjectID)); err != nil {
+		if err := DeleteAccountAudit(theAccount, auditId.(bson.ObjectID)); err != nil {
 			return fmt.Errorf("error deleting account agent with error: %s", err.Error())
 		}
 	}
 
 	for _, integrationId := range theAccount.IntegrationIds {
-		if err := DeleteAccountIntegration(theAccount, integrationId.(primitive.ObjectID)); err != nil {
+		if err := DeleteAccountIntegration(theAccount, integrationId.(bson.ObjectID)); err != nil {
 			return fmt.Errorf("error deleting account agent with error: %s", err.Error())
 		}
 	}
 
-	newUserAccounts := make(primitive.A, 0)
+	newUserAccounts := make(bson.A, 0)
 	for _, id := range theUser.LinkedAccountIds {
-		aId := id.(primitive.ObjectID)
+		aId := id.(bson.ObjectID)
 		if aId.Hex() != accountId.Hex() {
 			newUserAccounts = append(newUserAccounts, aId)
 		}
@@ -192,10 +191,10 @@ func DeleteAccount(theUser *models.UserSchema, accountId primitive.ObjectID) err
 
 	if len(theUser.LinkedAccountIds) > 0 {
 		if theUser.ActiveAccountId.Hex() == accountId.Hex() {
-			theUser.ActiveAccountId = theUser.LinkedAccountIds[0].(primitive.ObjectID)
+			theUser.ActiveAccountId = theUser.LinkedAccountIds[0].(bson.ObjectID)
 		}
 	} else {
-		theUser.ActiveAccountId = primitive.NilObjectID
+		theUser.ActiveAccountId = bson.NilObjectID
 	}
 
 	if err := UserModel.UpdateData(theUser, bson.M{"linkedAccounts": theUser.LinkedAccountIds, "activeAccount": theUser.ActiveAccountId}); err != nil {
@@ -205,7 +204,7 @@ func DeleteAccount(theUser *models.UserSchema, accountId primitive.ObjectID) err
 	return nil
 }
 
-func DeleteAccountAudit(theAccount *models.AccountSchema, auditId primitive.ObjectID) error {
+func DeleteAccountAudit(theAccount *models.AccountSchema, auditId bson.ObjectID) error {
 
 	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
 	if err != nil {
@@ -221,7 +220,7 @@ func DeleteAccountAudit(theAccount *models.AccountSchema, auditId primitive.Obje
 		return fmt.Errorf("error populating account audits with error: %s", err.Error())
 	}
 
-	newAudits := make(primitive.A, 0)
+	newAudits := make(bson.A, 0)
 	for _, audit := range theAccount.Audits {
 		if audit.ID.Hex() != auditId.Hex() {
 			newAudits = append(newAudits, audit.ID)
@@ -341,7 +340,7 @@ func AddAccountAudit(theAccount *models.AccountSchema, auditType models.AuditTyp
 	}
 
 	newAudit := &models.AccountAuditSchema{
-		ID:        primitive.NewObjectID(),
+		ID:        bson.NewObjectID(),
 		Type:      auditType,
 		Message:   message,
 		CreatedAt: time.Now(),
@@ -416,7 +415,7 @@ func AddAccountIntegration(theAccount *models.AccountSchema, name string, integr
 	}
 
 	newIntegration := models.AccountIntegrationSchema{
-		ID:         primitive.NewObjectID(),
+		ID:         bson.NewObjectID(),
 		Name:       name,
 		Type:       integrationType,
 		Url:        url,
@@ -445,7 +444,7 @@ func AddAccountIntegration(theAccount *models.AccountSchema, name string, integr
 	return nil
 }
 
-func UpdateAccountIntegration(integrationId primitive.ObjectID, name string, integrationType models.IntegrationType, url string, eventTypes []models.IntegrationEventType) error {
+func UpdateAccountIntegration(integrationId bson.ObjectID, name string, integrationType models.IntegrationType, url string, eventTypes []models.IntegrationEventType) error {
 	IntergrationsModel, err := repositories.GetMongoClient().GetModel("AccountIntegration")
 	if err != nil {
 		return err
@@ -481,7 +480,7 @@ func UpdateAccountIntegration(integrationId primitive.ObjectID, name string, int
 	return nil
 }
 
-func DeleteAccountIntegration(theAccount *models.AccountSchema, integrationId primitive.ObjectID) error {
+func DeleteAccountIntegration(theAccount *models.AccountSchema, integrationId bson.ObjectID) error {
 	IntergrationsModel, err := repositories.GetMongoClient().GetModel("AccountIntegration")
 	if err != nil {
 		return err
@@ -501,7 +500,7 @@ func DeleteAccountIntegration(theAccount *models.AccountSchema, integrationId pr
 		return fmt.Errorf("error populating account integrations with error: %s", err.Error())
 	}
 
-	newIntegrations := make(primitive.A, 0)
+	newIntegrations := make(bson.A, 0)
 	for _, integration := range theAccount.Integrations {
 		if integration.ID.Hex() != integrationId.Hex() {
 			newIntegrations = append(newIntegrations, integration.ID)
