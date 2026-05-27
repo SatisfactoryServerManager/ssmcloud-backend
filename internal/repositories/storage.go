@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -108,9 +108,9 @@ func UploadAgentFile(fileIdentity ssmtypes.StorageFileIdentity, objectPath strin
 
 	size := stat.Size()
 
-	uploader := s3manager.NewUploader(client)
+	uploader := s3manager.New(client)
 
-	_, err = uploader.Upload(context.Background(), &s3.PutObjectInput{
+	_, err = uploader.UploadObject(context.Background(), &s3manager.UploadObjectInput{
 		Bucket:        aws.String(bucketName),
 		Key:           aws.String(objectPath),
 		Body:          file,
