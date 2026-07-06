@@ -3,7 +3,6 @@ package api
 import (
 	"os"
 
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/handlers/api/frontend"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/config"
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +22,4 @@ func NewV2Handler(router *gin.RouterGroup) {
 	handler := V2Handler{}
 
 	group.GET("/ping", handler.API_Ping)
-
-	FrontendGroup := group.Group("frontend")
-	frontend.NewFrontendHandler(*FrontendGroup)
 }
