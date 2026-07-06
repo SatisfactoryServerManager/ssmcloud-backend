@@ -171,4 +171,4 @@ jobs:
           environments: |
             ${{ startsWith(github.ref, 'refs/tags/') && 'Prod' || 'Dev' }}
           variables: |
-            "ssmcloud.backend.image.tag:${{ needs.build-linux.outputs.deploy_tag }}"
+            ssmcloud.backend.image.tag:${{ needs.build-linux.outputs.deploy_tag }}
