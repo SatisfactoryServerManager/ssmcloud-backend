@@ -14,6 +14,7 @@ import (
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"google.golang.org/grpc/metadata"
 )
 
 func frontendObjectPath(accountID, agentID, subdir, filename string) string {
@@ -90,9 +91,15 @@ func (s *Handler) DownloadFile(in *pb.FrontendDownloadRequest, stream pb.Fronten
 		return err
 	}
 
-	objectPath, _, err := resolveDownload(in)
+	objectPath, filename, err := resolveDownload(in)
 	if err != nil {
 		return err
+	}
+
+	// Send the resolved filename up-front so the frontend can set the browser
+	// download's Content-Disposition header.
+	if serr := stream.SetHeader(metadata.Pairs("filename", filename)); serr != nil {
+		return serr
 	}
 
 	obj, err := repositories.GetAgentFileRange(objectPath, in.StartOffset)
