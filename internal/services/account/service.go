@@ -65,15 +65,15 @@ func InitAccountService() {
 	if !configData.Flags.DisablePurgeAccountData {
 
 		if err := accountCleanupJob.Run(ctx); err != nil {
-			fmt.Printf("%v\n", err.Error())
+			logger.GetErrorLogger().Printf("%v", err.Error())
 		}
 
 		if err := deleteInactiveAccountsJob.Run(ctx); err != nil {
-			fmt.Printf("%v\n", err.Error())
+			logger.GetErrorLogger().Printf("%v", err.Error())
 		}
 	}
 	if err := inactiveAccountsJob.Run(ctx); err != nil {
-		fmt.Printf("%v\n", err.Error())
+		logger.GetErrorLogger().Printf("%v", err.Error())
 	}
 }
 
@@ -139,7 +139,7 @@ func CheckAgentSaves(baseObjectPath string, theAgent *modelsv2.AgentSchema) erro
 		if repositories.HasAgentFile(objectPath) {
 			newSavesList = append(newSavesList, save)
 		} else {
-			fmt.Printf("cant find save file: %s", objectPath)
+			logger.GetWarnLogger().Printf("cant find save file: %s", objectPath)
 		}
 	}
 
@@ -176,7 +176,7 @@ func CheckAgentBackups(baseObjectPath string, theAgent *modelsv2.AgentSchema) er
 		if repositories.HasAgentFile(objectPath) {
 			newBackupsList = append(newBackupsList, backup)
 		} else {
-			fmt.Printf("cant find backup file: %s\n", objectPath)
+			logger.GetWarnLogger().Printf("cant find backup file: %s", objectPath)
 		}
 	}
 
@@ -265,27 +265,20 @@ func DeleteInactiveAccounts() error {
 	}
 
 	inactiveAccounts := make([]*modelsv2.AccountSchema, 0)
-	if err := AccountModel.FindAll(inactiveAccounts, bson.M{"inactivityState.inactive": true, "inactivityState.deleteDate": bson.M{"$lt": time.Now()}}); err != nil {
+	if err := AccountModel.FindAll(&inactiveAccounts, bson.M{"inactivityState.inactive": true, "inactivityState.deleteDate": bson.M{"$lt": time.Now()}}); err != nil {
 		return err
 	}
 
 	logger.GetDebugLogger().Printf("Found %d inactive accounts ready to delete\n", len(inactiveAccounts))
 
 	for i := range inactiveAccounts {
-		account := inactiveAccounts[i]
+		theAccount := inactiveAccounts[i]
 
-		fmt.Printf("deleting account %s\n", account.AccountName)
+		logger.GetInfoLogger().Printf("deleting inactive account %s", theAccount.AccountName)
 
-		fmt.Println("* deleting account storage")
-		if err := repositories.DeleteAccountFolder(account.ID.Hex()); err != nil {
+		if err := PurgeAccount(theAccount); err != nil {
 			return err
 		}
-
-		// TODO: Delete Account
-		// if err := account.AtomicDelete(); err != nil {
-		// 	return err
-		// }
-
 	}
 
 	return nil

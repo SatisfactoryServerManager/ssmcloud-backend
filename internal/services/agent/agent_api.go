@@ -1,4 +1,4 @@
-package v2
+package agent
 
 import (
 	"errors"
@@ -7,8 +7,11 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/audit"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
@@ -179,14 +182,14 @@ func DeleteAgent(theAccount *modelsv2.AccountSchema, agentId bson.ObjectID) erro
 		return fmt.Errorf("error deleting agent from db with error: %s", err.Error())
 	}
 
-	if err := AddAccountAudit(theAccount,
+	if err := audit.AddAccountAudit(theAccount,
 		modelsv2.AuditType_AgentRemoveFromAccount,
 		fmt.Sprintf("Agent (%s) was removed from the account", theAgent.AgentName),
 	); err != nil {
 		return err
 	}
 
-	if err := AddIntegrationEvent(theAccount, modelsv2.IntegrationEventTypeAgentRemoved, models.EventDataAgent{
+	if err := integration.AddIntegrationEvent(theAccount, modelsv2.IntegrationEventTypeAgentRemoved, models.EventDataAgent{
 		AgentName: theAgent.AgentName,
 	}); err != nil {
 		return err
@@ -369,7 +372,7 @@ func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version str
 				return err
 			}
 
-			fmt.Printf("Installing Mod %s\n", k)
+			logger.GetInfoLogger().Printf("Installing Mod %s", k)
 
 			newSelectedMod := modelsv2.AgentModConfigSelectedModSchema{
 				ModId:            dbMod.ID,

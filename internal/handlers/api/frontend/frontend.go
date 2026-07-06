@@ -6,7 +6,10 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/middleware"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
-	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/v2"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/account"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	usersvc "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/user"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -65,21 +68,21 @@ func (handler *FrontendHandler) API_DownloadBackup(c *gin.Context) {
 	}
 
 	// Get user
-	theUser, err := v2.GetUser(bson.ObjectID{}, eid, "", "")
+	theUser, err := usersvc.GetUser(bson.ObjectID{}, eid, "", "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
 	}
 
 	// Get account
-	theAccount, err := v2.GetUserActiveAccount(theUser)
+	theAccount, err := account.GetUserActiveAccount(theUser)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
 	}
 
 	// Get agent
-	agents, err := v2.GetUserAccountAgents(theAccount, oid)
+	agents, err := agent.GetUserAccountAgents(theAccount, oid)
 	if err != nil || len(agents) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "agent not found", "success": false})
 		return
@@ -112,7 +115,7 @@ func (handler *FrontendHandler) API_DownloadBackup(c *gin.Context) {
 		theBackup.FileName,
 	)
 
-	fmt.Println("Downloading:", objectPath)
+	logger.GetInfoLogger().Println("Downloading:", objectPath)
 
 	// --- AWS S3 GetObject ---
 	obj, err := repositories.GetAgentFile(objectPath)
@@ -154,19 +157,19 @@ func (handler *FrontendHandler) API_DownloadSave(c *gin.Context) {
 
 	uuid := c.Query("uuid")
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, eid, "", "")
+	theUser, err := usersvc.GetUser(bson.ObjectID{}, eid, "", "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
 	}
 
-	theAccount, err := v2.GetUserActiveAccount(theUser)
+	theAccount, err := account.GetUserActiveAccount(theUser)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
 	}
 
-	agents, err := v2.GetUserAccountAgents(theAccount, oid)
+	agents, err := agent.GetUserAccountAgents(theAccount, oid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
@@ -245,19 +248,19 @@ func (handler *FrontendHandler) API_DownloadLog(c *gin.Context) {
 		return
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, eid, "", "")
+	theUser, err := usersvc.GetUser(bson.ObjectID{}, eid, "", "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
 	}
 
-	theAccount, err := v2.GetUserActiveAccount(theUser)
+	theAccount, err := account.GetUserActiveAccount(theUser)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return
 	}
 
-	agents, err := v2.GetUserAccountAgents(theAccount, oid)
+	agents, err := agent.GetUserAccountAgents(theAccount, oid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		return

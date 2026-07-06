@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/v2"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/admin"
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/utils/mapper"
@@ -48,7 +48,7 @@ func (h *Handler) GetUser(ctx context.Context, in *pb.AdminGetUserRequest) (*pb.
 		return nil, err
 	}
 
-	u, err := v2.AdminGetUser(in.UserId, in.ExternalId, in.Email)
+	u, err := admin.AdminGetUser(in.UserId, in.ExternalId, in.Email)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -61,7 +61,7 @@ func (h *Handler) ListUsers(ctx context.Context, in *pb.AdminListUsersRequest) (
 		return nil, err
 	}
 
-	users, total, err := v2.AdminListUsers(in.Page, in.PageSize, in.Search)
+	users, total, err := admin.AdminListUsers(in.Page, in.PageSize, in.Search)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -79,7 +79,7 @@ func (h *Handler) UpdateUser(ctx context.Context, in *pb.AdminUpdateUserRequest)
 		return nil, err
 	}
 
-	u, err := v2.AdminUpdateUser(in.UserId, in.ExternalId, in.Email, in.Username)
+	u, err := admin.AdminUpdateUser(in.UserId, in.ExternalId, in.Email, in.Username)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -92,7 +92,7 @@ func (h *Handler) DeleteUser(ctx context.Context, in *pb.AdminDeleteUserRequest)
 		return nil, err
 	}
 
-	if err := v2.AdminDeleteUser(in.UserId); err != nil {
+	if err := admin.AdminDeleteUser(in.UserId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -106,7 +106,7 @@ func (h *Handler) GetAccount(ctx context.Context, in *pb.AdminGetAccountRequest)
 		return nil, err
 	}
 
-	a, err := v2.AdminGetAccount(in.AccountId)
+	a, err := admin.AdminGetAccount(in.AccountId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -119,7 +119,7 @@ func (h *Handler) ListAccounts(ctx context.Context, in *pb.AdminListAccountsRequ
 		return nil, err
 	}
 
-	accounts, total, err := v2.AdminListAccounts(in.Page, in.PageSize, in.Search)
+	accounts, total, err := admin.AdminListAccounts(in.Page, in.PageSize, in.Search)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -137,7 +137,7 @@ func (h *Handler) UpdateAccount(ctx context.Context, in *pb.AdminUpdateAccountRe
 		return nil, err
 	}
 
-	a, err := v2.AdminUpdateAccount(in.AccountId, in.AccountName)
+	a, err := admin.AdminUpdateAccount(in.AccountId, in.AccountName)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -150,7 +150,7 @@ func (h *Handler) DeleteAccount(ctx context.Context, in *pb.AdminDeleteAccountRe
 		return nil, err
 	}
 
-	if err := v2.AdminDeleteAccount(in.AccountId); err != nil {
+	if err := admin.AdminDeleteAccount(in.AccountId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -164,7 +164,7 @@ func (h *Handler) GetAgent(ctx context.Context, in *pb.AdminGetAgentRequest) (*p
 		return nil, err
 	}
 
-	agent, err := v2.AdminGetAgent(in.AgentId)
+	agent, err := admin.AdminGetAgent(in.AgentId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -177,7 +177,7 @@ func (h *Handler) ListAgents(ctx context.Context, in *pb.AdminListAgentsRequest)
 		return nil, err
 	}
 
-	agents, total, err := v2.AdminListAgents(in.Page, in.PageSize, in.Search)
+	agents, total, err := admin.AdminListAgents(in.Page, in.PageSize, in.Search)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -195,7 +195,7 @@ func (h *Handler) UpdateAgent(ctx context.Context, in *pb.AdminUpdateAgentReques
 		return nil, err
 	}
 
-	agent, err := v2.AdminUpdateAgent(in.AgentId, in.AgentName, in.ApiKey)
+	agent, err := admin.AdminUpdateAgent(in.AgentId, in.AgentName, in.ApiKey)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -208,7 +208,7 @@ func (h *Handler) DeleteAgent(ctx context.Context, in *pb.AdminDeleteAgentReques
 		return nil, err
 	}
 
-	if err := v2.AdminDeleteAgent(in.AgentId); err != nil {
+	if err := admin.AdminDeleteAgent(in.AgentId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -222,7 +222,7 @@ func (h *Handler) AddUserToAccount(ctx context.Context, in *pb.AdminAddUserToAcc
 		return nil, err
 	}
 
-	if err := v2.AdminAddUserToAccount(in.UserId, in.AccountId, in.SetActive); err != nil {
+	if err := admin.AdminAddUserToAccount(in.UserId, in.AccountId, in.SetActive); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -234,7 +234,7 @@ func (h *Handler) ListUserAccounts(ctx context.Context, in *pb.AdminListUserAcco
 		return nil, err
 	}
 
-	accounts, activeId, err := v2.AdminListUserAccounts(in.UserId)
+	accounts, activeId, err := admin.AdminListUserAccounts(in.UserId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -252,7 +252,7 @@ func (h *Handler) RemoveUserFromAccount(ctx context.Context, in *pb.AdminRemoveU
 		return nil, err
 	}
 
-	if err := v2.AdminRemoveUserFromAccount(in.UserId, in.AccountId); err != nil {
+	if err := admin.AdminRemoveUserFromAccount(in.UserId, in.AccountId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -264,7 +264,7 @@ func (h *Handler) SetUserActiveAccount(ctx context.Context, in *pb.AdminSetUserA
 		return nil, err
 	}
 
-	if err := v2.AdminSetUserActiveAccount(in.UserId, in.AccountId); err != nil {
+	if err := admin.AdminSetUserActiveAccount(in.UserId, in.AccountId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 

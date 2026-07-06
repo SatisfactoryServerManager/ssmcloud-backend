@@ -2,7 +2,6 @@ package state
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"sync"
 
@@ -107,7 +106,7 @@ func ShutdownAgentStateHandler() {
 	defer streamsMu.Unlock()
 
 	for key, cancel := range activeStreams {
-		fmt.Println("Shutting down state stream:", key)
+		logger.GetDebugLogger().Println("Shutting down state stream:", key)
 		cancel()
 	}
 

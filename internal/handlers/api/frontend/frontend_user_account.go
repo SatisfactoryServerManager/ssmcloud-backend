@@ -3,7 +3,8 @@ package frontend
 import (
 	"net/http"
 
-	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/v2"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/account"
+	usersvc "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/user"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -32,7 +33,7 @@ func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Con
 		return
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, eid, "", "")
+	theUser, err := usersvc.GetUser(bson.ObjectID{}, eid, "", "")
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
@@ -40,7 +41,7 @@ func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Con
 		return
 	}
 
-	theAccount, err := v2.GetUserActiveAccount(theUser)
+	theAccount, err := account.GetUserActiveAccount(theUser)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
@@ -48,7 +49,7 @@ func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Con
 		return
 	}
 
-	err = v2.AddAccountIntegration(theAccount, PostData.Name, PostData.Type, PostData.URL, PostData.EventTypes)
+	err = account.AddAccountIntegration(theAccount, PostData.Name, PostData.Type, PostData.URL, PostData.EventTypes)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -61,7 +62,7 @@ func (handler *FrontendUserAccountHandler) API_AddAccountIntegrations(c *gin.Con
 func (hander *FrontendUserAccountHandler) API_UpdateAccountIntegration(c *gin.Context) {
 
 	type APIPostAccountIntegrationsData struct {
-		IntegrationId bson.ObjectID            `json:"integrationId"`
+		IntegrationId bson.ObjectID                 `json:"integrationId"`
 		Name          string                        `json:"name"`
 		Type          models.IntegrationType        `json:"type"`
 		URL           string                        `json:"url"`
@@ -75,7 +76,7 @@ func (hander *FrontendUserAccountHandler) API_UpdateAccountIntegration(c *gin.Co
 		return
 	}
 
-	err := v2.UpdateAccountIntegration(PostData.IntegrationId, PostData.Name, PostData.Type, PostData.URL, PostData.EventTypes)
+	err := account.UpdateAccountIntegration(PostData.IntegrationId, PostData.Name, PostData.Type, PostData.URL, PostData.EventTypes)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
@@ -90,7 +91,7 @@ func (hander *FrontendUserAccountHandler) API_UpdateAccountIntegration(c *gin.Co
 // 	accountId, _ := bson.ObjectIDFromHex(c.Query("accountId"))
 // 	id, _ := bson.ObjectIDFromHex(c.Query("integrationId"))
 
-// 	err := v2.DeleteAccountIntegration(id)
+// 	err := account.DeleteAccountIntegration(id)
 // 	if err != nil {
 // 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 // 		c.Abort()

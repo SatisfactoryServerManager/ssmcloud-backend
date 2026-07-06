@@ -7,7 +7,7 @@ import (
 )
 
 type API_AccountAgentMod_PostData struct {
-	ModReference string             `json:"modReference"`
+	ModReference string        `json:"modReference"`
 	AgentID      bson.ObjectID `json:"agentId"`
 }
 

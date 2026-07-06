@@ -100,6 +100,8 @@ func ReadLastNBtyesFromFile(fname string, nbytes int64) (string, error) {
 
 func TrackTime(start time.Time, name string) {
 	elapsed := time.Since(start)
+	// NOTE: utils is a lower-level package than logger (logger imports utils),
+	// so this intentionally uses fmt to avoid an import cycle.
 	fmt.Printf("%s took %s\n", name, elapsed)
 }
 

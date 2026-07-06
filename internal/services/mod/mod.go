@@ -1,4 +1,4 @@
-package v2
+package mod
 
 import (
 	"context"
@@ -33,7 +33,7 @@ func InitModService() {
 		repositories.GetMongoClient(),
 		"updateModsJob", func() {
 			if err := UpdateModsInDB(); err != nil {
-				fmt.Println(err)
+				logger.GetErrorLogger().Println(err)
 			}
 		},
 		5*time.Minute,
@@ -89,7 +89,7 @@ func GetAllModsFromAPI() ([]models.ModSchema, error) {
 		mods, err := GetModsFromAPI(startOffset)
 
 		if err != nil {
-			fmt.Println(err)
+			logger.GetErrorLogger().Println(err)
 		}
 
 		allMods = append(allMods, mods...)

@@ -23,3 +23,8 @@ go.work
 .env.local
 
 docker/releases*
+
+# Local brainstorming/design docs (kept out of git)
+docs/superpowers/
+
+.claude
