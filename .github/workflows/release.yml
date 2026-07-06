@@ -157,9 +157,9 @@ jobs:
         id: run_a_runbook_in_octopus_deploy
         uses: OctopusDeploy/run-runbook-action@v4
         env:
-          api_key: ${{ secrets.OCTOPUSSERVERAPIKEY }}
-          server: ${{ secrets.OCTOPUSSERVERURL }}
-          space: ${{ secrets.OCTOPUSSERVER_SPACE }}
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUSSERVERAPIKEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUSSERVERURL }}
+          OCTOPUS_SPACE: ${{ secrets.OCTOPUSSERVER_SPACE }}
         with:
           project: "ssmcloud"
           runbook: "Deploy SSM Backend"
