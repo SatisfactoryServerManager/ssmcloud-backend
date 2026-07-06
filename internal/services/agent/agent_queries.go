@@ -128,6 +128,29 @@ func GetAgentByIdNoAccount(agentIdStr string) (*modelsv2.AgentSchema, error) {
 
 // Agent API Functions
 
+// SaveObjectPathForAPIKey resolves the S3 object path for a save file owned by
+// the agent identified by apiKey.
+func SaveObjectPathForAPIKey(apiKey, saveFileName string) (string, error) {
+	theAgent, err := GetAgentByAPIKey(apiKey)
+	if err != nil {
+		return "", err
+	}
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return "", err
+	}
+	theAccount := &modelsv2.AccountSchema{}
+	if err := AccountModel.FindOne(theAccount, bson.M{"agents": theAgent.ID}); err != nil {
+		return "", err
+	}
+	for i := range theAgent.Saves {
+		if theAgent.Saves[i].FileName == saveFileName {
+			return fmt.Sprintf("%s/%s/saves/%s", theAccount.ID.Hex(), theAgent.ID.Hex(), saveFileName), nil
+		}
+	}
+	return "", fmt.Errorf("save file not found")
+}
+
 func GetAgentByAPIKey(agentAPIKey string) (*modelsv2.AgentSchema, error) {
 
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
