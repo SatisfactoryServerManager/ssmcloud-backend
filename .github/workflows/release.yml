@@ -2,11 +2,15 @@
 name: Build SSM Cloud Backend
 on:
   push:
+    branches:
+      - "**"
     tags:
       - "*"
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+    outputs:
+      deploy_tag: ${{ steps.imagetag.outputs.deploy_tag }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
@@ -42,12 +46,35 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Determine image tags
+        id: imagetag
+        run: |
+          IMAGE=mrhid6/ssmcloud-backend
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            DEPLOY_TAG="v${{ steps.versionnum.outputs.version }}"
+            echo "deploy_tag=$DEPLOY_TAG" >> "$GITHUB_OUTPUT"
+            {
+              echo "push_tags<<EOF"
+              echo "$IMAGE:latest"
+              echo "$IMAGE:$DEPLOY_TAG"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            DEPLOY_TAG="dev-${{ github.run_number }}"
+            echo "deploy_tag=$DEPLOY_TAG" >> "$GITHUB_OUTPUT"
+            {
+              echo "push_tags<<EOF"
+              echo "$IMAGE:dev"
+              echo "$IMAGE:$DEPLOY_TAG"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
           context: ./docker
           push: true
-          tags: mrhid6/ssmcloud-backend:latest , mrhid6/ssmcloud-backend:dev , mrhid6/ssmcloud-backend:v${{ steps.versionnum.outputs.version }}
+          tags: ${{ steps.imagetag.outputs.push_tags }}
   build-windows:
     runs-on: self-hosted
     steps:
@@ -72,6 +99,7 @@ jobs:
           name: ssm-build-win64
           path: ${{ github.workspace }}/SSMCloud-Backend-Windows-x64.zip
   release:
+    if: startsWith(github.ref, 'refs/tags/')
     needs:
       - build-linux
       - build-windows
@@ -125,27 +153,16 @@ jobs:
       - build-linux
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Get version
-        id: versionnum
-        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
-      - name: Create and deploy release
-        uses: OctopusDeploy/create-release-action@v3
-        with:
+      - name: Deploy Backend
+        id: run_a_runbook_in_octopus_deploy
+        uses: OctopusDeploy/run-runbook-action@v4
+        env:
           api_key: ${{ secrets.OCTOPUSSERVERAPIKEY }}
           server: ${{ secrets.OCTOPUSSERVERURL }}
           space: ${{ secrets.OCTOPUSSERVER_SPACE }}
-          project: ssmcloud-backend
-          release_number: ${{ steps.versionnum.outputs.version }}
-          deploy_to: Dev
-          progress: false
-      - name: Deploy Release
-        uses: OctopusDeploy/deploy-release-action@v3
         with:
-          api_key: ${{ secrets.OCTOPUSSERVERAPIKEY }}
-          server: ${{ secrets.OCTOPUSSERVERURL }}
-          space: ${{ secrets.OCTOPUSSERVER_SPACE }}
-          project: "ssmcloud-backend"
-          release_number: ${{ steps.versionnum.outputs.version }}
+          project: "ssmcloud"
+          runbook: "Deploy SSM Backend"
           environments: |
-            Dev
+            '${{ startsWith(github.ref, 'refs/tags/') && 'Prod' || 'Dev' }}'
+          variables: "ssmcloud.backend.image.tag:${{ needs.build-linux.outputs.deploy_tag }}"
