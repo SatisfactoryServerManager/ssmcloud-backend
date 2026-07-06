@@ -159,16 +159,19 @@ jobs:
           version: latest
       - name: Deploy Backend
         id: run_a_runbook_in_octopus_deploy
-        uses: OctopusDeploy/run-runbook-action@v4
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUSSERVERAPIKEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUSSERVERURL }}
           OCTOPUS_SPACE: ${{ secrets.OCTOPUSSERVER_SPACE }}
-        with:
-          project: "ssmcloud"
-          runbook: "Deploy SSM Backend"
-          git_ref: "refs/heads/main"
-          environments: |
-            ${{ startsWith(github.ref, 'refs/tags/') && 'Prod' || 'Dev' }}
-          variables: |
-            ssmcloud.backend.image.tag:${{ needs.build-linux.outputs.deploy_tag }}
+          ENVIRONMENT: ${{ startsWith(github.ref, 'refs/tags/') && 'Prod' || 'Dev' }}
+          IMAGE_TAG: ${{ needs.build-linux.outputs.deploy_tag }}
+        run: |
+          octopus runbook run \
+            --space "$OCTOPUS_SPACE" \
+            --project 'ssmcloud' \
+            --git-ref 'refs/heads/main' \
+            --name 'Deploy SSM Backend' \
+            --environment "$ENVIRONMENT" \
+            --package-version "$IMAGE_TAG" \
+            --package "*:$IMAGE_TAG" \
+            --no-prompt
