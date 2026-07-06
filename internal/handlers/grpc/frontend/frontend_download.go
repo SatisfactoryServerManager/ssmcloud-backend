@@ -157,3 +157,25 @@ func (s *Handler) UpdateAccountIntegration(ctx context.Context, in *pb.UpdateAcc
 	}
 	return &pbModels.SSMEmpty{}, nil
 }
+
+func (s *Handler) DeleteAccountIntegration(ctx context.Context, in *pb.DeleteAccountIntegrationRequest) (*pbModels.SSMEmpty, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+	integrationId, err := bson.ObjectIDFromHex(in.IntegrationId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid integration id")
+	}
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+	theAccount, err := accountsvc.GetUserActiveAccount(theUser)
+	if err != nil {
+		return nil, err
+	}
+	if err := accountsvc.DeleteAccountIntegration(theAccount, integrationId); err != nil {
+		return nil, err
+	}
+	return &pbModels.SSMEmpty{}, nil
+}
