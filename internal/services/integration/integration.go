@@ -1,4 +1,4 @@
-package v2
+package integration
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ func InitIntegrationService() error {
 		repositories.GetMongoClient(),
 		"processIntegrationsJob", func() {
 			if err := processAllIntegrationEvents(); err != nil {
-				fmt.Println(err)
+				logger.GetErrorLogger().Println(err)
 			}
 		},
 		1*time.Minute,

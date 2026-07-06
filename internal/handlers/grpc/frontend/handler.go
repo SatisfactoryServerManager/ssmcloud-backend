@@ -11,11 +11,15 @@ import (
 	"strings"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	accountsvc "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/account"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
-	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/v2"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/mod"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/user"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/config"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	modelsV2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
@@ -50,10 +54,10 @@ func (s *Handler) CheckUserExistsOrCreate(ctx context.Context, in *pb.CheckUserE
 		return nil, err
 	}
 
-	theUser, _ := v2.GetUser(bson.NilObjectID, in.Eid, in.Email, in.Username)
+	theUser, _ := user.GetUser(bson.NilObjectID, in.Eid, in.Email, in.Username)
 
 	if theUser == nil {
-		if _, err := v2.CreateUser(in.Eid, in.Email, in.Username); err != nil {
+		if _, err := user.CreateUser(in.Eid, in.Email, in.Username); err != nil {
 			return nil, err
 		}
 	}
@@ -66,7 +70,7 @@ func (s *Handler) GetUser(ctx context.Context, in *pb.GetUserRequest) (*pb.GetUs
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -82,12 +86,12 @@ func (s *Handler) GetUserLinkedAccounts(ctx context.Context, in *pb.GetUserLinke
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	linkedAccounts, err := v2.GetMyUserLinkedAccounts(theUser)
+	linkedAccounts, err := accountsvc.GetMyUserLinkedAccounts(theUser)
 	if err != nil {
 		return nil, err
 	}
@@ -112,12 +116,12 @@ func (s *Handler) GetUserActiveAccount(ctx context.Context, in *pb.GetUserActive
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetUserActiveAccount(theUser)
+	activeAccount, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
@@ -134,17 +138,17 @@ func (s *Handler) GetUserActiveAccountAgents(ctx context.Context, in *pb.GetUser
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetUserActiveAccount(theUser)
+	activeAccount, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
 
-	agents, err := v2.GetUserAccountAgents(activeAccount, bson.NilObjectID)
+	agents, err := agent.GetUserAccountAgents(activeAccount, bson.NilObjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -169,17 +173,17 @@ func (s *Handler) GetUserActiveAccountUsers(ctx context.Context, in *pb.GetUserA
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetUserActiveAccount(theUser)
+	activeAccount, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
 
-	users, err := v2.GetUserAccountUsers(activeAccount)
+	users, err := accountsvc.GetUserAccountUsers(activeAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -200,12 +204,12 @@ func (s *Handler) GetUserActiveAccountAudits(ctx context.Context, in *pb.GetUser
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	audits, err := v2.GetUserAccountAudit(theUser)
+	audits, err := accountsvc.GetUserAccountAudit(theUser)
 	if err != nil {
 		return nil, err
 	}
@@ -233,17 +237,17 @@ func (s *Handler) GetUserActiveAccountIntegrations(ctx context.Context, in *pb.G
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetUserActiveAccount(theUser)
+	activeAccount, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
 
-	integrations, err := v2.GetMyAccountIntegrations(activeAccount)
+	integrations, err := accountsvc.GetMyAccountIntegrations(activeAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -258,17 +262,17 @@ func (s *Handler) GetAgent(ctx context.Context, in *pb.GetAgentRequest) (*pb.Get
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.NilObjectID, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	activeAccount, err := v2.GetUserActiveAccount(theUser)
+	activeAccount, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 	}
 
-	agents, err := v2.GetUserAccountAgents(activeAccount, bson.NilObjectID)
+	agents, err := agent.GetUserAccountAgents(activeAccount, bson.NilObjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -298,19 +302,19 @@ func (s *Handler) GetAgentLog(ctx context.Context, in *pb.GetAgentLogRequest) (*
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetUserAccountAgents(account, oid)
+	agents, err := agent.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +325,7 @@ func (s *Handler) GetAgentLog(ctx context.Context, in *pb.GetAgentLogRequest) (*
 
 	theAgent := agents[0]
 
-	theLog, err := v2.GetAgentLog(theAgent, in.Type)
+	theLog, err := agent.GetAgentLog(theAgent, in.Type)
 	if err != nil {
 		return nil, err
 
@@ -352,19 +356,19 @@ func (s *Handler) GetAgentStats(ctx context.Context, in *pb.GetAgentStatsRequest
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetUserAccountAgents(account, oid)
+	agents, err := agent.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +379,7 @@ func (s *Handler) GetAgentStats(ctx context.Context, in *pb.GetAgentStatsRequest
 
 	theAgent := agents[0]
 
-	stats, err := v2.GetAgentStats(theAgent)
+	stats, err := agent.GetAgentStats(theAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -401,19 +405,19 @@ func (s *Handler) CreateAgentTask(ctx context.Context, in *pb.CreateAgentTaskReq
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetUserAccountAgents(account, oid)
+	agents, err := agent.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +428,7 @@ func (s *Handler) CreateAgentTask(ctx context.Context, in *pb.CreateAgentTaskReq
 
 	theAgent := agents[0]
 
-	if err := v2.CreateAgentTask(theAgent, in.Action, nil); err != nil {
+	if err := agent.CreateAgentTask(theAgent, in.Action, nil); err != nil {
 		return nil, err
 	}
 
@@ -441,19 +445,19 @@ func (s *Handler) GetAgentMods(ctx context.Context, in *pb.GetAgentModsRequest) 
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetUserAccountAgents(account, oid)
+	agents, err := agent.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -464,11 +468,11 @@ func (s *Handler) GetAgentMods(ctx context.Context, in *pb.GetAgentModsRequest) 
 
 	theAgent := agents[0]
 
-	mods, err := v2.GetModsFromDB(int(in.Page), in.Sort, in.Direction, in.Search)
+	mods, err := mod.GetModsFromDB(int(in.Page), in.Sort, in.Direction, in.Search)
 	if err != nil {
 		return nil, err
 	}
-	modCount, err := v2.GetDBModCount()
+	modCount, err := mod.GetDBModCount()
 	if err != nil {
 		return nil, err
 	}
@@ -512,19 +516,19 @@ func (s *Handler) InstallAgentMod(ctx context.Context, in *pb.InstallAgentModReq
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetUserAccountAgents(account, oid)
+	agents, err := agent.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -535,7 +539,7 @@ func (s *Handler) InstallAgentMod(ctx context.Context, in *pb.InstallAgentModReq
 
 	theAgent := agents[0]
 
-	if err := v2.UpdateMod(theAgent, in.ModReference); err != nil {
+	if err := agent.UpdateMod(theAgent, in.ModReference); err != nil {
 		return nil, err
 	}
 
@@ -552,19 +556,19 @@ func (s *Handler) UninstallAgentMod(ctx context.Context, in *pb.UninstallAgentMo
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetUserAccountAgents(account, oid)
+	agents, err := agent.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -575,7 +579,7 @@ func (s *Handler) UninstallAgentMod(ctx context.Context, in *pb.UninstallAgentMo
 
 	theAgent := agents[0]
 
-	if err := v2.UninstallMod(theAgent, in.ModReference); err != nil {
+	if err := agent.UninstallMod(theAgent, in.ModReference); err != nil {
 		return nil, err
 	}
 
@@ -592,19 +596,19 @@ func (s *Handler) UpdateAgentSettings(ctx context.Context, in *pb.UpdateAgentSet
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	agents, err := v2.GetUserAccountAgents(account, oid)
+	agents, err := agent.GetUserAccountAgents(account, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -632,7 +636,7 @@ func (s *Handler) UpdateAgentSettings(ctx context.Context, in *pb.UpdateAgentSet
 		ModConfig:            in.Settings.ModConfig,
 	}
 
-	if err := v2.UpdateAgentSettings(theAgent, UpdatesSettings); err != nil {
+	if err := agent.UpdateAgentSettings(theAgent, UpdatesSettings); err != nil {
 		return nil, err
 	}
 
@@ -642,7 +646,7 @@ func (s *Handler) UpdateAgentSettings(ctx context.Context, in *pb.UpdateAgentSet
 func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer) error {
 
 	if err := s.validateAPIKey(stream.Context()); err != nil {
-		fmt.Println("Error validating API key:", err)
+		logger.GetErrorLogger().Println("Error validating API key:", err)
 		return err
 	}
 
@@ -658,7 +662,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 			break
 		}
 		if err != nil {
-			fmt.Println("Error receiving stream:", err)
+			logger.GetErrorLogger().Println("Error receiving stream:", err)
 			return err
 		}
 
@@ -669,7 +673,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 
 			// Basic validation
 			if metadata.Filename == "" {
-				fmt.Println("Filename is empty")
+				logger.GetWarnLogger().Println("Filename is empty")
 				return stream.SendAndClose(&pb.UploadSaveFileResponse{
 					Message: "filename required",
 				})
@@ -694,14 +698,14 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 
 			file, err = os.Create(destFilePath)
 			if err != nil {
-				fmt.Println("Error creating file:", err)
+				logger.GetErrorLogger().Println("Error creating file:", err)
 				return err
 			}
 			defer file.Close()
 
 		case *pb.UploadSaveFileRequest_Chunk:
 			if file == nil {
-				fmt.Println("File is nil metadata not received")
+				logger.GetWarnLogger().Println("File is nil metadata not received")
 				return stream.SendAndClose(&pb.UploadSaveFileResponse{
 					Message: "metadata must be sent first",
 				})
@@ -709,7 +713,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 
 			totalSize += int64(len(data.Chunk))
 			if totalSize > maxFileSize {
-				fmt.Println("File too large:", totalSize)
+				logger.GetWarnLogger().Println("File too large:", totalSize)
 				return stream.SendAndClose(&pb.UploadSaveFileResponse{
 					Message: "file too large",
 				})
@@ -717,7 +721,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 
 			_, err := file.Write(data.Chunk)
 			if err != nil {
-				fmt.Println("Error writing chunk:", err)
+				logger.GetErrorLogger().Println("Error writing chunk:", err)
 				return err
 			}
 		}
@@ -731,7 +735,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 		return err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, metadata.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, metadata.Eid, "", "")
 
 	if err != nil {
 		stream.SendAndClose(&pb.UploadSaveFileResponse{
@@ -740,7 +744,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 		return err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		stream.SendAndClose(&pb.UploadSaveFileResponse{
 			Message: "account not found",
@@ -749,7 +753,7 @@ func (s *Handler) UploadSaveFile(stream pb.FrontendService_UploadSaveFileServer)
 
 	}
 
-	agents, err := v2.GetUserAccountAgents(account, oid)
+	agents, err := agent.GetUserAccountAgents(account, oid)
 	if err != nil {
 		stream.SendAndClose(&pb.UploadSaveFileResponse{
 			Message: "error getting agents",
@@ -787,13 +791,13 @@ func (s *Handler) CreateAgent(ctx context.Context, in *pb.CreateAgentRequest) (*
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
@@ -807,7 +811,7 @@ func (s *Handler) CreateAgent(ctx context.Context, in *pb.CreateAgentRequest) (*
 		APIKey:     in.ApiKey,
 	}
 
-	workflowId, err := v2.NewWorkflow_CreateAgent(account.ID, workflowData)
+	workflowId, err := agent.NewWorkflow_CreateAgent(account.ID, workflowData)
 	if err != nil {
 		return nil, err
 	}
@@ -828,19 +832,19 @@ func (s *Handler) DeleteAgent(ctx context.Context, in *pb.DeleteAgentRequest) (*
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := v2.GetUserActiveAccount(theUser)
+	account, err := accountsvc.GetUserActiveAccount(theUser)
 	if err != nil {
 		return nil, err
 
 	}
 
-	if err := v2.DeleteAgent(account, oid); err != nil {
+	if err := agent.DeleteAgent(account, oid); err != nil {
 		return nil, err
 	}
 
@@ -858,12 +862,12 @@ func (s *Handler) SwitchActiveAccount(ctx context.Context, in *pb.SwitchActiveAc
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	if err := v2.SwitchAccount(theUser, oid); err != nil {
+	if err := accountsvc.SwitchAccount(theUser, oid); err != nil {
 		return nil, err
 	}
 
@@ -875,12 +879,12 @@ func (s *Handler) CreateAccount(ctx context.Context, in *pb.CreateAccountRequest
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	if err := v2.CreateAccount(theUser, in.AccountName); err != nil {
+	if err := accountsvc.CreateAccount(theUser, in.AccountName); err != nil {
 		return nil, err
 	}
 
@@ -892,12 +896,12 @@ func (s *Handler) JoinAccount(ctx context.Context, in *pb.JoinAccountRequest) (*
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	if err := v2.JoinAccount(theUser, in.JoinCode); err != nil {
+	if err := accountsvc.JoinAccount(theUser, in.JoinCode); err != nil {
 		return nil, err
 	}
 
@@ -909,7 +913,7 @@ func (s *Handler) DeleteAccount(ctx context.Context, in *pb.DeleteAccountRequest
 		return nil, err
 	}
 
-	theUser, err := v2.GetUser(bson.ObjectID{}, in.Eid, "", "")
+	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -919,7 +923,7 @@ func (s *Handler) DeleteAccount(ctx context.Context, in *pb.DeleteAccountRequest
 		return nil, err
 	}
 
-	if err := v2.DeleteAccount(theUser, oid); err != nil {
+	if err := accountsvc.DeleteAccount(theUser, oid); err != nil {
 		return nil, err
 	}
 
@@ -964,7 +968,7 @@ func (s *Handler) GetAccountIntegrationEvents(ctx context.Context, in *pb.GetAcc
 		return nil, err
 	}
 
-	events, err := v2.GetMyAccountIntegrationsEvents(integrationId)
+	events, err := integration.GetMyAccountIntegrationsEvents(integrationId)
 	if err != nil {
 		return nil, err
 	}

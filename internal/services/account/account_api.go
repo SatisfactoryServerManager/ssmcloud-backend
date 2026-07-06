@@ -1,12 +1,12 @@
-package v2
+package account
 
 import (
 	"errors"
 	"fmt"
-	"reflect"
-	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/audit"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	goaway "github.com/TwiN/go-away"
@@ -55,7 +55,7 @@ func CreateAccount(theUser *models.UserSchema, accountName string) error {
 		return err
 	}
 
-	if err := AddAccountAudit(newAccount,
+	if err := audit.AddAccountAudit(newAccount,
 		models.AuditType_UserAddedToAccount,
 		fmt.Sprintf("User (%s) was added to the account", theUser.Username),
 	); err != nil {
@@ -102,7 +102,7 @@ func JoinAccount(theUser *models.UserSchema, joinCode string) error {
 		return err
 	}
 
-	if err := AddAccountAudit(existingAccount,
+	if err := audit.AddAccountAudit(existingAccount,
 		models.AuditType_UserAddedToAccount,
 		fmt.Sprintf("User (%s) was added to the account", theUser.Username),
 	); err != nil {
@@ -162,13 +162,13 @@ func DeleteAccount(theUser *models.UserSchema, accountId bson.ObjectID) error {
 	}
 
 	for _, agentId := range theAccount.AgentIds {
-		if err := DeleteAgent(theAccount, agentId.(bson.ObjectID)); err != nil {
+		if err := agent.DeleteAgent(theAccount, agentId.(bson.ObjectID)); err != nil {
 			return fmt.Errorf("error deleting account agent with error: %s", err.Error())
 		}
 	}
 
 	for _, auditId := range theAccount.AuditIds {
-		if err := DeleteAccountAudit(theAccount, auditId.(bson.ObjectID)); err != nil {
+		if err := audit.DeleteAccountAudit(theAccount, auditId.(bson.ObjectID)); err != nil {
 			return fmt.Errorf("error deleting account agent with error: %s", err.Error())
 		}
 	}
@@ -199,42 +199,6 @@ func DeleteAccount(theUser *models.UserSchema, accountId bson.ObjectID) error {
 
 	if err := UserModel.UpdateData(theUser, bson.M{"linkedAccounts": theUser.LinkedAccountIds, "activeAccount": theUser.ActiveAccountId}); err != nil {
 		return fmt.Errorf("error updating user removing account id with error: %s", err.Error())
-	}
-
-	return nil
-}
-
-func DeleteAccountAudit(theAccount *models.AccountSchema, auditId bson.ObjectID) error {
-
-	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
-	if err != nil {
-		return err
-	}
-
-	AccountAuditModel, err := repositories.GetMongoClient().GetModel("AccountAudit")
-	if err != nil {
-		return err
-	}
-
-	if err := AccountModel.PopulateField(theAccount, "Audits"); err != nil {
-		return fmt.Errorf("error populating account audits with error: %s", err.Error())
-	}
-
-	newAudits := make(bson.A, 0)
-	for _, audit := range theAccount.Audits {
-		if audit.ID.Hex() != auditId.Hex() {
-			newAudits = append(newAudits, audit.ID)
-		}
-	}
-
-	theAccount.AuditIds = newAudits
-
-	if err := AccountModel.UpdateData(theAccount, bson.M{"audit": theAccount.AuditIds}); err != nil {
-		return fmt.Errorf("error removing audit from account with error: %s", err.Error())
-	}
-
-	if err := AccountAuditModel.DeleteById(auditId); err != nil {
-		return fmt.Errorf("error deleting audit from db with error: %s", err.Error())
 	}
 
 	return nil
@@ -327,41 +291,6 @@ func GetUserAccountAudit(theUser *models.UserSchema) (*[]models.AccountAuditSche
 
 }
 
-func AddAccountAudit(theAccount *models.AccountSchema, auditType models.AuditType, message string) error {
-
-	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
-	if err != nil {
-		return err
-	}
-
-	AccountAuditModel, err := repositories.GetMongoClient().GetModel("AccountAudit")
-	if err != nil {
-		return err
-	}
-
-	newAudit := &models.AccountAuditSchema{
-		ID:        bson.NewObjectID(),
-		Type:      auditType,
-		Message:   message,
-		CreatedAt: time.Now(),
-	}
-
-	if err := AccountAuditModel.Create(newAudit); err != nil {
-		return fmt.Errorf("error creating account audit with error: %s", err.Error())
-	}
-	theAccount.AuditIds = append(theAccount.AuditIds, newAudit.ID)
-
-	updateData := bson.M{
-		"audit": theAccount.AuditIds,
-	}
-
-	if err := AccountModel.UpdateData(theAccount, updateData); err != nil {
-		return fmt.Errorf("error updating account audits with error: %s", err.Error())
-	}
-
-	return nil
-}
-
 func GetUserAccountUsers(theAccount *models.AccountSchema) (*[]models.UserSchema, error) {
 	accountId := theAccount.ID
 
@@ -378,149 +307,4 @@ func GetUserAccountUsers(theAccount *models.AccountSchema) (*[]models.UserSchema
 	}
 
 	return &users, nil
-}
-
-func GetMyAccountIntegrations(theAccount *models.AccountSchema) (*[]models.AccountIntegrationSchema, error) {
-	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
-	if err != nil {
-		return nil, err
-	}
-
-	if err := AccountModel.PopulateField(theAccount, "Integrations"); err != nil {
-		return nil, fmt.Errorf("error populating account integrations with error: %s", err.Error())
-	}
-
-	return &theAccount.Integrations, nil
-}
-
-func AddAccountIntegration(theAccount *models.AccountSchema, name string, integrationType models.IntegrationType, url string, eventTypes []models.IntegrationEventType) error {
-	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
-	if err != nil {
-		return err
-	}
-
-	IntergrationsModel, err := repositories.GetMongoClient().GetModel("AccountIntegration")
-	if err != nil {
-		return err
-	}
-
-	if err := AccountModel.PopulateField(theAccount, "Integrations"); err != nil {
-		return fmt.Errorf("error populating account integrations with error: %s", err.Error())
-	}
-
-	for _, integration := range theAccount.Integrations {
-		if integration.Url == url {
-			return fmt.Errorf("error integration with same url (%s) alreay exists", url)
-		}
-	}
-
-	newIntegration := models.AccountIntegrationSchema{
-		ID:         bson.NewObjectID(),
-		Name:       name,
-		Type:       integrationType,
-		Url:        url,
-		EventTypes: eventTypes,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-	}
-
-	if err := IntergrationsModel.Create(newIntegration); err != nil {
-		return fmt.Errorf("error creating integration with error: %s", err.Error())
-	}
-
-	theAccount.IntegrationIds = append(theAccount.IntegrationIds, newIntegration.ID)
-	updateData := bson.M{
-		"integrations": theAccount.IntegrationIds,
-	}
-
-	if err := AccountModel.UpdateData(theAccount, updateData); err != nil {
-		return fmt.Errorf("error updating account integrations with error: %s", err.Error())
-	}
-
-	if err := AddAccountAudit(theAccount, models.AuditType_IntegrationAddedToAccount, "A new integration has been added to the account"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func UpdateAccountIntegration(integrationId bson.ObjectID, name string, integrationType models.IntegrationType, url string, eventTypes []models.IntegrationEventType) error {
-	IntergrationsModel, err := repositories.GetMongoClient().GetModel("AccountIntegration")
-	if err != nil {
-		return err
-	}
-
-	theIntegration := &models.AccountIntegrationSchema{}
-
-	if err := IntergrationsModel.FindOneById(theIntegration, integrationId); err != nil {
-		return fmt.Errorf("error finding integration with error: %s", err.Error())
-	}
-
-	updateData := bson.M{}
-	if theIntegration.Name != name {
-		updateData["name"] = name
-	}
-
-	if theIntegration.Type != integrationType {
-		updateData["type"] = integrationType
-	}
-
-	if theIntegration.Url != url {
-		updateData["url"] = url
-	}
-
-	if !reflect.DeepEqual(theIntegration.EventTypes, eventTypes) {
-		updateData["eventTypes"] = eventTypes
-	}
-
-	if err := IntergrationsModel.UpdateData(theIntegration, updateData); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func DeleteAccountIntegration(theAccount *models.AccountSchema, integrationId bson.ObjectID) error {
-	IntergrationsModel, err := repositories.GetMongoClient().GetModel("AccountIntegration")
-	if err != nil {
-		return err
-	}
-
-	IntergrationEventsModel, err := repositories.GetMongoClient().GetModel("IntegrationEvent")
-	if err != nil {
-		return err
-	}
-
-	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
-	if err != nil {
-		return err
-	}
-
-	if err := AccountModel.PopulateField(theAccount, "Integrations"); err != nil {
-		return fmt.Errorf("error populating account integrations with error: %s", err.Error())
-	}
-
-	newIntegrations := make(bson.A, 0)
-	for _, integration := range theAccount.Integrations {
-		if integration.ID.Hex() != integrationId.Hex() {
-			newIntegrations = append(newIntegrations, integration.ID)
-		}
-	}
-
-	theAccount.IntegrationIds = newIntegrations
-
-	if err := AccountModel.UpdateData(theAccount, bson.M{"integrations": theAccount.IntegrationIds}); err != nil {
-		return fmt.Errorf("error removing integrations from account with error: %s", err.Error())
-	}
-
-	if err := IntergrationsModel.DeleteById(integrationId); err != nil {
-		return err
-	}
-
-	filter := bson.M{"integrationId": integrationId}
-	if err := IntergrationEventsModel.Delete(filter); err != nil {
-		return err
-	}
-
-	return nil
 }

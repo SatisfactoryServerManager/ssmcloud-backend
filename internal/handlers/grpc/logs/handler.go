@@ -2,7 +2,6 @@ package logs
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"sync"
 
@@ -89,7 +88,7 @@ func ShutdownAgentLogHandler() {
 	defer streamsMu.Unlock()
 
 	for key, cancel := range activeStreams {
-		fmt.Println("Shutting down log stream:", key)
+		logger.GetDebugLogger().Println("Shutting down log stream:", key)
 		cancel()
 	}
 

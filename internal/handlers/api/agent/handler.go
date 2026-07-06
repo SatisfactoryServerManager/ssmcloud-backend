@@ -8,6 +8,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -57,7 +58,7 @@ func (h *ApiAgentHandler) API_UploadAgentLog(c *gin.Context) {
 
 	err := agent.UploadedAgentLog(AgentAPIKey, FileIdentity)
 	if err != nil {
-		fmt.Printf("%+v\n", err.Error())
+		logger.GetErrorLogger().Printf("%+v", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "success": false})
 		c.Abort()
 		return

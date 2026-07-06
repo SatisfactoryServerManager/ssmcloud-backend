@@ -39,10 +39,10 @@ func InitDBRepository() error {
 		return err
 	}
 
-    // Legacy Mongoose connection for user/account migration
+	// Legacy Mongoose connection for user/account migration
 
-    dbConnectionOptions := mongoose.GetConnectionOptionsFromEnv()
-    
+	dbConnectionOptions := mongoose.GetConnectionOptionsFromEnv()
+
 	dbConnection := mongoose.DBConnection{
 		Host:     dbConnectionOptions.Host,
 		Port:     dbConnectionOptions.Port,
@@ -54,7 +54,7 @@ func InitDBRepository() error {
 	mongoose.InitiateDB(dbConnection)
 
 	if err := mongoose.TestConnection(); err != nil {
-		return err;
+		return err
 	}
 
 	return nil

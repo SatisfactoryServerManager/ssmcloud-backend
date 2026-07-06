@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -110,5 +109,5 @@ func main() {
 }
 
 func PrintConnectionString(dbConnection mongoose.DBConnection) {
-	fmt.Printf("mongodb connection: %v\n", dbConnection)
+	logger.GetInfoLogger().Printf("mongodb connection: %v", dbConnection)
 }

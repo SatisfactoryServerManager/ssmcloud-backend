@@ -1,4 +1,4 @@
-package v2
+package workflow
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/audit"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
@@ -53,7 +54,7 @@ func InitWorkflowService() {
 	ctx := context.Background()
 
 	if err := processWorkflowsJob.Run(ctx); err != nil {
-		fmt.Printf("%v\n", err.Error())
+		logger.GetErrorLogger().Printf("%v", err.Error())
 	}
 
 	logger.GetDebugLogger().Println("Initalized Workflow Service")
@@ -90,7 +91,7 @@ func ProcessWorkflows() error {
 		return nil
 	}
 
-	fmt.Println("Processing Workflows")
+	logger.GetInfoLogger().Println("Processing Workflows")
 
 	for idx := range workflows {
 		workflow := &workflows[idx]
@@ -249,7 +250,7 @@ func (a CreateAgentAction) Execute(action *v2.WorkflowAction, d interface{}, the
 		return fmt.Errorf("error updating account AgentSchema with error: %s", err.Error())
 	}
 
-	if err := AddAccountAudit(theAccount,
+	if err := audit.AddAccountAudit(theAccount,
 		v2.AuditType_AgentAddedToAccount,
 		fmt.Sprintf("Agent (%s) was added to the account", newAgent.AgentName),
 	); err != nil {
@@ -275,7 +276,7 @@ func (a WaitForOnlineAction) Execute(action *v2.WorkflowAction, d interface{}, t
 		return err
 	}
 
-	fmt.Printf("waiting for agent: %s to be online \n", theAgent.AgentName)
+	logger.GetInfoLogger().Printf("waiting for agent: %s to be online", theAgent.AgentName)
 
 	if !theAgent.Status.Online {
 		action.RetryCount += 1
@@ -338,7 +339,7 @@ func (a WaitForInstallAction) Execute(action *v2.WorkflowAction, d interface{}, 
 		return err
 	}
 
-	fmt.Printf("waiting for agent: %s to install sf server \n", theAgent.AgentName)
+	logger.GetInfoLogger().Printf("waiting for agent: %s to install sf server", theAgent.AgentName)
 
 	if !theAgent.Status.Installed {
 		action.RetryCount += 1
@@ -400,7 +401,7 @@ func (a WaitForRunningAction) Execute(action *v2.WorkflowAction, d interface{}, 
 		return err
 	}
 
-	fmt.Printf("waiting for agent: %s to start sf server \n", theAgent.AgentName)
+	logger.GetInfoLogger().Printf("waiting for agent: %s to start sf server", theAgent.AgentName)
 
 	if !theAgent.Status.Running {
 		action.RetryCount += 1

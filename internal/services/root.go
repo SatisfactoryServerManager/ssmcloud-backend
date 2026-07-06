@@ -3,23 +3,25 @@ package services
 import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/account"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/mod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/storage"
-	v2 "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/v2"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/workflow"
 )
 
 func InitAllServices() {
 	storage.InitStorageService()
-    agent.InitAgentService()
+	agent.InitAgentService()
 	account.InitAccountService()
-    
-	v2.InitModService()
-	v2.InitWorkflowService()
-	v2.InitIntegrationService()
+
+	mod.InitModService()
+	workflow.InitWorkflowService()
+	integration.InitIntegrationService()
 }
 
 func ShutdownAllServices() error {
 
-	if err := v2.ShutdownModService(); err != nil {
+	if err := mod.ShutdownModService(); err != nil {
 		return err
 	}
 
@@ -31,11 +33,11 @@ func ShutdownAllServices() error {
 		return err
 	}
 
-	if err := v2.ShutdownWorkflowService(); err != nil {
+	if err := workflow.ShutdownWorkflowService(); err != nil {
 		return err
 	}
 
-	if err := v2.ShutdownIntegrationService(); err != nil {
+	if err := integration.ShutdownIntegrationService(); err != nil {
 		return err
 	}
 
