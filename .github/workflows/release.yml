@@ -164,5 +164,5 @@ jobs:
           project: "ssmcloud"
           runbook: "Deploy SSM Backend"
           environments: |
-            '${{ startsWith(github.ref, 'refs/tags/') && 'Prod' || 'Dev' }}'
+            ${{ startsWith(github.ref, 'refs/tags/') && 'Prod' || 'Dev' }}
           variables: "ssmcloud.backend.image.tag:${{ needs.build-linux.outputs.deploy_tag }}"
