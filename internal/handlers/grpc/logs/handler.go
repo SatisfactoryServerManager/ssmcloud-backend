@@ -35,6 +35,8 @@ func (h *Handler) StreamLog(stream pb.AgentLogService_StreamLogServer) error {
 
 	key := *apiKey
 
+	logger.GetDebugLogger().Printf("log stream opened (key prefix %s)", keyPrefix(key))
+
 	// register the stream
 	streamsMu.Lock()
 	activeStreams[key] = cancel
@@ -46,6 +48,7 @@ func (h *Handler) StreamLog(stream pb.AgentLogService_StreamLogServer) error {
 		delete(activeStreams, key)
 		streamsMu.Unlock()
 		cancel()
+		logger.GetDebugLogger().Printf("log stream closed (key prefix %s)", keyPrefix(key))
 	}()
 
 	msgChan := make(chan *pb.AgentLogLineRequest)
@@ -76,11 +79,21 @@ func (h *Handler) StreamLog(stream pb.AgentLogService_StreamLogServer) error {
 			return err
 
 		case msg := <-msgChan:
+			logger.GetDebugLogger().Printf("log line recv (key prefix %s) type=%s inital=%t len=%d", keyPrefix(key), msg.Type, msg.Inital, len(msg.Line))
 			if err := agent.AddAgentLogLine(*apiKey, msg.Type, msg.Line, msg.Inital); err != nil {
+				logger.GetErrorLogger().Printf("AddAgentLogLine failed (type=%s): %v", msg.Type, err)
 				return err
 			}
 		}
 	}
+}
+
+// keyPrefix returns a short, non-sensitive prefix of an API key for logging.
+func keyPrefix(key string) string {
+	if len(key) <= 8 {
+		return key
+	}
+	return key[:8]
 }
 
 func ShutdownAgentLogHandler() {

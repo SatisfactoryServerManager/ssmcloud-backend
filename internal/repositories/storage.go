@@ -151,6 +151,31 @@ func GetAgentFile(objectPath string) (*s3.GetObjectOutput, error) {
 	return resp, nil
 }
 
+func rangeHeaderFor(startOffset int64) string {
+	if startOffset <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("bytes=%d-", startOffset)
+}
+
+func GetAgentFileRange(objectPath string, startOffset int64) (*s3.GetObjectOutput, error) {
+	client, err := GetS3Client()
+	if err != nil {
+		return nil, err
+	}
+
+	bucket := os.Getenv("STORAGE_S3_BUCKET")
+	in := &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(objectPath),
+	}
+	if r := rangeHeaderFor(startOffset); r != "" {
+		in.Range = aws.String(r)
+	}
+
+	return client.GetObject(context.Background(), in)
+}
+
 func HasAgentFile(objectPath string) bool {
 	client, err := GetS3Client()
 	if err != nil {
