@@ -385,9 +385,29 @@ func AddAgentLogLine(agentAPIKey string, source string, line string, inital bool
 		}
 	}
 
-	// If no log exists for this source, return due to the full file being uploaded separately
+	// No log document exists yet for this source. The agent streams log lines
+	// without a separate full-file upload, so create the document on first
+	// line rather than dropping the data.
 	if theLog == nil {
-		return nil
+		logger.GetDebugLogger().Printf("creating new AgentLog for agent %s source %q", theAgent.ID.Hex(), source)
+
+		theLog = &modelsv2.AgentLogSchema{
+			ID:            bson.NewObjectID(),
+			Type:          source,
+			LogLines:      make([]string, 0),
+			PendingUpload: true,
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+
+		if err := AgentLogModel.Create(theLog); err != nil {
+			return fmt.Errorf("error creating agent log: %s", err.Error())
+		}
+
+		theAgent.LogIds = append(theAgent.LogIds, theLog.ID)
+		if err := AgentModel.UpdateData(theAgent, bson.M{"logs": theAgent.LogIds, "updatedAt": time.Now()}); err != nil {
+			return fmt.Errorf("error attaching agent log: %s", err.Error())
+		}
 	}
 
 	if inital {
