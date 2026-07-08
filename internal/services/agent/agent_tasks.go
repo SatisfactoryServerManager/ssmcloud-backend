@@ -355,6 +355,23 @@ func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
 	return nil
 }
 
+// logFileNameForType returns the S3/download filename for a streamed log of
+// the given type. Streamed logs have no uploaded file to take a name from, so
+// we synthesize one that mirrors the naming the upload path expects (see
+// agent_uploads.go: "SSMAgent" -> Agent, "Steam" -> Steam, else FactoryGame).
+func logFileNameForType(logType string) string {
+	switch logType {
+	case "Agent":
+		return "SSMAgent-combined.log"
+	case "Steam":
+		return "Steam.log"
+	case "FactoryGame":
+		return "FactoryGame.log"
+	default:
+		return logType + ".log"
+	}
+}
+
 func AddAgentLogLine(agentAPIKey string, source string, line string, inital bool) error {
 	theAgent, err := GetAgentByAPIKey(agentAPIKey)
 	if err != nil {
@@ -394,6 +411,7 @@ func AddAgentLogLine(agentAPIKey string, source string, line string, inital bool
 		theLog = &modelsv2.AgentLogSchema{
 			ID:            bson.NewObjectID(),
 			Type:          source,
+			FileName:      logFileNameForType(source),
 			LogLines:      make([]string, 0),
 			PendingUpload: true,
 			CreatedAt:     time.Now(),
@@ -414,6 +432,12 @@ func AddAgentLogLine(agentAPIKey string, source string, line string, inital bool
 		theLog.LogLines = make([]string, 0)
 	}
 
+	// Heal logs created before FileName was synthesized: without it the
+	// download resolver rejects the log and the S3 upload path is malformed.
+	if theLog.FileName == "" {
+		theLog.FileName = logFileNameForType(source)
+	}
+
 	// Append the new line to the existing log's LogLines
 	theLog.LogLines = append(theLog.LogLines, line)
 	theLog.UpdatedAt = time.Now()
@@ -421,6 +445,7 @@ func AddAgentLogLine(agentAPIKey string, source string, line string, inital bool
 	// Update the log entry with new content and mark for upload
 	dbUpdate := bson.M{
 		"lines":         theLog.LogLines,
+		"fileName":      theLog.FileName,
 		"updatedAt":     theLog.UpdatedAt,
 		"pendingUpload": true,
 	}
