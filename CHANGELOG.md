@@ -1,3 +1,26 @@
+## 1.0.77 (July 08, 2026)
+  - feat: Updated deps
+  - Merge pull request #3 from SatisfactoryServerManager/feature/rest-to-grpc-migration
+  - fix: create AgentLog document on first streamed line
+  - feat: send filename header in frontend download stream
+  - feat: add DeleteAccountIntegration gRPC handler
+  - refactor: remove migrated REST endpoints, keep ping + ssmmod
+  - feat: add frontend download + integration add/update gRPC handlers
+  - feat: register AgentFileService gRPC handler
+  - feat: implement AgentFileService (resumable transfer + save sync)
+  - feat: add gRPC transfer staging/offset helper
+  - feat: add GetAgentFileRange for resumable downloads
+  - Merge pull request #2 from SatisfactoryServerManager/refactor/services-cleanup
+  - feat: Restructure app
+  - ci: Fixed deployment
+  - ci: Fixed deployment
+  - ci: Fixed deployment
+  - ci: Fixed deployment
+  - ci: Fixed deployment
+  - ci: Fixed deployment
+  - ci: Fixed deployment
+  - chore: Updated Deps
+
 ## 1.0.76 (May 27, 2026)
   - feat: Updated deps
 
