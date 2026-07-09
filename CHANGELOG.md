@@ -1,3 +1,8 @@
+## 1.0.78 (July 09, 2026)
+  - chore: Updated deps
+  - feat: server-side mod filtering (status/updates/hidden)
+  - fix: Fixed agent log file updloads
+
 ## 1.0.77 (July 08, 2026)
   - feat: Updated deps
   - Merge pull request #3 from SatisfactoryServerManager/feature/rest-to-grpc-migration
