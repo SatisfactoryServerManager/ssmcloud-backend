@@ -468,17 +468,6 @@ func (s *Handler) GetAgentMods(ctx context.Context, in *pb.GetAgentModsRequest) 
 
 	theAgent := agents[0]
 
-	mods, err := mod.GetModsFromDB(int(in.Page), in.Sort, in.Direction, in.Search)
-	if err != nil {
-		return nil, err
-	}
-	modCount, err := mod.GetDBModCount()
-	if err != nil {
-		return nil, err
-	}
-
-	pages := float64(modCount) / float64(30)
-
 	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
 	if err != nil {
 		return nil, err
@@ -490,6 +479,44 @@ func (s *Handler) GetAgentMods(ctx context.Context, in *pb.GetAgentModsRequest) 
 			return nil, fmt.Errorf("error populating mod with error: %s", err.Error())
 		}
 	}
+
+	// Build the agent's install-state reference sets for server-side filtering.
+	installedRefs := make([]string, 0)
+	updatableRefs := make([]string, 0)
+	for idx := range theAgent.ModConfig.SelectedMods {
+		selectedMod := &theAgent.ModConfig.SelectedMods[idx]
+		ref := selectedMod.Mod.ModReference
+		if ref == "" {
+			continue
+		}
+		if selectedMod.Installed {
+			installedRefs = append(installedRefs, ref)
+		}
+		if selectedMod.NeedsUpdate {
+			updatableRefs = append(updatableRefs, ref)
+		}
+	}
+
+	modFilter := mod.ModQueryFilter{
+		Search:        in.Search,
+		ShowAvailable: in.FilterAvailable,
+		ShowInstalled: in.FilterInstalled,
+		OnlyUpdatable: in.OnlyUpdatable,
+		IncludeHidden: in.IncludeHidden,
+		InstalledRefs: installedRefs,
+		UpdatableRefs: updatableRefs,
+	}
+
+	mods, err := mod.GetModsFromDB(int(in.Page), in.Sort, in.Direction, modFilter)
+	if err != nil {
+		return nil, err
+	}
+	modCount, err := mod.GetDBModCount(modFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	pages := float64(modCount) / float64(30)
 
 	pbMods := make([]*pbModels.Mod, 0, len(*mods))
 

@@ -238,7 +238,71 @@ func UpdateModsInDB() error {
 	return nil
 }
 
-func GetModsFromDB(page int, sort string, direction string, search string) (*[]models.ModSchema, error) {
+// ModQueryFilter describes the server-side mod catalogue filtering. The status
+// group (ShowAvailable / ShowInstalled) selects which install states appear;
+// OnlyUpdatable further narrows to installed mods that have an update; hidden
+// mods are excluded unless IncludeHidden is set. InstalledRefs / UpdatableRefs
+// are the agent's mod references for the current server.
+type ModQueryFilter struct {
+	Search        string
+	ShowAvailable bool
+	ShowInstalled bool
+	OnlyUpdatable bool
+	IncludeHidden bool
+	InstalledRefs []string
+	UpdatableRefs []string
+}
+
+// nonNilRefs guarantees a non-nil slice so a nil InstalledRefs marshals to an
+// empty array rather than null in $in/$nin (null would break the match).
+func nonNilRefs(refs []string) []string {
+	if refs == nil {
+		return []string{}
+	}
+	return refs
+}
+
+// buildModFilter translates a ModQueryFilter into the Mongo query used by both
+// the paged fetch and the count, so pagination stays consistent with the list.
+func buildModFilter(f ModQueryFilter) bson.M {
+	and := make([]bson.M, 0)
+
+	if f.Search != "" {
+		and = append(and, bson.M{"modName": bson.M{
+			"$regex":   f.Search,
+			"$options": "i", // case-insensitive
+		}})
+	}
+
+	if !f.IncludeHidden {
+		and = append(and, bson.M{"hidden": bson.M{"$ne": true}})
+	}
+
+	// Status group: Available == not installed, Installed == installed.
+	switch {
+	case f.ShowAvailable && f.ShowInstalled:
+		// no install-state constraint
+	case f.ShowAvailable && !f.ShowInstalled:
+		and = append(and, bson.M{"modReference": bson.M{"$nin": nonNilRefs(f.InstalledRefs)}})
+	case !f.ShowAvailable && f.ShowInstalled:
+		and = append(and, bson.M{"modReference": bson.M{"$in": nonNilRefs(f.InstalledRefs)}})
+	default:
+		// neither status selected -> match nothing
+		and = append(and, bson.M{"_id": bson.M{"$exists": false}})
+	}
+
+	// Refinement: only installed mods that have an update available.
+	if f.OnlyUpdatable {
+		and = append(and, bson.M{"modReference": bson.M{"$in": nonNilRefs(f.UpdatableRefs)}})
+	}
+
+	if len(and) == 0 {
+		return bson.M{}
+	}
+	return bson.M{"$and": and}
+}
+
+func GetModsFromDB(page int, sort string, direction string, f ModQueryFilter) (*[]models.ModSchema, error) {
 
 	ModsModel, err := repositories.GetMongoClient().GetModel("Mod")
 	if err != nil {
@@ -259,14 +323,7 @@ func GetModsFromDB(page int, sort string, direction string, search string) (*[]m
 		sortDir = -1
 	}
 
-	// Build filter (supports partial match on "name")
-	filter := bson.M{}
-	if search != "" {
-		filter["modName"] = bson.M{
-			"$regex":   search,
-			"$options": "i", // case-insensitive
-		}
-	}
+	filter := buildModFilter(f)
 
 	// Pagination
 	skip := int64(page * 30)
@@ -284,8 +341,10 @@ func GetModsFromDB(page int, sort string, direction string, search string) (*[]m
 	return &modsRes, nil
 }
 
-func GetDBModCount() (int64, error) {
-	count, err := mongoose.CountDocuments("mods", bson.M{})
+// GetDBModCount returns the number of catalogue mods matching the given filter,
+// so paging reflects the same result set the list is drawn from.
+func GetDBModCount(f ModQueryFilter) (int64, error) {
+	count, err := mongoose.CountDocuments("mods", buildModFilter(f))
 	if err != nil {
 		return 0, fmt.Errorf("error getting mod count with error: %s", err.Error())
 	}
