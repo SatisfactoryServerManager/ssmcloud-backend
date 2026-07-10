@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/audit"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
@@ -19,11 +20,7 @@ var workflowActionRegistry = map[string]v2.IWorkflowAction{}
 
 type CreateAgentAction struct{}
 type WaitForOnlineAction struct{}
-type InstallServerAction struct{}
-type WaitForInstallAction struct{}
-type StartServerAction struct{}
-type WaitForRunningAction struct{}
-type ClaimServerAction struct{}
+type AgentTaskAction struct{}
 
 var (
 	processWorkflowsJob *joblock.JobLockTask
@@ -33,11 +30,7 @@ func InitWorkflowService() {
 
 	RegisterWorkflowAction(v2.WorkflowActionType_CreateAgent, CreateAgentAction{})
 	RegisterWorkflowAction(v2.WorkflowActionType_WaitForOnline, WaitForOnlineAction{})
-	RegisterWorkflowAction(v2.WorkflowActionType_InstallServer, InstallServerAction{})
-	RegisterWorkflowAction(v2.WorkflowActionType_WaitForInstalled, WaitForInstallAction{})
-	RegisterWorkflowAction(v2.WorkflowActionType_StartServer, StartServerAction{})
-	RegisterWorkflowAction(v2.WorkflowActionType_WaitForRunning, WaitForRunningAction{})
-	RegisterWorkflowAction(v2.WorkflowActionType_ClaimServer, ClaimServerAction{})
+	RegisterWorkflowAction(v2.WorkflowActionType_AgentTask, AgentTaskAction{})
 
 	processWorkflowsJob, _ = joblock.NewJobLockTask(
 		repositories.GetMongoClient(),
@@ -202,7 +195,9 @@ func processWorkflow_CreateAgent(workflow *v2.WorkflowSchema, theAccount *v2.Acc
 
 	action := &workflow.Actions[currentActionIndex]
 
-	executeWorkflowAction(action, &workflowData, theAccount)
+	wctx := v2.WorkflowContext{WorkflowID: workflow.ID, ActionIdx: currentActionIndex}
+
+	executeWorkflowAction(action, &workflowData, theAccount, wctx)
 
 	// The agent only exists once the create-agent action has run. Link it to the
 	// workflow so the server page can find the workflow it was created by.
@@ -228,7 +223,7 @@ func findAgentIdByAPIKey(apiKey string) (bson.ObjectID, error) {
 	return theAgent.ID, nil
 }
 
-func executeWorkflowAction(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) {
+func executeWorkflowAction(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema, wctx v2.WorkflowContext) {
 	handler, ok := workflowActionRegistry[action.Type]
 	if !ok {
 		action.Status = "failed"
@@ -236,14 +231,14 @@ func executeWorkflowAction(action *v2.WorkflowAction, d interface{}, theAccount 
 
 	}
 
-	err := handler.Execute(action, d, theAccount)
+	err := handler.Execute(action, d, theAccount, wctx)
 	if err != nil {
 		action.Status = "failed"
 		action.ErrorMessage = err.Error()
 	}
 }
 
-func (a CreateAgentAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) error {
+func (a CreateAgentAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema, _ v2.WorkflowContext) error {
 
 	workflowData := d.(*v2.CreateAgentWorkflowData)
 
@@ -285,7 +280,7 @@ func (a CreateAgentAction) Execute(action *v2.WorkflowAction, d interface{}, the
 	return nil
 }
 
-func (a WaitForOnlineAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) error {
+func (a WaitForOnlineAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema, _ v2.WorkflowContext) error {
 
 	workflowData := d.(*v2.CreateAgentWorkflowData)
 
@@ -316,8 +311,13 @@ func (a WaitForOnlineAction) Execute(action *v2.WorkflowAction, d interface{}, t
 	return nil
 }
 
-func (a InstallServerAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) error {
-
+// Execute enqueues the task on first run, then polls it to a terminal status.
+//
+// Storing TaskID on the action is what makes a step re-run idempotent: without
+// it, every pass through this function appended a fresh task. Enqueue is itself
+// idempotent on the dedupe key, which covers the crash-between-write-and-persist
+// window.
+func (a AgentTaskAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema, wctx v2.WorkflowContext) error {
 	workflowData := d.(*v2.CreateAgentWorkflowData)
 
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
@@ -326,153 +326,43 @@ func (a InstallServerAction) Execute(action *v2.WorkflowAction, d interface{}, t
 	}
 
 	theAgent := &v2.AgentSchema{}
-
 	if err := AgentModel.FindOne(theAgent, bson.M{"apiKey": workflowData.APIKey}); err != nil {
 		return err
 	}
 
-	newTask := v2.NewAgentTask("installsfserver", nil)
-
-	theAgent.Tasks = append(theAgent.Tasks, newTask)
-
-	dbUpdate := bson.M{
-		"tasks":     theAgent.Tasks,
-		"updatedAt": time.Now(),
-	}
-
-	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
-		return err
-	}
-
-	action.Status = "completed"
-
-	return nil
-}
-
-func (a WaitForInstallAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) error {
-	workflowData := d.(*v2.CreateAgentWorkflowData)
-
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
-	if err != nil {
-		return err
-	}
-
-	theAgent := &v2.AgentSchema{}
-
-	if err := AgentModel.FindOne(theAgent, bson.M{"apiKey": workflowData.APIKey}); err != nil {
-		return err
-	}
-
-	logger.GetInfoLogger().Printf("waiting for agent: %s to install sf server", theAgent.AgentName)
-
-	if !theAgent.Status.Installed {
-		action.RetryCount += 1
-		if action.RetryCount > 300 {
-			return fmt.Errorf("timeout waiting for agent to install sf server")
+	if action.TaskID == "" {
+		taskID, err := agenttask.Enqueue(
+			theAgent.ID,
+			theAccount.ID,
+			action.TaskAction,
+			action.TaskData,
+			agenttask.WorkflowDedupeKey(wctx.WorkflowID, wctx.ActionIdx),
+			v2.TaskTrigger{Type: v2.TaskTriggerWorkflow, WorkflowID: &wctx.WorkflowID},
+		)
+		if err != nil {
+			return err
 		}
-		action.Status = ""
+
+		action.TaskID = taskID
+		logger.GetInfoLogger().Printf("workflow enqueued task %s (%s) for agent %s", taskID, action.TaskAction, theAgent.AgentName)
 		return nil
 	}
-	action.Status = "completed"
 
-	return nil
-}
-
-func (a StartServerAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) error {
-
-	workflowData := d.(*v2.CreateAgentWorkflowData)
-
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	theTask, err := agenttask.Get(action.TaskID)
 	if err != nil {
 		return err
 	}
 
-	theAgent := &v2.AgentSchema{}
-
-	if err := AgentModel.FindOne(theAgent, bson.M{"apiKey": workflowData.APIKey}); err != nil {
-		return err
-	}
-
-	newTask := v2.NewAgentTask("startsfserver", nil)
-
-	theAgent.Tasks = append(theAgent.Tasks, newTask)
-
-	dbUpdate := bson.M{
-		"tasks":     theAgent.Tasks,
-		"updatedAt": time.Now(),
-	}
-
-	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
-		return err
-	}
-
-	action.Status = "completed"
-
-	return nil
-}
-
-func (a WaitForRunningAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) error {
-	workflowData := d.(*v2.CreateAgentWorkflowData)
-
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
-	if err != nil {
-		return err
-	}
-
-	theAgent := &v2.AgentSchema{}
-
-	if err := AgentModel.FindOne(theAgent, bson.M{"apiKey": workflowData.APIKey}); err != nil {
-		return err
-	}
-
-	logger.GetInfoLogger().Printf("waiting for agent: %s to start sf server", theAgent.AgentName)
-
-	if !theAgent.Status.Running {
-		action.RetryCount += 1
-		if action.RetryCount > 300 {
-			return fmt.Errorf("timeout waiting for agent to start sf server")
+	switch theTask.Status {
+	case v2.TaskStatusCompleted:
+		action.Status = "completed"
+		return nil
+	case v2.TaskStatusDead, v2.TaskStatusCancelled:
+		return fmt.Errorf("task %s failed: %s", theTask.Action, theTask.LastError)
+	default:
+		if action.Timeout > 0 && time.Since(theTask.CreatedAt) > action.Timeout {
+			return fmt.Errorf("timeout awaiting task %s", theTask.Action)
 		}
-		action.Status = ""
 		return nil
 	}
-	action.Status = "completed"
-
-	return nil
-}
-
-func (a ClaimServerAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) error {
-	workflowData := d.(*v2.CreateAgentWorkflowData)
-
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
-	if err != nil {
-		return err
-	}
-
-	theAgent := &v2.AgentSchema{}
-
-	if err := AgentModel.FindOne(theAgent, bson.M{"apiKey": workflowData.APIKey}); err != nil {
-		return err
-	}
-
-	data := v2.ClaimServer_PostData{
-		AdminPass:  workflowData.AdminPass,
-		ClientPass: workflowData.ClientPass,
-	}
-
-	newTask := v2.NewAgentTask("claimserver", data)
-
-	theAgent.Tasks = append(theAgent.Tasks, newTask)
-
-	dbUpdate := bson.M{
-		"tasks":     theAgent.Tasks,
-		"updatedAt": time.Now(),
-	}
-
-	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
-		return err
-	}
-
-	action.Status = "completed"
-
-	return nil
 }

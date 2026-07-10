@@ -429,7 +429,7 @@ func (s *Handler) CreateAgentTask(ctx context.Context, in *pb.CreateAgentTaskReq
 
 	theAgent := agents[0]
 
-	if err := agent.CreateAgentTask(theAgent, in.Action, nil); err != nil {
+	if _, err := agent.CreateAgentTask(theAgent, account, in.Eid, in.Action, nil); err != nil {
 		return nil, err
 	}
 

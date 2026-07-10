@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/audit"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
@@ -96,23 +97,25 @@ func NewWorkflow_CreateAgent(accountId bson.ObjectID, PostData *modelsv2.CreateA
 	}
 
 	installServerAction := modelsv2.WorkflowAction{
-		Type: modelsv2.WorkflowActionType_InstallServer,
-	}
-
-	waitForInstalledAction := modelsv2.WorkflowAction{
-		Type: modelsv2.WorkflowActionType_WaitForInstalled,
+		Type:       modelsv2.WorkflowActionType_AgentTask,
+		TaskAction: "installsfserver",
+		Timeout:    30 * time.Minute,
 	}
 
 	startServerAction := modelsv2.WorkflowAction{
-		Type: modelsv2.WorkflowActionType_StartServer,
-	}
-
-	waitForRunningAction := modelsv2.WorkflowAction{
-		Type: modelsv2.WorkflowActionType_WaitForRunning,
+		Type:       modelsv2.WorkflowActionType_AgentTask,
+		TaskAction: "startsfserver",
+		Timeout:    10 * time.Minute,
 	}
 
 	claimServerAction := modelsv2.WorkflowAction{
-		Type: modelsv2.WorkflowActionType_ClaimServer,
+		Type:       modelsv2.WorkflowActionType_AgentTask,
+		TaskAction: "claimserver",
+		TaskData: modelsv2.ClaimServer_PostData{
+			AdminPass:  PostData.AdminPass,
+			ClientPass: PostData.ClientPass,
+		},
+		Timeout: 10 * time.Minute,
 	}
 
 	workflow := modelsv2.WorkflowSchema{
@@ -123,9 +126,7 @@ func NewWorkflow_CreateAgent(accountId bson.ObjectID, PostData *modelsv2.CreateA
 			createAgentAction,
 			waitForOnlineAction,
 			installServerAction,
-			waitForInstalledAction,
 			startServerAction,
-			waitForRunningAction,
 			claimServerAction,
 		},
 	}
@@ -293,20 +294,16 @@ func GetAgentLog(theAgent *modelsv2.AgentSchema, logType string) (*modelsv2.Agen
 	return &modelsv2.AgentLogSchema{}, nil
 }
 
-func CreateAgentTask(theAgent *modelsv2.AgentSchema, action string, data interface{}) error {
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
-	if err != nil {
-		return err
-	}
-
-	newTask := modelsv2.NewAgentTask(action, data)
-	theAgent.Tasks = append(theAgent.Tasks, newTask)
-
-	updateData := bson.M{"tasks": theAgent.Tasks}
-	if err := AgentModel.UpdateData(theAgent, updateData); err != nil {
-		return err
-	}
-	return nil
+// CreateAgentTask enqueues a user-triggered task and returns its id.
+func CreateAgentTask(theAgent *modelsv2.AgentSchema, theAccount *modelsv2.AccountSchema, externalID, action string, data interface{}) (string, error) {
+	return agenttask.Enqueue(
+		theAgent.ID,
+		theAccount.ID,
+		action,
+		data,
+		"", // user-triggered actions are not deduped: asking twice means twice
+		modelsv2.TaskTrigger{Type: modelsv2.TaskTriggerUser, ExternalID: externalID},
+	)
 }
 
 func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version string) error {
