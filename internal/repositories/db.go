@@ -26,6 +26,7 @@ func InitDBRepository() error {
 		&v2.AccountSchema{},
 		&v2.AccountAuditSchema{},
 		&v2.AgentSchema{},
+		&v2.AgentTaskSchema{},
 		&v2.WorkflowSchema{},
 		&v2.AgentLogSchema{},
 		&v2.AgentStatSchema{},
