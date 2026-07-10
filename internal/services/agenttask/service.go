@@ -446,7 +446,3 @@ func Retry(taskID string) error {
 	notifyEnqueued(task.AgentID)
 	return nil
 }
-
-// notifyEnqueued wakes this replica's dispatcher when the target agent's stream
-// is local. Replaced by the real implementation in dispatcher.go (Task 4).
-var notifyEnqueued = func(agentID bson.ObjectID) {}
