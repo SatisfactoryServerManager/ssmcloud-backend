@@ -61,11 +61,18 @@ func EnsureIndexes() error {
 				SetPartialFilterExpression(bson.M{"status": "running"}),
 		},
 		{
+			// dedupeKey must be in the filter, not just the key. An empty key is
+			// omitempty'd away, and a unique index reads a missing field as null,
+			// so every un-deduped task on one agent would collide with the last.
+			// Requiring the field to exist keeps "" meaning "never dedupe".
 			Keys: bson.D{{Key: "agentId", Value: 1}, {Key: "dedupeKey", Value: 1}},
 			Options: options.Index().
 				SetName("uniq_active_dedupe").
 				SetUnique(true).
-				SetPartialFilterExpression(bson.M{"active": bson.M{"$exists": true}}),
+				SetPartialFilterExpression(bson.M{
+					"active":    bson.M{"$exists": true},
+					"dedupeKey": bson.M{"$exists": true},
+				}),
 		},
 		{
 			Keys: bson.D{{Key: "finishedAt", Value: 1}},
@@ -124,6 +131,35 @@ func Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, 
 	}
 
 	return existing.ID.Hex(), nil
+}
+
+// FindByDedupeKey returns the newest task with this key whatever its status, or
+// nil if there is none.
+//
+// Enqueue can only adopt an *active* task, because that is all the unique index
+// constrains. A caller that lost the id of a task which has since finished would
+// therefore enqueue a duplicate and re-run work that already succeeded. Looking
+// the task up by key, terminal or not, closes that window. Safe because the only
+// keys in use are unique for all time (workflow id + action index).
+func FindByDedupeKey(agentID bson.ObjectID, dedupeKey string) (*v2.AgentTaskSchema, error) {
+	if dedupeKey == "" {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	opts := options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+
+	task := &v2.AgentTaskSchema{}
+	err := collection().FindOne(ctx, bson.M{"agentId": agentID, "dedupeKey": dedupeKey}, opts).Decode(task)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return task, nil
 }
 
 func Get(taskID string) (*v2.AgentTaskSchema, error) {

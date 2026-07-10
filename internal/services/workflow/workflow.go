@@ -317,9 +317,8 @@ func (a WaitForOnlineAction) Execute(action *v2.WorkflowAction, d interface{}, t
 // Execute enqueues the task on first run, then polls it to a terminal status.
 //
 // Storing TaskID on the action is what makes a step re-run idempotent: without
-// it, every pass through this function appended a fresh task. Enqueue is itself
-// idempotent on the dedupe key, which covers the crash-between-write-and-persist
-// window.
+// it, every pass through this function appended a fresh task. The dedupe key is
+// the backstop for the window where the id is lost before it is persisted.
 func (a AgentTaskAction) Execute(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema, wctx v2.WorkflowContext) error {
 	workflowData := d.(*v2.CreateAgentWorkflowData)
 
@@ -334,21 +333,36 @@ func (a AgentTaskAction) Execute(action *v2.WorkflowAction, d interface{}, theAc
 	}
 
 	if action.TaskID == "" {
-		taskID, err := agenttask.Enqueue(
-			theAgent.ID,
-			theAccount.ID,
-			action.TaskAction,
-			action.TaskData,
-			agenttask.WorkflowDedupeKey(wctx.WorkflowID, wctx.ActionIdx),
-			v2.TaskTrigger{Type: v2.TaskTriggerWorkflow, WorkflowID: &wctx.WorkflowID},
-		)
+		dedupeKey := agenttask.WorkflowDedupeKey(wctx.WorkflowID, wctx.ActionIdx)
+
+		// The id can be lost between Enqueue returning and this workflow doc
+		// being persisted. Enqueue alone would only recover it while the task is
+		// still active, so a task that finished inside that window would be run
+		// a second time. Adopt by key instead, whatever the task's status.
+		existing, err := agenttask.FindByDedupeKey(theAgent.ID, dedupeKey)
 		if err != nil {
 			return err
 		}
 
-		action.TaskID = taskID
-		logger.GetInfoLogger().Printf("workflow enqueued task %s (%s) for agent %s", taskID, action.TaskAction, theAgent.AgentName)
-		return nil
+		if existing != nil {
+			action.TaskID = existing.ID.Hex()
+		} else {
+			taskID, err := agenttask.Enqueue(
+				theAgent.ID,
+				theAccount.ID,
+				action.TaskAction,
+				action.TaskData,
+				dedupeKey,
+				v2.TaskTrigger{Type: v2.TaskTriggerWorkflow, WorkflowID: &wctx.WorkflowID},
+			)
+			if err != nil {
+				return err
+			}
+
+			action.TaskID = taskID
+			logger.GetInfoLogger().Printf("workflow enqueued task %s (%s) for agent %s", taskID, action.TaskAction, theAgent.AgentName)
+			return nil
+		}
 	}
 
 	theTask, err := agenttask.Get(action.TaskID)
