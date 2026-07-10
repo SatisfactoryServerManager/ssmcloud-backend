@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.91
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.92
 	github.com/TwiN/go-away v1.8.1
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.29
@@ -20,7 +20,7 @@ require (
 	github.com/mrhid6/go-mongoose v0.1.0
 	github.com/mrhid6/go-mongoose-lock v0.0.6
 	github.com/satisfactorymodding/ficsit-resolver v0.0.6
-	go.mongodb.org/mongo-driver/v2 v2.7.0
+	go.mongodb.org/mongo-driver/v2 v2.8.0
 	google.golang.org/grpc v1.82.0
 )
 
