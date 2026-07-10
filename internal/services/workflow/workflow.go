@@ -226,9 +226,12 @@ func findAgentIdByAPIKey(apiKey string) (bson.ObjectID, error) {
 func executeWorkflowAction(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema, wctx v2.WorkflowContext) {
 	handler, ok := workflowActionRegistry[action.Type]
 	if !ok {
+		// Returning matters: a workflow persisted before the action types were
+		// collapsed still names install-server and friends, and falling through
+		// would call Execute on a nil handler.
 		action.Status = "failed"
 		action.ErrorMessage = "unknown action type: " + action.Type
-
+		return
 	}
 
 	err := handler.Execute(action, d, theAccount, wctx)
