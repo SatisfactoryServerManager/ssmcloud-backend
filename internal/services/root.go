@@ -3,6 +3,7 @@ package services
 import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/account"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/mod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/storage"
@@ -12,6 +13,9 @@ import (
 func InitAllServices() {
 	storage.InitStorageService()
 	agent.InitAgentService()
+	if err := agenttask.InitAgentTaskService(); err != nil {
+		panic(err)
+	}
 	account.InitAccountService()
 
 	mod.InitModService()
@@ -30,6 +34,10 @@ func ShutdownAllServices() error {
 	}
 
 	if err := account.ShutdownAccountService(); err != nil {
+		return err
+	}
+
+	if err := agenttask.ShutdownAgentTaskService(); err != nil {
 		return err
 	}
 
