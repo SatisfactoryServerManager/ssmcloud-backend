@@ -167,6 +167,22 @@ func GetAgentByAPIKey(agentAPIKey string) (*modelsv2.AgentSchema, error) {
 	return theAgent, nil
 }
 
+// GetAccountIDForAgent resolves the account that owns an agent. The agent
+// document has no back-pointer; ownership lives in the account's agents array.
+func GetAccountIDForAgent(agentID bson.ObjectID) (bson.ObjectID, error) {
+	AccountModel, err := repositories.GetMongoClient().GetModel("Account")
+	if err != nil {
+		return bson.ObjectID{}, err
+	}
+
+	theAccount := &modelsv2.AccountSchema{}
+	if err := AccountModel.FindOne(theAccount, bson.M{"agents": agentID}); err != nil {
+		return bson.ObjectID{}, err
+	}
+
+	return theAccount.ID, nil
+}
+
 func UpdateAgentLastComm(agentAPIKey string) error {
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
 	if err != nil {

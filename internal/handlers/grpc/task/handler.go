@@ -10,6 +10,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
+	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -63,6 +64,8 @@ func (s *Handler) SubscribeTasks(in *pb.SubscribeTasksRequest, stream pb.AgentTa
 	if err := setConnection(theAgent.ID, streamID); err != nil {
 		return err
 	}
+
+	enqueueBootUpdate(theAgent, in.SessionId)
 
 	ch, deregister := agenttask.GetRegistry().Add(theAgent.ID)
 	defer func() {
@@ -152,6 +155,32 @@ func (s *Handler) RenewTaskLease(ctx context.Context, in *pb.TaskLeaseRequest) (
 	}
 
 	return &pb.TaskLeaseResponse{Ok: ok, CancelRequested: cancelRequested}, nil
+}
+
+// enqueueBootUpdate honours ServerConfig.UpdateOnStart, which used to be the
+// agent's own boot-time install. It is backend policy now.
+//
+// Skipped when nothing is installed: updatesfserver fails on a bare machine, and
+// the install task (from the workflow or the user) owns that case. Keyed on the
+// agent's session id, so a reconnect loop cannot stack up update tasks.
+func enqueueBootUpdate(theAgent *v2.AgentSchema, sessionID string) {
+	if !theAgent.ServerConfig.UpdateOnStart || !theAgent.Status.Installed || sessionID == "" {
+		return
+	}
+
+	accountID, err := agent.GetAccountIDForAgent(theAgent.ID)
+	if err != nil {
+		logger.GetErrorLogger().Printf("error resolving account for agent %s: %s", theAgent.ID.Hex(), err.Error())
+		return
+	}
+
+	if _, err := agenttask.Enqueue(
+		theAgent.ID, accountID, "updatesfserver", nil,
+		agenttask.BootUpdateDedupeKey(sessionID),
+		v2.TaskTrigger{Type: v2.TaskTriggerSystem},
+	); err != nil {
+		logger.GetErrorLogger().Printf("error enqueuing boot update for agent %s: %s", theAgent.ID.Hex(), err.Error())
+	}
 }
 
 func setConnection(agentID bson.ObjectID, streamID string) error {
