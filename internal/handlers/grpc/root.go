@@ -32,5 +32,8 @@ func ShutdownGRPCServices() {
 	logger.GetDebugLogger().Println("Shutting down all gRPC handlers")
 	state.ShutdownAgentStateHandler()
 	logs.ShutdownAgentLogHandler()
+	// Must run before GracefulStop: it waits on in-flight RPCs, and a task
+	// subscription is a stream that would never return.
+	task.ShutdownTaskHandler()
 	logger.GetDebugLogger().Println("Shutdown all gRPC handlers")
 }

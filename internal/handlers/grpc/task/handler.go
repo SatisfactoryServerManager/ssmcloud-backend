@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
@@ -22,6 +23,20 @@ type Handler struct {
 // replicaID identifies this process in agent.connectedTo. It only needs to be
 // unique per running replica, not stable across restarts.
 var replicaID = bson.NewObjectID().Hex()
+
+// shutdown releases every open task stream. grpcServer.GracefulStop() waits for
+// in-flight RPCs to return, and a subscription never returns on its own, so
+// without this the backend hangs until the shutdown timeout force-exits it.
+var (
+	shutdown     = make(chan struct{})
+	shutdownOnce sync.Once
+)
+
+// ShutdownTaskHandler closes every subscription so GracefulStop can complete.
+// The agents reconnect to another replica; their leases are untouched.
+func ShutdownTaskHandler() {
+	shutdownOnce.Do(func() { close(shutdown) })
+}
 
 // SubscribeTasks holds the stream open for the agent's lifetime, forwarding
 // assignments the dispatcher claims for it.
@@ -90,6 +105,10 @@ func (s *Handler) SubscribeTasks(in *pb.SubscribeTasksRequest, stream pb.AgentTa
 			}
 
 		case <-stream.Context().Done():
+			return nil
+
+		case <-shutdown:
+			logger.GetInfoLogger().Printf("closing task stream for agent %s: replica shutting down", theAgent.AgentName)
 			return nil
 		}
 	}

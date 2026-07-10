@@ -5,16 +5,23 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 )
 
-// operation is a clean up function on shutting down
+// CleanupOperation is a clean up function on shutting down
 type CleanupOperation func(ctx context.Context) error
 
-// gracefulShutdown waits for termination syscalls and doing clean up operations after received it
-func GracefulShutdown(ctx context.Context, timeout time.Duration, ops map[string]CleanupOperation) <-chan struct{} {
+// NamedOperation is one shutdown step. Order matters, so the caller supplies a
+// slice: these used to run concurrently off a map, which let the gRPC server
+// stop while the services still had work in flight.
+type NamedOperation struct {
+	Name string
+	Op   CleanupOperation
+}
+
+// GracefulShutdown waits for a termination syscall, then runs ops in the order given.
+func GracefulShutdown(ctx context.Context, timeout time.Duration, ops []NamedOperation) <-chan struct{} {
 	wait := make(chan struct{})
 	go func() {
 		s := make(chan os.Signal, 1)
@@ -33,27 +40,18 @@ func GracefulShutdown(ctx context.Context, timeout time.Duration, ops map[string
 
 		defer timeoutFunc.Stop()
 
-		var wg sync.WaitGroup
+		for _, entry := range ops {
+			log.Printf("cleaning up: %s", entry.Name)
 
-		// Do the operations asynchronously to save time
-		for key, op := range ops {
-			wg.Add(1)
-			innerOp := op
-			innerKey := key
-			go func() {
-				defer wg.Done()
+			// A failed step must not abort the rest: the later steps are the ones
+			// that release leases and mark the agent offline.
+			if err := entry.Op(ctx); err != nil {
+				log.Printf("%s: clean up failed: %s", entry.Name, err.Error())
+				continue
+			}
 
-				log.Printf("cleaning up: %s", innerKey)
-				if err := innerOp(ctx); err != nil {
-					log.Printf("%s: clean up failed: %s", innerKey, err.Error())
-					return
-				}
-
-				log.Printf("%s was shutdown gracefully", innerKey)
-			}()
+			log.Printf("%s was shutdown gracefully", entry.Name)
 		}
-
-		wg.Wait()
 
 		close(wait)
 	}()

@@ -91,18 +91,21 @@ func main() {
 		}
 	}()
 
-	wait := cleanup.GracefulShutdown(context.Background(), 30*time.Second, map[string]cleanup.CleanupOperation{
-		"gin": func(ctx context.Context) error {
+	// Order matters. Stop taking HTTP work, then stop the dispatcher and reaper so
+	// nothing new is claimed for an agent we are about to disconnect, and only then
+	// close the agent streams and the gRPC server.
+	wait := cleanup.GracefulShutdown(context.Background(), 30*time.Second, []cleanup.NamedOperation{
+		{Name: "gin", Op: func(ctx context.Context) error {
 			return srv.Shutdown(ctx)
-		},
-		"grpc": func(ctx context.Context) error {
+		}},
+		{Name: "services", Op: func(ctx context.Context) error {
+			return services.ShutdownAllServices()
+		}},
+		{Name: "grpc", Op: func(ctx context.Context) error {
 			grpcHandler.ShutdownGRPCServices()
 			grpcServer.GracefulStop()
 			return nil
-		},
-		"services": func(ctx context.Context) error {
-			return services.ShutdownAllServices()
-		},
+		}},
 	})
 
 	<-wait
