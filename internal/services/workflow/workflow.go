@@ -173,6 +173,7 @@ func ProcessWorkflow(workflow *v2.WorkflowSchema) error {
 	dbUpdate := bson.M{
 		"status":  workflow.Status,
 		"actions": workflow.Actions,
+		"agentId": workflow.AgentId,
 	}
 
 	if err := WorkflowModel.UpdateData(workflow, dbUpdate); err != nil {
@@ -202,6 +203,29 @@ func processWorkflow_CreateAgent(workflow *v2.WorkflowSchema, theAccount *v2.Acc
 	action := &workflow.Actions[currentActionIndex]
 
 	executeWorkflowAction(action, &workflowData, theAccount)
+
+	// The agent only exists once the create-agent action has run. Link it to the
+	// workflow so the server page can find the workflow it was created by.
+	if workflow.AgentId.IsZero() {
+		if agentId, err := findAgentIdByAPIKey(workflowData.APIKey); err == nil {
+			workflow.AgentId = agentId
+		}
+	}
+}
+
+func findAgentIdByAPIKey(apiKey string) (bson.ObjectID, error) {
+	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
+	if err != nil {
+		return bson.ObjectID{}, err
+	}
+
+	theAgent := &v2.AgentSchema{}
+
+	if err := AgentModel.FindOne(theAgent, bson.M{"apiKey": apiKey}); err != nil {
+		return bson.ObjectID{}, err
+	}
+
+	return theAgent.ID, nil
 }
 
 func executeWorkflowAction(action *v2.WorkflowAction, d interface{}, theAccount *v2.AccountSchema) {

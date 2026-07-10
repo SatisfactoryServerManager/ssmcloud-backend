@@ -25,6 +25,7 @@ import (
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/utils/mapper"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -976,6 +977,37 @@ func (s *Handler) GetAgentWorkflow(ctx context.Context, in *pb.GetAgentWorkflowR
 	theWorkflow := &modelsV2.WorkflowSchema{}
 
 	if err := WorkflowModel.FindOne(theWorkflow, bson.M{"_id": WorkflowId}); err != nil {
+		return nil, err
+	}
+
+	return &pb.GetAgentWorkflowResponse{
+		Workflow: mapper.MapWorkflowToProto(theWorkflow),
+	}, nil
+}
+
+func (s *Handler) GetAgentWorkflowByAgent(ctx context.Context, in *pb.GetAgentWorkflowByAgentRequest) (*pb.GetAgentWorkflowResponse, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	WorkflowModel, err := repositories.GetMongoClient().GetModel("Workflow")
+	if err != nil {
+		return nil, err
+	}
+
+	AgentId, err := bson.ObjectIDFromHex(in.AgentId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	theWorkflow := &modelsV2.WorkflowSchema{}
+
+	if err := WorkflowModel.FindOne(theWorkflow, bson.M{"agentId": AgentId}); err != nil {
+		// Agents created before workflows existed have none. Not an error.
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return &pb.GetAgentWorkflowResponse{}, nil
+		}
 		return nil, err
 	}
 
