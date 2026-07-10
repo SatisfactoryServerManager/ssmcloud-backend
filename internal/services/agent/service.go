@@ -18,7 +18,6 @@ import (
 
 var (
 	checkAllAgentsLastCommsJob *joblock.JobLockTask
-	purgeAgentTasksJob         *joblock.JobLockTask
 	checkAgentModsConfigsJob   *joblock.JobLockTask
 	checkAgentVersionsJob      *joblock.JobLockTask
 	uploadPendingLogsJob       *joblock.JobLockTask
@@ -30,18 +29,6 @@ func InitAgentService() {
 		repositories.GetMongoClient(),
 		"checkAllAgentsLastCommsJob", func() {
 			if err := CheckAllAgentsLastComms(); err != nil {
-				logger.GetErrorLogger().Println(err)
-			}
-		},
-		30*time.Second,
-		1*time.Minute,
-		false,
-	)
-
-	purgeAgentTasksJob, _ = joblock.NewJobLockTask(
-		repositories.GetMongoClient(),
-		"purgeAgentTasksJob", func() {
-			if err := PurgeAgentTasks(); err != nil {
 				logger.GetErrorLogger().Println(err)
 			}
 		},
@@ -78,9 +65,6 @@ func InitAgentService() {
 	if err := checkAllAgentsLastCommsJob.Run(ctx); err != nil {
 		logger.GetErrorLogger().Printf("%v", err.Error())
 	}
-	if err := purgeAgentTasksJob.Run(ctx); err != nil {
-		logger.GetErrorLogger().Printf("%v", err.Error())
-	}
 	if err := checkAgentModsConfigsJob.Run(ctx); err != nil {
 		logger.GetErrorLogger().Printf("%v", err.Error())
 	}
@@ -109,7 +93,6 @@ func ShutdownAgentService() error {
 	ctx := context.Background()
 
 	checkAllAgentsLastCommsJob.UnLock(ctx)
-	purgeAgentTasksJob.UnLock(ctx)
 	checkAgentModsConfigsJob.UnLock(ctx)
 	checkAgentVersionsJob.UnLock(ctx)
 	uploadPendingLogsJob.UnLock(ctx)
@@ -175,53 +158,6 @@ func CheckAllAgentsLastComms() error {
 				}
 			}
 		}
-	}
-
-	return nil
-}
-
-func PurgeAgentTasks() error {
-
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
-	if err != nil {
-		return err
-	}
-
-	allAgents := make([]modelsv2.AgentSchema, 0)
-
-	if err := AgentModel.FindAll(&allAgents, bson.M{}); err != nil {
-		return err
-	}
-
-	for idx := range allAgents {
-		agent := &allAgents[idx]
-
-		if len(agent.Tasks) == 0 {
-			continue
-		}
-
-		newTaskList := make([]modelsv2.AgentTask, 0)
-		for _, task := range agent.Tasks {
-
-			if task.Completed || task.Retries > 30 {
-				continue
-			}
-
-			newTaskList = append(newTaskList, task)
-		}
-
-		if len(agent.Tasks) != len(newTaskList) {
-
-			dbUpdate := bson.M{
-				"tasks":     newTaskList,
-				"updatedAt": time.Now(),
-			}
-
-			if err := AgentModel.UpdateData(agent, dbUpdate); err != nil {
-				return err
-			}
-		}
-
 	}
 
 	return nil
