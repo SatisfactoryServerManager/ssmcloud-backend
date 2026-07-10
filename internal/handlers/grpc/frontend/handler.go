@@ -13,6 +13,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	accountsvc "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/account"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/mod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/user"
@@ -396,43 +397,156 @@ func (s *Handler) GetAgentStats(ctx context.Context, in *pb.GetAgentStatsRequest
 	}, nil
 }
 
-func (s *Handler) CreateAgentTask(ctx context.Context, in *pb.CreateAgentTaskRequest) (*pbModels.SSMEmpty, error) {
+// resolveAgentForUser asserts the caller's active account owns the agent.
+func (s *Handler) resolveAgentForUser(eid, agentID string) (*modelsV2.AgentSchema, *modelsV2.AccountSchema, error) {
+	oid, err := bson.ObjectIDFromHex(agentID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	theUser, err := user.GetUser(bson.ObjectID{}, eid, "", "")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	theAccount, err := accountsvc.GetUserActiveAccount(theUser)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	agents, err := agent.GetUserAccountAgents(theAccount, oid)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(agents) == 0 {
+		return nil, nil, fmt.Errorf("agent not found")
+	}
+
+	return agents[0], theAccount, nil
+}
+
+// resolveTaskForUser asserts the caller's active account owns the task. The task
+// collection is cross-account, so this is the authz boundary.
+func (s *Handler) resolveTaskForUser(eid, taskID string) (*modelsV2.AgentTaskSchema, error) {
+	theUser, err := user.GetUser(bson.ObjectID{}, eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	theAccount, err := accountsvc.GetUserActiveAccount(theUser)
+	if err != nil {
+		return nil, err
+	}
+
+	theTask, err := agenttask.Get(taskID)
+	if err != nil {
+		return nil, err
+	}
+	if theTask == nil {
+		return nil, fmt.Errorf("task not found")
+	}
+
+	if theTask.AccountID != theAccount.ID {
+		return nil, fmt.Errorf("task not found")
+	}
+	return theTask, nil
+}
+
+func (s *Handler) CreateAgentTask(ctx context.Context, in *pb.CreateAgentTaskRequest) (*pb.CreateAgentTaskResponse, error) {
 	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
-	oid, err := bson.ObjectIDFromHex(in.AgentId)
+	theAgent, theAccount, err := s.resolveAgentForUser(in.Eid, in.AgentId)
 	if err != nil {
 		return nil, err
 	}
 
-	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
-
+	id, err := agent.CreateAgentTask(theAgent, theAccount, in.Eid, in.Action, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := accountsvc.GetUserActiveAccount(theUser)
+	return &pb.CreateAgentTaskResponse{TaskId: id}, nil
+}
+
+func (s *Handler) GetAgentTasks(ctx context.Context, in *pb.GetAgentTasksRequest) (*pb.GetAgentTasksResponse, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	theAgent, _, err := s.resolveAgentForUser(in.Eid, in.AgentId)
 	if err != nil {
 		return nil, err
-
 	}
 
-	agents, err := agent.GetUserAccountAgents(account, oid)
+	limit := in.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	tasks, err := agenttask.ListForAgent(theAgent.ID, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(agents) == 0 {
-		return nil, errors.New("agent not found")
+	res := &pb.GetAgentTasksResponse{}
+	for idx := range tasks {
+		t := &tasks[idx]
+
+		view := &pb.AgentTaskView{
+			Id:                    t.ID.Hex(),
+			Action:                t.Action,
+			Status:                t.Status,
+			Progress:              t.Progress,
+			Message:               t.Message,
+			LastError:             t.LastError,
+			Attempts:              int32(t.Attempts),
+			MaxAttempts:           int32(t.MaxAttempts),
+			TriggeredByType:       t.TriggeredBy.Type,
+			TriggeredByExternalId: t.TriggeredBy.ExternalID,
+			CreatedAt:             t.CreatedAt.Unix(),
+		}
+		if t.StartedAt != nil {
+			view.StartedAt = t.StartedAt.Unix()
+		}
+		if t.FinishedAt != nil {
+			view.FinishedAt = t.FinishedAt.Unix()
+		}
+
+		res.Tasks = append(res.Tasks, view)
 	}
 
-	theAgent := agents[0]
+	return res, nil
+}
 
-	if _, err := agent.CreateAgentTask(theAgent, account, in.Eid, in.Action, nil); err != nil {
+func (s *Handler) CancelAgentTask(ctx context.Context, in *pb.CancelAgentTaskRequest) (*pbModels.SSMEmpty, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
 		return nil, err
 	}
 
+	if _, err := s.resolveTaskForUser(in.Eid, in.TaskId); err != nil {
+		return nil, err
+	}
+
+	if err := agenttask.Cancel(in.TaskId); err != nil {
+		return nil, err
+	}
+	return &pbModels.SSMEmpty{}, nil
+}
+
+func (s *Handler) RetryAgentTask(ctx context.Context, in *pb.RetryAgentTaskRequest) (*pbModels.SSMEmpty, error) {
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	if _, err := s.resolveTaskForUser(in.Eid, in.TaskId); err != nil {
+		return nil, err
+	}
+
+	if err := agenttask.Retry(in.TaskId); err != nil {
+		return nil, err
+	}
 	return &pbModels.SSMEmpty{}, nil
 }
 
