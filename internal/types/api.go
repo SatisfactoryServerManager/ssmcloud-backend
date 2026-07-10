@@ -21,10 +21,6 @@ type API_AgentStatus_PutData struct {
 	LatestSFVersion    int64   `json:"latestSFVersion"`
 }
 
-type API_AgentTaskItem_PutData struct {
-	Item modelsv2.AgentTask `json:"item"`
-}
-
 type API_AgentConfig_ResData struct {
 	Config       modelsv2.AgentConfig       `json:"config"`
 	ServerConfig modelsv2.AgentServerConfig `json:"serverConfig"`
