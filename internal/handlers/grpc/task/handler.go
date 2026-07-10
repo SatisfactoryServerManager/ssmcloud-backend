@@ -12,6 +12,7 @@ import (
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"google.golang.org/grpc/metadata"
 )
 
 type Handler struct {
@@ -39,17 +40,29 @@ func (s *Handler) SubscribeTasks(in *pb.SubscribeTasksRequest, stream pb.AgentTa
 		return err
 	}
 
-	if err := setConnection(theAgent.ID, in.ConnectionId); err != nil {
+	// Minted here, not taken from the request: the agent reuses one session id for
+	// its whole process, so a client-supplied id cannot distinguish an old stream
+	// from the reconnect that replaced it.
+	streamID := bson.NewObjectID().Hex()
+
+	if err := setConnection(theAgent.ID, streamID); err != nil {
 		return err
 	}
 
-	ch, deregister := agenttask.GetRegistry().Add(theAgent.ID, in.ConnectionId)
+	ch, deregister := agenttask.GetRegistry().Add(theAgent.ID)
 	defer func() {
 		deregister()
-		clearConnection(theAgent.ID, in.ConnectionId)
+		clearConnection(theAgent.ID, streamID)
 	}()
 
-	logger.GetInfoLogger().Printf("agent %s subscribed to tasks (conn %s)", theAgent.AgentName, in.ConnectionId)
+	// Flush headers now rather than letting gRPC send them with the first
+	// assignment. This is the agent's "you are subscribed" ack: without it an
+	// idle stream is indistinguishable, client-side, from one that never came up.
+	if err := stream.SendHeader(metadata.MD{}); err != nil {
+		return err
+	}
+
+	logger.GetInfoLogger().Printf("agent %s subscribed to tasks (session %s, stream %s)", theAgent.AgentName, in.SessionId, streamID)
 
 	for {
 		select {
@@ -122,26 +135,26 @@ func (s *Handler) RenewTaskLease(ctx context.Context, in *pb.TaskLeaseRequest) (
 	return &pb.TaskLeaseResponse{Ok: ok, CancelRequested: cancelRequested}, nil
 }
 
-func setConnection(agentID bson.ObjectID, connectionID string) error {
+func setConnection(agentID bson.ObjectID, streamID string) error {
 	col := repositories.GetMongoClient().GetCollection("agents")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	_, err := col.UpdateOne(ctx,
 		bson.M{"_id": agentID},
-		bson.M{"$set": bson.M{"connectedTo": replicaID, "connectionId": connectionID, "updatedAt": time.Now()}})
+		bson.M{"$set": bson.M{"connectedTo": replicaID, "connectionId": streamID, "updatedAt": time.Now()}})
 	return err
 }
 
-// clearConnection only detaches if this connection is still the current one, so
-// a slow teardown cannot detach a freshly reconnected agent.
-func clearConnection(agentID bson.ObjectID, connectionID string) {
+// clearConnection only detaches if this stream is still the current one, so a
+// slow teardown cannot detach a freshly reconnected agent.
+func clearConnection(agentID bson.ObjectID, streamID string) {
 	col := repositories.GetMongoClient().GetCollection("agents")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if _, err := col.UpdateOne(ctx,
-		bson.M{"_id": agentID, "connectionId": connectionID},
+		bson.M{"_id": agentID, "connectionId": streamID},
 		bson.M{"$unset": bson.M{"connectedTo": "", "connectionId": ""}}); err != nil {
 		logger.GetErrorLogger().Printf("error clearing agent connection: %s", err.Error())
 	}

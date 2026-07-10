@@ -36,8 +36,9 @@ func WorkflowDedupeKey(workflowID bson.ObjectID, actionIdx int) string {
 	return fmt.Sprintf("workflow:%s:%d", workflowID.Hex(), actionIdx)
 }
 
-// BootUpdateDedupeKey scopes the UpdateOnStart task to one connection, so a
-// reconnect loop cannot queue a stack of update tasks.
-func BootUpdateDedupeKey(connectionID string) string {
-	return "boot-update:" + connectionID
+// BootUpdateDedupeKey scopes the UpdateOnStart task to one agent process, so a
+// reconnect loop cannot queue a stack of update tasks. It keys on the agent's
+// session id, which survives reconnects, and not on the per-stream id.
+func BootUpdateDedupeKey(sessionID string) string {
+	return "boot-update:" + sessionID
 }

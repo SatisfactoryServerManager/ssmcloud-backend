@@ -18,8 +18,7 @@ type Assignment struct {
 }
 
 type streamEntry struct {
-	connectionID string
-	ch           chan Assignment
+	ch chan Assignment
 }
 
 // Registry tracks which agents have a live task stream on *this* replica.
@@ -33,26 +32,29 @@ var registry = &Registry{streams: map[bson.ObjectID]*streamEntry{}}
 func GetRegistry() *Registry { return registry }
 
 // Add registers a stream and returns the receive channel plus a deregister func.
-// The deregister func only removes the entry if connectionID still matches, so a
-// slow teardown of an old stream cannot detach a freshly reconnected agent.
-func (r *Registry) Add(agentID bson.ObjectID, connectionID string) (<-chan Assignment, func()) {
-	ch := make(chan Assignment, 1)
+//
+// The deregister func removes the entry only if it is still *this* entry, using
+// pointer identity rather than any id the agent supplies. An agent that
+// reconnects before its old server-side stream has torn down would otherwise
+// have the old teardown evict and close the new, healthy stream.
+func (r *Registry) Add(agentID bson.ObjectID) (<-chan Assignment, func()) {
+	entry := &streamEntry{ch: make(chan Assignment, 1)}
 
 	r.mu.Lock()
-	r.streams[agentID] = &streamEntry{connectionID: connectionID, ch: ch}
+	r.streams[agentID] = entry
 	r.mu.Unlock()
 
 	remove := func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 
-		if e, ok := r.streams[agentID]; ok && e.connectionID == connectionID {
+		if r.streams[agentID] == entry {
 			delete(r.streams, agentID)
-			close(e.ch)
+			close(entry.ch)
 		}
 	}
 
-	return ch, remove
+	return entry.ch, remove
 }
 
 func (r *Registry) Has(agentID bson.ObjectID) bool {
