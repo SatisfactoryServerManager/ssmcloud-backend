@@ -54,9 +54,19 @@ func ReapExpiredLeases() error {
 			}
 		}
 
-		// Fence on the token we read, so we never clobber a task the agent just
-		// renewed.
-		fence := bson.M{"_id": task.ID, "leaseToken": task.LeaseToken, "status": v2.TaskStatusRunning}
+		// Fence on the token we read AND on the lease still being expired.
+		//
+		// The token alone is not enough: RenewLease does not rotate it, so an agent
+		// that renews between our Find and this UpdateOne would still match the
+		// filter and have its live task yanked back to pending. Re-checking
+		// leaseExpiresAt closes that window — a renewal pushes the expiry into the
+		// future and this write becomes a no-op.
+		fence := bson.M{
+			"_id":            task.ID,
+			"leaseToken":     task.LeaseToken,
+			"status":         v2.TaskStatusRunning,
+			"leaseExpiresAt": bson.M{"$lt": now},
+		}
 		if _, err := collection().UpdateOne(ctx, fence, update); err != nil {
 			return err
 		}

@@ -31,8 +31,16 @@ func notifyEnqueued(agentID bson.ObjectID) {
 	if !registry.Has(agentID) {
 		return
 	}
+
+	// Snapshot wake under the lock: StartDispatcher reassigns it on a
+	// start/stop/start cycle, and reading the package var unsynchronized would
+	// race with that reassignment.
+	lifecycleMu.Lock()
+	w := wake
+	lifecycleMu.Unlock()
+
 	select {
-	case wake <- agentID:
+	case w <- agentID:
 	default: // wake channel full; the tick will catch it
 	}
 }
@@ -45,6 +53,11 @@ func StartDispatcher() {
 	wake = make(chan bson.ObjectID, 64)
 	dispDone = make(chan struct{})
 	stopOnce = sync.Once{}
+	// Snapshot into locals for the goroutine below: it must not read the
+	// package-level wake/dispDone directly, or a subsequent start/stop/start
+	// cycle would race an in-flight goroutine's unsynchronized reads against
+	// this function's reassignment of those vars.
+	w, done := wake, dispDone
 	lifecycleMu.Unlock()
 
 	go func() {
@@ -53,13 +66,13 @@ func StartDispatcher() {
 
 		for {
 			select {
-			case agentID := <-wake:
+			case agentID := <-w:
 				dispatchFor(agentID)
 			case <-ticker.C:
 				for _, agentID := range registry.ConnectedAgents() {
 					dispatchFor(agentID)
 				}
-			case <-dispDone:
+			case <-done:
 				return
 			}
 		}
