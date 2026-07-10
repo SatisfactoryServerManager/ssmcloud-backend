@@ -27,4 +27,4 @@ docker/releases*
 # Local brainstorming/design docs (kept out of git)
 docs/superpowers/
 
-.claude
+.claude.superpowers/
