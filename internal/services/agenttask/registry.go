@@ -75,11 +75,16 @@ func (r *Registry) ConnectedAgents() []bson.ObjectID {
 
 // send delivers an assignment, reporting false if the agent vanished or its
 // buffer is full (which means it already has work in flight).
+//
+// The read lock is held across the select. remove() closes the channel under the
+// write lock, so releasing early would let a disconnecting agent close it between
+// the unlock and the send — a panic, not an error. The select has a default case
+// and never blocks, so holding the lock here is bounded.
 func (r *Registry) send(agentID bson.ObjectID, a Assignment) bool {
 	r.mu.RLock()
-	e, ok := r.streams[agentID]
-	r.mu.RUnlock()
+	defer r.mu.RUnlock()
 
+	e, ok := r.streams[agentID]
 	if !ok {
 		return false
 	}
