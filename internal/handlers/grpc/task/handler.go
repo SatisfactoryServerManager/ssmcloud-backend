@@ -161,8 +161,13 @@ func (s *Handler) RenewTaskLease(ctx context.Context, in *pb.TaskLeaseRequest) (
 // agent's own boot-time install. It is backend policy now.
 //
 // Skipped when nothing is installed: updatesfserver fails on a bare machine, and
-// the install task (from the workflow or the user) owns that case. Keyed on the
-// agent's session id, so a reconnect loop cannot stack up update tasks.
+// the install task (from the workflow or the user) owns that case.
+//
+// Keyed on the agent's session id, so a reconnect loop cannot stack up update
+// tasks while one is still queued. The dedupe index only constrains active tasks,
+// so a reconnect after the update finished does enqueue another; that one is a
+// cheap no-op, since UpdateSFServer returns early when already at the available
+// version.
 func enqueueBootUpdate(theAgent *v2.AgentSchema, sessionID string) {
 	if !theAgent.ServerConfig.UpdateOnStart || !theAgent.Status.Installed || sessionID == "" {
 		return
