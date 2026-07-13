@@ -2,11 +2,13 @@ package agentmod
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -265,43 +267,113 @@ func planFor(running, applyNow bool, pendingSyncID, pendingStartID string) syncP
 // index. Do not add a dedupe key back.
 const syncDedupe = ""
 
-// enqueueSync gathers the four facts planFor needs, then executes its plan.
+// taskQueue is the slice of the agenttask package enqueueSync depends on.
+//
+// It exists so the ORDERING in executePlan — which is the whole of its
+// correctness, and which no pure-decision test can reach — is testable against a
+// fake that simulates the dispatcher claiming the pending start mid-plan. It is
+// NOT an abstraction layer: agentmod still owns no queries against agenttasks.
+type taskQueue interface {
+	ServerIsRunning(agentID bson.ObjectID) (bool, error)
+	ReplacePendingPayload(agentID bson.ObjectID, action string, data interface{}) (string, error)
+	PendingIDByAction(agentID bson.ObjectID, action string) (string, error)
+	Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, dedupeKey string, trigger v2.TaskTrigger, opts agenttask.EnqueueOpts) (string, error)
+	SetGate(taskID string, opts agenttask.EnqueueOpts) (bool, error)
+}
+
+// liveQueue is the production taskQueue: a thin pass-through to agenttask.
+type liveQueue struct{}
+
+func (liveQueue) ServerIsRunning(agentID bson.ObjectID) (bool, error) {
+	return serverIsRunning(agentID)
+}
+
+func (liveQueue) ReplacePendingPayload(agentID bson.ObjectID, action string, data interface{}) (string, error) {
+	return agenttask.ReplacePendingPayload(agentID, action, data)
+}
+
+func (liveQueue) PendingIDByAction(agentID bson.ObjectID, action string) (string, error) {
+	task, err := agenttask.FindPendingByAction(agentID, action)
+	if err != nil || task == nil {
+		return "", err
+	}
+	return task.ID.Hex(), nil
+}
+
+func (liveQueue) Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, dedupeKey string, trigger v2.TaskTrigger, opts agenttask.EnqueueOpts) (string, error) {
+	return agenttask.Enqueue(agentID, accountID, action, data, dedupeKey, trigger, opts)
+}
+
+func (liveQueue) SetGate(taskID string, opts agenttask.EnqueueOpts) (bool, error) {
+	return agenttask.SetGate(taskID, opts)
+}
+
+// errStartClaimed means the pending start executePlan was re-pointing has been
+// claimed since the plan's inputs were read: the game server is booting RIGHT
+// NOW, so the plan's `running=false` is already false, and its gate is wrong. It
+// is never returned to a caller — enqueueSync re-reads and re-plans.
+var errStartClaimed = errors.New("the pending startsfserver was claimed while the plan was executing")
+
+// maxPlanAttempts bounds the re-plan. Each attempt loses only to a start being
+// claimed in its window, which requires an in-flight parent to complete inside
+// it; a pathological flap must fail loudly rather than spin, and must NEVER fall
+// through to inserting an ungated sync.
+const maxPlanAttempts = 3
+
 func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool, trigger v2.TaskTrigger) ([]string, error) {
-	running, err := serverIsRunning(agentID)
-	if err != nil {
-		return nil, err
+	return enqueueSyncWith(liveQueue{}, agentID, accountID, lf, applyNow, trigger)
+}
+
+// enqueueSyncWith gathers the four facts planFor needs, then executes its plan.
+//
+// The plan's inputs are read WITHOUT a lock, so they can go stale before the plan
+// lands: an in-flight sync completing between the read and the re-point cascades
+// the pending start's gate off and the dispatcher claims it, booting the game.
+// executePlan detects exactly that (errStartClaimed) and this loop re-reads —
+// serverIsRunning now reports true, so the new plan gates the sync instead of
+// leaving it claimable over a live server.
+func enqueueSyncWith(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool, trigger v2.TaskTrigger) ([]string, error) {
+	for attempt := 0; attempt < maxPlanAttempts; attempt++ {
+		running, err := q.ServerIsRunning(agentID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Collapses a burst of UI clicks. Matches status=pending only: a running sync's
+		// payload is already in the agent's hands, and its handler reconciles desired
+		// state, so the two converge.
+		pendingSync, err := q.ReplacePendingPayload(agentID, ActionSyncMods, lf)
+		if err != nil {
+			return nil, err
+		}
+
+		pendingStart, err := q.PendingIDByAction(agentID, ActionStart)
+		if err != nil {
+			return nil, err
+		}
+
+		ids, err := executePlan(q, agentID, accountID, lf, trigger, planFor(running, applyNow, pendingSync, pendingStart))
+		if errors.Is(err, errStartClaimed) {
+			continue
+		}
+		return ids, err
 	}
 
-	// Collapses a burst of UI clicks. Matches status=pending only: a running sync's
-	// payload is already in the agent's hands, and its handler reconciles desired
-	// state, so the two converge.
-	pendingSync, err := agenttask.ReplacePendingPayload(agentID, ActionSyncMods, lf)
-	if err != nil {
-		return nil, err
-	}
-
-	pendingStart := ""
-	start, err := agenttask.FindPendingByAction(agentID, ActionStart)
-	if err != nil {
-		return nil, err
-	}
-	if start != nil {
-		pendingStart = start.ID.Hex()
-	}
-
-	return executePlan(agentID, accountID, lf, trigger, planFor(running, applyNow, pendingSync, pendingStart))
+	// Never insert the sync on exhaustion: an ungated syncmods beside a running
+	// game server rewrites the Mods directory underneath it.
+	return nil, fmt.Errorf("could not enqueue a mod sync: the server's task queue kept changing under the plan after %d attempts", maxPlanAttempts)
 }
 
 // executePlan executes a syncPlan. It makes no decisions; the ordering below is
 // the only thing it is responsible for.
-func executePlan(agentID, accountID bson.ObjectID, lf v2.Lockfile, trigger v2.TaskTrigger, p syncPlan) ([]string, error) {
+func executePlan(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, trigger v2.TaskTrigger, p syncPlan) ([]string, error) {
 	ids := make([]string, 0, 3)
 
 	// The chain's stop/start DO want dedupe-adoption: a second "apply now" should
 	// re-point at the same pair rather than litter the task list with duplicates.
 	var stopOID *bson.ObjectID
 	if p.NeedStop {
-		stopID, err := agenttask.Enqueue(agentID, accountID, ActionStop, nil,
+		stopID, err := q.Enqueue(agentID, accountID, ActionStop, nil,
 			"syncchain-stop:"+agentID.Hex(), trigger, agenttask.EnqueueOpts{})
 		if err != nil {
 			return nil, err
@@ -336,23 +408,44 @@ func executePlan(agentID, accountID bson.ObjectID, lf v2.Lockfile, trigger v2.Ta
 		syncOID = oid
 	}
 
+	// LOAD-BEARING no-op check. This start is PRE-EXISTING: it was already pending
+	// when the plan's inputs were read, and nothing here owns it. SetGate matches
+	// status=pending, so `matched == false` means the dispatcher claimed it in the
+	// window between that read and this write — the game server is booting right
+	// now and the plan's `running` is stale. Inserting the sync anyway is the
+	// original bug: an ungated syncmods rewriting Mods under a live game. Abort and
+	// let enqueueSync re-read.
 	if p.RepointStartID != "" {
-		if err := agenttask.SetGate(p.RepointStartID, agenttask.EnqueueOpts{DependsOn: &syncOID}); err != nil {
+		matched, err := q.SetGate(p.RepointStartID, agenttask.EnqueueOpts{DependsOn: &syncOID})
+		if err != nil {
 			return nil, err
+		}
+		if !matched {
+			return nil, errStartClaimed
 		}
 	}
 
 	if p.ReuseSyncID != "" {
-		if err := agenttask.SetGate(p.ReuseSyncID, gate); err != nil {
+		// A no-op here is safe to ignore: the sync being claimed means it is running
+		// with this very payload (ReplacePendingPayload just wrote it), so its gates
+		// have already been evaluated and there is nothing left to gate.
+		if _, err := q.SetGate(p.ReuseSyncID, gate); err != nil {
 			return nil, err
 		}
 	} else {
 		gate.ID = &syncOID
-		if _, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger, gate); err != nil {
-			// The start is now gated behind an _id that will never exist. Release it;
-			// the dead/cancelled cascade's recovery-exempt release covers the rest.
+		if _, err := q.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger, gate); err != nil {
+			// The start is now gated behind an _id that will never exist. Release it, or
+			// the user's server stays down: nothing else recovers this. There is no parent
+			// row to cascade and no running task to reap. If the release ALSO fails, the
+			// reaper's orphaned-gate sweep is the backstop — log loudly, because until it
+			// runs the server is down.
 			if p.RepointStartID != "" {
-				_ = agenttask.SetGate(p.RepointStartID, agenttask.EnqueueOpts{})
+				if _, rerr := q.SetGate(p.RepointStartID, agenttask.EnqueueOpts{}); rerr != nil {
+					logger.GetErrorLogger().Printf(
+						"could not release startsfserver task %s after its syncmods insert failed; it is gated on an _id that will never exist and stays pending until the reaper's orphan sweep: %s",
+						p.RepointStartID, rerr.Error())
+				}
 			}
 			return nil, err
 		}
@@ -360,14 +453,17 @@ func executePlan(agentID, accountID bson.ObjectID, lf v2.Lockfile, trigger v2.Ta
 	ids = append(ids, syncOID.Hex())
 
 	if p.EnsureStart {
-		startID, err := agenttask.Enqueue(agentID, accountID, ActionStart, nil,
+		startID, err := q.Enqueue(agentID, accountID, ActionStart, nil,
 			"syncchain-start:"+agentID.Hex(), trigger, agenttask.EnqueueOpts{DependsOn: &syncOID})
 		if err != nil {
 			return nil, err
 		}
 		// Adoption ignores opts, so an adopted start may still carry a stale gate.
-		// SetGate is idempotent; on the freshly-inserted path this is a free no-op.
-		if err := agenttask.SetGate(startID, agenttask.EnqueueOpts{DependsOn: &syncOID}); err != nil {
+		// Unlike the re-point above, a no-op here is NOT load-bearing: the sync this
+		// start trails is gated (p.EnsureStart only ever comes with gateAfterStop), so
+		// a start that got claimed in this window boots a server the sync cannot yet
+		// touch. On the freshly-inserted path it is a free idempotent no-op.
+		if _, err := q.SetGate(startID, agenttask.EnqueueOpts{DependsOn: &syncOID}); err != nil {
 			return nil, err
 		}
 		ids = append(ids, startID)

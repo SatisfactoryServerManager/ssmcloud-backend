@@ -212,10 +212,18 @@ func ReplacePendingPayload(agentID bson.ObjectID, action string, data interface{
 //
 // The zero EnqueueOpts releases the task. That is also how a caller un-strands a
 // task it gated onto a pre-assigned _id whose insert then failed.
-func SetGate(taskID string, opts EnqueueOpts) error {
+//
+// The bool reports whether the task was still PENDING and so actually re-gated.
+// It is load-bearing, not diagnostic: false means the dispatcher has already
+// claimed the task and it is RUNNING RIGHT NOW. A caller re-gating a pre-existing
+// pending task to keep it behind a task it has not inserted yet MUST treat false
+// as "I lost the race" and abandon the insert — proceeding would leave an ungated
+// syncmods next to a booting game server. Only a caller re-gating a task it just
+// enqueued itself may ignore it.
+func SetGate(taskID string, opts EnqueueOpts) (bool, error) {
 	oid, err := bson.ObjectIDFromHex(taskID)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	set := bson.M{"updatedAt": time.Now()}
@@ -235,10 +243,13 @@ func SetGate(taskID string, opts EnqueueOpts) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err = collection().UpdateOne(ctx,
+	res, err := collection().UpdateOne(ctx,
 		bson.M{"_id": oid, "status": v2.TaskStatusPending},
 		bson.M{"$set": set, "$unset": unset})
-	return err
+	if err != nil {
+		return false, err
+	}
+	return res.MatchedCount > 0, nil
 }
 
 // FindByDedupeKey returns the newest task with this key whatever its status, or

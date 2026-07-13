@@ -7,13 +7,122 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// ReapExpiredLeases returns abandoned tasks to the queue.
+// orphanGracePeriod is how stale a pending task's dependsOn must be before the
+// sweep is willing to call its parent non-existent.
+//
+// It is a correctness guard, not a tuning knob. A caller may deliberately gate a
+// pending task onto a PRE-ASSIGNED _id and insert that parent a moment later
+// (agentmod's executePlan does exactly this, and must, or the dispatcher's
+// oldest-first claim can run the pair backwards). During that window the gate
+// legitimately points at no document. Sweeping on updatedAt age keeps the sweep
+// off any gate young enough for its parent to still be in flight.
+const orphanGracePeriod = 5 * time.Minute
+
+// ReapExpiredLeases returns abandoned tasks to the queue, then releases tasks
+// gated behind a parent that does not exist.
 //
 // The attempt was already spent at claim time, so a crash-looping agent is
 // bounded by MaxAttempts rather than retrying forever.
 func ReapExpiredLeases() error {
+	if err := reapExpiredLeases(); err != nil {
+		return err
+	}
+	return releaseOrphanedGates()
+}
+
+// releaseOrphanedGates makes a pending task whose dependsOn resolves to no
+// document claimable again.
+//
+// Nothing else can recover one. cascadeChildren only fires from a real parent
+// row's terminal transition and reapExpiredLeases only touches RUNNING tasks, so
+// a gate pointing at an _id that was never inserted (a pre-assigned parent whose
+// insert failed, and whose compensating release ALSO failed) has no parent to
+// cascade and no lease to expire: without this sweep the task — in practice the
+// startsfserver that brings the user's game server back up — stays pending
+// forever and the server stays down.
+func releaseOrphanedGates() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cur, err := collection().Find(ctx, bson.M{
+		"status":    v2.TaskStatusPending,
+		"dependsOn": bson.M{"$exists": true},
+		"updatedAt": bson.M{"$lt": time.Now().Add(-orphanGracePeriod)},
+	})
+	if err != nil {
+		return err
+	}
+
+	gated := make([]v2.AgentTaskSchema, 0)
+	if err := cur.All(ctx, &gated); err != nil {
+		return err
+	}
+	if len(gated) == 0 {
+		return nil
+	}
+
+	parentIDs := make([]bson.ObjectID, 0, len(gated))
+	for idx := range gated {
+		if gated[idx].DependsOn != nil {
+			parentIDs = append(parentIDs, *gated[idx].DependsOn)
+		}
+	}
+
+	// One $in over _id: the parents that DO exist. Anything left is orphaned by
+	// definition, whatever status the survivors are in — a live parent will
+	// cascade its own children and needs no help from here.
+	pcur, err := collection().Find(ctx, bson.M{"_id": bson.M{"$in": parentIDs}},
+		options.Find().SetProjection(bson.M{"_id": 1}))
+	if err != nil {
+		return err
+	}
+
+	var parents []struct {
+		ID bson.ObjectID `bson:"_id"`
+	}
+	if err := pcur.All(ctx, &parents); err != nil {
+		return err
+	}
+
+	alive := make(map[bson.ObjectID]struct{}, len(parents))
+	for _, p := range parents {
+		alive[p.ID] = struct{}{}
+	}
+
+	now := time.Now()
+	for idx := range gated {
+		task := &gated[idx]
+		if task.DependsOn == nil {
+			continue
+		}
+		if _, ok := alive[*task.DependsOn]; ok {
+			continue
+		}
+
+		// Fenced on the gate we read: if the real parent completed and cascaded the
+		// gate off in the meantime, this matches nothing rather than clobbering a
+		// gate that has since been re-pointed at a newer parent.
+		res, err := collection().UpdateOne(ctx,
+			bson.M{"_id": task.ID, "status": v2.TaskStatusPending, "dependsOn": *task.DependsOn},
+			bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}})
+		if err != nil {
+			return err
+		}
+		if res.MatchedCount == 0 {
+			continue
+		}
+
+		logger.GetErrorLogger().Printf("released task %s: its dependsOn %s resolves to no task", task.ID.Hex(), task.DependsOn.Hex())
+		notifyEnqueued(task.AgentID)
+	}
+
+	return nil
+}
+
+func reapExpiredLeases() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
