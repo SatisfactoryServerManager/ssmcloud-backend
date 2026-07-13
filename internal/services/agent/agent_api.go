@@ -303,6 +303,7 @@ func CreateAgentTask(theAgent *modelsv2.AgentSchema, theAccount *modelsv2.Accoun
 		data,
 		"", // user-triggered actions are not deduped: asking twice means twice
 		modelsv2.TaskTrigger{Type: modelsv2.TaskTriggerUser, ExternalID: externalID},
+		agenttask.EnqueueOpts{},
 	)
 }
 

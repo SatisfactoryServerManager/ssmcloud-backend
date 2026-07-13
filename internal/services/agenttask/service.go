@@ -90,11 +90,19 @@ func EnsureIndexes() error {
 	return nil
 }
 
+// EnqueueOpts carries the optional gates through to the stored task. Zero
+// value means "claimable as soon as the agent is idle", which is what every
+// existing caller wants.
+type EnqueueOpts struct {
+	DependsOn             *bson.ObjectID
+	RequiresServerStopped bool
+}
+
 // Enqueue creates a pending task. It is idempotent on dedupeKey: if an active
 // task with the same key already exists, its id is returned instead of an error.
 // This closes the window where a workflow step writes a task, crashes before
 // persisting the id, and re-enqueues on restart.
-func Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, dedupeKey string, trigger v2.TaskTrigger) (string, error) {
+func Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, dedupeKey string, trigger v2.TaskTrigger, opts EnqueueOpts) (string, error) {
 	payload := ""
 	if data != nil {
 		b, err := json.Marshal(data)
@@ -104,7 +112,10 @@ func Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, 
 		payload = string(b)
 	}
 
-	doc := v2.NewAgentTaskDoc(agentID, accountID, action, payload, dedupeKey, trigger)
+	doc := v2.NewAgentTaskDoc(agentID, accountID, action, payload, dedupeKey, trigger, v2.AgentTaskOpts{
+		DependsOn:             opts.DependsOn,
+		RequiresServerStopped: opts.RequiresServerStopped,
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -204,18 +215,12 @@ func ListForAgent(agentID bson.ObjectID, limit int64) ([]v2.AgentTaskSchema, err
 // write with E11000 and we report "busy" the same way as "nothing to do". Two
 // replicas racing for the same agent therefore need no coordination: one wins,
 // the other backs off.
-func Claim(agentID bson.ObjectID) (*v2.AgentTaskSchema, error) {
+func Claim(agentID bson.ObjectID, serverRunning bool) (*v2.AgentTaskSchema, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	now := time.Now()
 	token := uuid.NewString()
-
-	filter := bson.M{
-		"agentId":       agentID,
-		"status":        v2.TaskStatusPending,
-		"nextAttemptAt": bson.M{"$lte": now},
-	}
 
 	update := bson.M{
 		"$set": bson.M{
@@ -233,11 +238,11 @@ func Claim(agentID bson.ObjectID) (*v2.AgentTaskSchema, error) {
 		SetReturnDocument(options.After)
 
 	task := &v2.AgentTaskSchema{}
-	err := collection().FindOneAndUpdate(ctx, filter, update, opts).Decode(task)
+	err := collection().FindOneAndUpdate(ctx, claimFilter(agentID, now, serverRunning), update, opts).Decode(task)
 
 	switch {
 	case errors.Is(err, mongo.ErrNoDocuments):
-		return nil, nil // nothing due
+		return nil, nil // nothing due, or everything due is gated
 	case mongo.IsDuplicateKeyError(err):
 		return nil, nil // agent already has a running task
 	case err != nil:
@@ -259,6 +264,11 @@ func fenced(taskID, leaseToken string) (bson.M, error) {
 }
 
 func Complete(taskID, leaseToken string) error {
+	oid, err := bson.ObjectIDFromHex(taskID)
+	if err != nil {
+		return err
+	}
+
 	filter, err := fenced(taskID, leaseToken)
 	if err != nil {
 		return err
@@ -283,6 +293,11 @@ func Complete(taskID, leaseToken string) error {
 	}
 	if res.MatchedCount == 0 {
 		logger.GetDebugLogger().Printf("Complete: stale lease for task %s, ignoring", taskID)
+		return nil
+	}
+
+	if err := cascadeChildren(ctx, oid, v2.TaskStatusCompleted); err != nil {
+		logger.GetErrorLogger().Printf("error cascading children of completed task %s: %s", taskID, err.Error())
 	}
 	return nil
 }
@@ -333,8 +348,20 @@ func Fail(taskID, leaseToken, errMsg string) error {
 		}
 	}
 
-	_, err = collection().UpdateOne(ctx, filter, update)
-	return err
+	if _, err = collection().UpdateOne(ctx, filter, update); err != nil {
+		return err
+	}
+
+	if current.CancelRequested || current.Attempts >= current.MaxAttempts {
+		status := v2.TaskStatusDead
+		if current.CancelRequested {
+			status = v2.TaskStatusCancelled
+		}
+		if err := cascadeChildren(ctx, current.ID, status); err != nil {
+			logger.GetErrorLogger().Printf("error cascading children of failed task %s: %s", taskID, err.Error())
+		}
+	}
+	return nil
 }
 
 // Release returns a task to the queue without spending an attempt. It is the
@@ -426,6 +453,9 @@ func Cancel(taskID string) error {
 		return err
 	}
 	if res.MatchedCount > 0 {
+		if err := cascadeChildren(ctx, oid, v2.TaskStatusCancelled); err != nil {
+			logger.GetErrorLogger().Printf("error cascading children of cancelled task %s: %s", taskID, err.Error())
+		}
 		return nil
 	}
 
@@ -485,4 +515,27 @@ func Retry(taskID string) error {
 	}
 	notifyEnqueued(task.AgentID)
 	return nil
+}
+
+// cascadeChildren resolves the tasks gated behind a task that has just reached a
+// terminal state. On success the gate is simply lifted. On death or cancellation
+// the children are cancelled with the parent, so a cancelled
+// stop -> sync -> start chain never strands the server stopped.
+func cascadeChildren(ctx context.Context, parentID bson.ObjectID, parentStatus string) error {
+	now := time.Now()
+
+	if parentStatus == v2.TaskStatusCompleted {
+		_, err := collection().UpdateMany(ctx,
+			bson.M{"dependsOn": parentID},
+			bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}})
+		return err
+	}
+
+	_, err := collection().UpdateMany(ctx,
+		bson.M{"dependsOn": parentID, "active": bson.M{"$exists": true}},
+		bson.M{
+			"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now, "lastError": "cancelled with its parent task"},
+			"$unset": bson.M{"active": "", "dependsOn": "", "leaseToken": "", "leaseExpiresAt": "", "message": ""},
+		})
+	return err
 }

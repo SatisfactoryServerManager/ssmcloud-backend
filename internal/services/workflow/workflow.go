@@ -354,6 +354,7 @@ func (a AgentTaskAction) Execute(action *v2.WorkflowAction, d interface{}, theAc
 				action.TaskData,
 				dedupeKey,
 				v2.TaskTrigger{Type: v2.TaskTriggerWorkflow, WorkflowID: &wctx.WorkflowID},
+				agenttask.EnqueueOpts{},
 			)
 			if err != nil {
 				return err

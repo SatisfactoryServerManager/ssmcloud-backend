@@ -183,6 +183,7 @@ func enqueueBootUpdate(theAgent *v2.AgentSchema, sessionID string) {
 		theAgent.ID, accountID, "updatesfserver", nil,
 		agenttask.BootUpdateDedupeKey(sessionID),
 		v2.TaskTrigger{Type: v2.TaskTriggerSystem},
+		agenttask.EnqueueOpts{},
 	); err != nil {
 		logger.GetErrorLogger().Printf("error enqueuing boot update for agent %s: %s", theAgent.ID.Hex(), err.Error())
 	}

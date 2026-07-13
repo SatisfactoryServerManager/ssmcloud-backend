@@ -1,9 +1,11 @@
 package agenttask
 
 import (
+	"context"
 	"sync"
 	"time"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -91,11 +93,38 @@ func StopDispatcher() {
 	logger.GetDebugLogger().Println("Stopped agent task dispatcher")
 }
 
+// serverRunning reports the agent's last-known SF process state. It is read
+// straight from the agent document rather than through the agent service, which
+// would be an import cycle.
+func serverRunning(agentID bson.ObjectID) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var doc struct {
+		Status struct {
+			Running bool `bson:"running"`
+		} `bson:"status"`
+	}
+
+	err := repositories.GetMongoClient().
+		GetCollection("agents").
+		FindOne(ctx, bson.M{"_id": agentID}).
+		Decode(&doc)
+	if err != nil {
+		// Unknown state. Assume running, which is the conservative answer: a gated
+		// task waits rather than running against a live server.
+		logger.GetErrorLogger().Printf("error reading server state for agent %s: %s", agentID.Hex(), err.Error())
+		return true
+	}
+
+	return doc.Status.Running
+}
+
 // dispatchFor claims at most one task for the agent and pushes it. Claim returns
 // (nil, nil) when the agent is busy or nothing is due, so this is safe to call
 // as often as we like.
 func dispatchFor(agentID bson.ObjectID) {
-	task, err := Claim(agentID)
+	task, err := Claim(agentID, serverRunning(agentID))
 	if err != nil {
 		logger.GetErrorLogger().Printf("error claiming task for agent %s: %s", agentID.Hex(), err.Error())
 		return
