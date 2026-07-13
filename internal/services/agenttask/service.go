@@ -451,24 +451,28 @@ func Cancel(taskID string) error {
 
 	now := time.Now()
 
-	res, err := collection().UpdateOne(ctx,
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	task := &v2.AgentTaskSchema{}
+	err = collection().FindOneAndUpdate(ctx,
 		bson.M{"_id": oid, "status": v2.TaskStatusPending},
 		bson.M{
 			"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now},
 			"$unset": bson.M{"active": ""},
-		})
-	if err != nil {
-		return err
-	}
-	if res.MatchedCount > 0 {
-		// Cancelled branch never wakes a dispatcher, so the zero-value agentID here is inert.
-		if err := cascadeChildren(ctx, oid, v2.TaskStatusCancelled, bson.ObjectID{}); err != nil {
+		}, opts).Decode(task)
+	if err == nil {
+		// The recovery-exempt startsfserver release (see cascadeChildren) needs the
+		// real agentID to wake the dispatcher; without it the wake is silently
+		// dropped and the recovery start waits for the next tick instead.
+		if err := cascadeChildren(ctx, oid, v2.TaskStatusCancelled, task.AgentID); err != nil {
 			logger.GetErrorLogger().Printf("error cascading children of cancelled task %s: %s", taskID, err.Error())
 		}
 		return nil
 	}
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return err
+	}
 
-	res, err = collection().UpdateOne(ctx,
+	res, err := collection().UpdateOne(ctx,
 		bson.M{"_id": oid, "status": v2.TaskStatusRunning},
 		bson.M{"$set": bson.M{"cancelRequested": true, "updatedAt": now}})
 	if err != nil {
@@ -538,70 +542,63 @@ func Retry(taskID string) error {
 // "dead code cleanup" — it is the fix for that stranding case.
 const recoveryExemptAction = "startsfserver"
 
-// cascadeDecision is what should happen to one gated child when its parent has
-// just reached a terminal state. Pure so the recovery-exemption rule can be
-// tested without a database.
-type cascadeDecision int
-
-const (
-	cascadeRelease cascadeDecision = iota
-	cascadeCancel
-)
-
-// decideCascade returns how a child with the given action should be resolved
-// when its parent finishes with parentStatus. Completed parents always release
-// (the gate lifts, nothing is cancelled). Dead/cancelled parents cancel every
-// child except recoveryExemptAction, which is released instead so it becomes
-// claimable and can bring the server back up.
-func decideCascade(parentStatus string, childAction string) cascadeDecision {
+// cascadeWrites is the single, tested expression of the cascade rule: what
+// should happen to the tasks gated behind a parent that just reached a
+// terminal state. cascadeChildren does nothing but execute what this returns,
+// so there is exactly one place the rule can drift from what is tested.
+//
+// Completed parents simply lift the gate on every child. Dead/cancelled
+// parents cancel every gated child EXCEPT recoveryExemptAction, which is
+// released instead so it becomes claimable and can bring the server back up
+// — see the comment on that constant for why.
+//
+// ORDER MATTERS for the dead/cancelled case, and cascadeChildren executes
+// these ordered: the recovery release must be write [0] and the cancellation
+// of the rest must be write [1]. BulkWrite applies ordered writes in slice
+// order, so a crash between them leaves the recovery start claimable (the
+// server recovers) rather than leaving it gated behind a parent that will
+// never unblock it again (the server stays down). Do not reorder this slice.
+func cascadeWrites(parentID bson.ObjectID, parentStatus string, now time.Time) []mongo.WriteModel {
 	if parentStatus == v2.TaskStatusCompleted {
-		return cascadeRelease
+		return []mongo.WriteModel{
+			mongo.NewUpdateManyModel().
+				SetFilter(bson.M{"dependsOn": parentID}).
+				SetUpdate(bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}}),
+		}
 	}
-	if childAction == recoveryExemptAction {
-		return cascadeRelease
+
+	return []mongo.WriteModel{
+		// [0] MUST run first: release the recovery-exempt child.
+		mongo.NewUpdateManyModel().
+			SetFilter(bson.M{"dependsOn": parentID, "active": bson.M{"$exists": true}, "action": recoveryExemptAction}).
+			SetUpdate(bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}}),
+		// [1] MUST run second: cancel everything else.
+		mongo.NewUpdateManyModel().
+			SetFilter(bson.M{"dependsOn": parentID, "active": bson.M{"$exists": true}, "action": bson.M{"$ne": recoveryExemptAction}}).
+			SetUpdate(bson.M{
+				"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now, "lastError": "cancelled with its parent task"},
+				"$unset": bson.M{"active": "", "dependsOn": "", "leaseToken": "", "leaseExpiresAt": "", "message": ""},
+			}),
 	}
-	return cascadeCancel
 }
 
-// cascadeChildren resolves the tasks gated behind a task that has just reached a
-// terminal state. On success the gate is simply lifted and the dispatcher is
-// woken, since a child may now be immediately claimable. On death or
-// cancellation the children are cancelled with the parent, EXCEPT for a child
-// whose action is recoveryExemptAction — see the comment on that constant for
-// why that one case must be released rather than cancelled.
+// cascadeChildren resolves the tasks gated behind a task that has just reached
+// a terminal state. It only executes cascadeWrites and wakes the dispatcher;
+// the rule itself lives in exactly one place, cascadeWrites, so it can be
+// unit-tested without a database.
 func cascadeChildren(ctx context.Context, parentID bson.ObjectID, parentStatus string, agentID bson.ObjectID) error {
-	now := time.Now()
+	writes := cascadeWrites(parentID, parentStatus, time.Now())
 
-	if parentStatus == v2.TaskStatusCompleted {
-		_, err := collection().UpdateMany(ctx,
-			bson.M{"dependsOn": parentID},
-			bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}})
-		if err != nil {
-			return err
-		}
-		notifyEnqueued(agentID)
-		return nil
-	}
-
-	// Dead or cancelled parent: cancel every gated child except the recovery
-	// exemption, which is released (dependsOn cleared) instead of cancelled.
-	if _, err := collection().UpdateMany(ctx,
-		bson.M{"dependsOn": parentID, "active": bson.M{"$exists": true}, "action": bson.M{"$ne": recoveryExemptAction}},
-		bson.M{
-			"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now, "lastError": "cancelled with its parent task"},
-			"$unset": bson.M{"active": "", "dependsOn": "", "leaseToken": "", "leaseExpiresAt": "", "message": ""},
-		}); err != nil {
+	// Ordered (the default): mongo.BulkWrite applies writes[0] before writes[1].
+	// See the ordering comment on cascadeWrites — do not set unordered here.
+	if _, err := collection().BulkWrite(ctx, writes); err != nil {
 		return err
 	}
 
-	res, err := collection().UpdateMany(ctx,
-		bson.M{"dependsOn": parentID, "active": bson.M{"$exists": true}, "action": recoveryExemptAction},
-		bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}})
-	if err != nil {
-		return err
-	}
-	if res.MatchedCount > 0 {
-		notifyEnqueued(agentID)
-	}
+	// A child may now be claimable (gate lifted or recovery start released).
+	// Waking on every cascade, even one that matched nothing, is a harmless
+	// no-op: notifyEnqueued only nudges a dispatcher that already owns the
+	// agent's connection, and dispatchFor is a no-op when nothing is due.
+	notifyEnqueued(agentID)
 	return nil
 }
