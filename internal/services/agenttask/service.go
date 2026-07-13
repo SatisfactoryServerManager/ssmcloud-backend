@@ -265,9 +265,13 @@ func Complete(taskID, leaseToken string) error {
 	}
 
 	now := time.Now()
+
+	// message is the in-flight progress note ("installing"), so it must go with the
+	// lease. Leaving it set makes a finished task read as though it were still
+	// working.
 	update := bson.M{
 		"$set":   bson.M{"status": v2.TaskStatusCompleted, "finishedAt": now, "updatedAt": now, "progress": int32(100)},
-		"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": ""},
+		"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": "", "message": ""},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -310,12 +314,12 @@ func Fail(taskID, leaseToken, errMsg string) error {
 	case current.CancelRequested:
 		update = bson.M{
 			"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now, "lastError": errMsg},
-			"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": ""},
+			"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": "", "message": ""},
 		}
 	case current.Attempts >= current.MaxAttempts:
 		update = bson.M{
 			"$set":   bson.M{"status": v2.TaskStatusDead, "finishedAt": now, "updatedAt": now, "lastError": errMsg},
-			"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": ""},
+			"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": "", "message": ""},
 		}
 	default:
 		update = bson.M{
