@@ -245,6 +245,32 @@ func FindByDedupeKey(agentID bson.ObjectID, dedupeKey string) (*v2.AgentTaskSche
 	return task, nil
 }
 
+// FindPendingByAction returns the agent's pending task of this action, or nil
+// if there is none.
+//
+// This exists so a caller outside the package (agentmod, re-pointing a pending
+// startsfserver at a newer sync — see RegateForChain) never needs its own
+// GetCollection("agenttasks") read: the queue owns that collection, and every
+// query against it lives here.
+func FindPendingByAction(agentID bson.ObjectID, action string) (*v2.AgentTaskSchema, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	task := &v2.AgentTaskSchema{}
+	err := collection().FindOne(ctx, bson.M{
+		"agentId": agentID,
+		"action":  action,
+		"status":  v2.TaskStatusPending,
+	}).Decode(task)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return task, nil
+}
+
 func Get(taskID string) (*v2.AgentTaskSchema, error) {
 	oid, err := bson.ObjectIDFromHex(taskID)
 	if err != nil {

@@ -63,8 +63,6 @@ func TestNextSelectionSetsAVersion(t *testing.T) {
 	}
 }
 
-// "Update all" moves every direct mod's pin to the catalogue's latest. It must not
-// touch a mod with no newer version, and must not promote a dependency.
 // shouldEscalate is the decision that Finding 1 was about: given a pending
 // sync already exists, should enqueueSync build the stop -> sync -> start
 // chain instead of returning the replaced task as-is? It must say yes only
@@ -94,6 +92,8 @@ func TestShouldEscalateOnlyWhenRunningAndApplyNow(t *testing.T) {
 	}
 }
 
+// "Update all" moves every direct mod's pin to the catalogue's latest. It must not
+// touch a mod with no newer version, and must not promote a dependency.
 func TestNextSelectionUpdateAllBumpsOnlyDirectModsWithUpdates(t *testing.T) {
 	current := []v2.AgentModSchema{
 		mod("RefinedPower", "3.2.1", true),

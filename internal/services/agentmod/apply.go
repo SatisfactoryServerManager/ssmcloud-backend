@@ -241,6 +241,9 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 	// undone, so it is NOT safe to return early here: fall through and build
 	// the stop -> sync -> start chain, adopting the replaced task as its sync.
 	if replaced != "" && !shouldEscalate(running, applyNow) {
+		if err := regatePendingStart(agentID, replaced); err != nil {
+			return nil, err
+		}
 		return []string{replaced}, nil
 	}
 
@@ -259,6 +262,13 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 		if err != nil {
 			return nil, err
 		}
+		// INVARIANT: a pending startsfserver must always trail the NEWEST sync.
+		// This is the ungated, no-chain path, so nothing else re-points a leftover
+		// start left pending from an earlier "apply now" whose sync has since
+		// finished (see enqueueSync's doc comment for the full scenario).
+		if err := regatePendingStart(agentID, id); err != nil {
+			return nil, err
+		}
 		return []string{id}, nil
 	}
 
@@ -266,6 +276,9 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 		id, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger,
 			agenttask.EnqueueOpts{RequiresServerStopped: true})
 		if err != nil {
+			return nil, err
+		}
+		if err := regatePendingStart(agentID, id); err != nil {
 			return nil, err
 		}
 		return []string{id}, nil
@@ -317,8 +330,41 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 	if err != nil {
 		return nil, err
 	}
+	// Enqueue's dedupe-adoption path ignores opts: if startDedupe adopted an
+	// existing active start whose dependsOn still points at a stale sync, the
+	// EnqueueOpts.DependsOn above never took effect. RegateForChain is
+	// idempotent, so calling it unconditionally is free on the non-adopted
+	// path and closes the gap on the adopted one.
+	if err := agenttask.RegateForChain(startID, syncOID); err != nil {
+		return nil, err
+	}
 
 	return []string{stopID, syncID, startID}, nil
+}
+
+// regatePendingStart re-points the agent's pending startsfserver, if any, at
+// syncID.
+//
+// INVARIANT: a pending startsfserver must always trail the NEWEST sync. Any
+// time enqueueSync settles on a sync's id — new, replaced-in-place, or part of
+// a chain — a start left pending from an earlier "apply now" must be dragged
+// forward onto it, or the dispatcher's FIFO claim can let that stale start run
+// BEFORE this sync, booting the game server and then rewriting Mods underneath
+// it. RegateForChain is idempotent and a no-op when there is no pending start.
+func regatePendingStart(agentID bson.ObjectID, syncID string) error {
+	start, err := agenttask.FindPendingByAction(agentID, ActionStart)
+	if err != nil {
+		return err
+	}
+	if start == nil {
+		return nil
+	}
+
+	syncOID, err := bson.ObjectIDFromHex(syncID)
+	if err != nil {
+		return err
+	}
+	return agenttask.RegateForChain(start.ID.Hex(), syncOID)
 }
 
 func serverIsRunning(agentID bson.ObjectID) (bool, error) {
