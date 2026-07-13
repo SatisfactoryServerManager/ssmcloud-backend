@@ -33,6 +33,38 @@ func ReapExpiredLeases() error {
 	return releaseOrphanedGates()
 }
 
+// syncModsAction mirrors agentmod.ActionSyncMods. It cannot be imported: agentmod
+// already imports agenttask, and this package must stay free of a cycle back to
+// it. Keep the two literals in sync if either ever changes.
+const syncModsAction = "syncmods"
+
+// orphanGateUpdate is the whole of releaseOrphanedGates's decision: given the
+// action of an orphaned task, what update makes it safe to run again?
+//
+// It is pure so the decision is testable without a database, and it exists at
+// all because "release" is not uniformly safe. For every action except
+// syncmods, the orphaned task's own idempotent handler is the safety net
+// (restarting an already-running server is a no-op), so unsetting dependsOn
+// and leaving no other gate is correct.
+//
+// A syncmods is the one action for which that is corruption, not a no-op: it
+// rewrites the agent's Mods directory unconditionally, and doing that while
+// the game server is running destroys the install. Its stopsfserver parent
+// existing was the ONLY thing keeping it un-claimable, so losing that parent
+// must swap in requiresServerStopped rather than drop to no gate at all — the
+// dispatcher then only claims it once the agent reports the server stopped,
+// which preserves the user's queued mod change without ever making it
+// claimable over a live game. The $unset and $set below must land in the same
+// update: releasing now and re-gating a moment later would leave exactly the
+// ungated window a crash in between is supposed to never produce.
+func orphanGateUpdate(action string, now time.Time) bson.M {
+	set := bson.M{"updatedAt": now}
+	if action == syncModsAction {
+		set["requiresServerStopped"] = true
+	}
+	return bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": set}
+}
+
 // releaseOrphanedGates makes a pending task whose dependsOn resolves to no
 // document claimable again.
 //
@@ -107,7 +139,7 @@ func releaseOrphanedGates() error {
 		// gate that has since been re-pointed at a newer parent.
 		res, err := collection().UpdateOne(ctx,
 			bson.M{"_id": task.ID, "status": v2.TaskStatusPending, "dependsOn": *task.DependsOn},
-			bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}})
+			orphanGateUpdate(task.Action, now))
 		if err != nil {
 			return err
 		}
