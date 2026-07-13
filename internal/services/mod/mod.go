@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agentmod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
@@ -33,6 +34,12 @@ func InitModService() {
 		repositories.GetMongoClient(),
 		"updateModsJob", func() {
 			if err := UpdateModsInDB(); err != nil {
+				logger.GetErrorLogger().Println(err)
+				return
+			}
+			// The flag refresh follows the catalogue refresh so it always reads
+			// the versions the catalogue update just wrote, never a stale set.
+			if err := agentmod.RefreshNeedsUpdate(); err != nil {
 				logger.GetErrorLogger().Println(err)
 			}
 		},

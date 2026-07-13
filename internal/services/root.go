@@ -3,6 +3,7 @@ package services
 import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/account"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agentmod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/mod"
@@ -13,6 +14,15 @@ import (
 func InitAllServices() {
 	storage.InitStorageService()
 	agent.InitAgentService()
+
+	// agentmod.Init() ensures indexes and runs the modConfig backfill. It must
+	// finish before agenttask.InitAgentTaskService() starts the dispatcher: a
+	// dispatched syncmods task assumes agentmods already holds every agent's
+	// selection, and the backfill is what puts it there.
+	if err := agentmod.Init(); err != nil {
+		panic(err)
+	}
+
 	if err := agenttask.InitAgentTaskService(); err != nil {
 		panic(err)
 	}

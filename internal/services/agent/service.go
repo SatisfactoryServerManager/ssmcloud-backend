@@ -11,14 +11,12 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
-	"github.com/mircearoata/pubgrub-go/pubgrub/semver"
 	"github.com/mrhid6/go-mongoose-lock/joblock"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 var (
 	checkAllAgentsLastCommsJob *joblock.JobLockTask
-	checkAgentModsConfigsJob   *joblock.JobLockTask
 	checkAgentVersionsJob      *joblock.JobLockTask
 	uploadPendingLogsJob       *joblock.JobLockTask
 )
@@ -29,18 +27,6 @@ func InitAgentService() {
 		repositories.GetMongoClient(),
 		"checkAllAgentsLastCommsJob", func() {
 			if err := CheckAllAgentsLastComms(); err != nil {
-				logger.GetErrorLogger().Println(err)
-			}
-		},
-		30*time.Second,
-		1*time.Minute,
-		false,
-	)
-
-	checkAgentModsConfigsJob, _ = joblock.NewJobLockTask(
-		repositories.GetMongoClient(),
-		"checkAgentModsConfigsJob", func() {
-			if err := CheckAgentModsConfigs(); err != nil {
 				logger.GetErrorLogger().Println(err)
 			}
 		},
@@ -63,9 +49,6 @@ func InitAgentService() {
 
 	ctx := context.Background()
 	if err := checkAllAgentsLastCommsJob.Run(ctx); err != nil {
-		logger.GetErrorLogger().Printf("%v", err.Error())
-	}
-	if err := checkAgentModsConfigsJob.Run(ctx); err != nil {
 		logger.GetErrorLogger().Printf("%v", err.Error())
 	}
 	if err := checkAgentVersionsJob.Run(ctx); err != nil {
@@ -93,7 +76,6 @@ func ShutdownAgentService() error {
 	ctx := context.Background()
 
 	checkAllAgentsLastCommsJob.UnLock(ctx)
-	checkAgentModsConfigsJob.UnLock(ctx)
 	checkAgentVersionsJob.UnLock(ctx)
 	uploadPendingLogsJob.UnLock(ctx)
 
@@ -157,71 +139,6 @@ func CheckAllAgentsLastComms() error {
 					return fmt.Errorf("error creating integration event with error: %s", err.Error())
 				}
 			}
-		}
-	}
-
-	return nil
-}
-
-func CheckAgentModsConfigs() error {
-
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
-	if err != nil {
-		return err
-	}
-
-	agents := make([]modelsv2.AgentSchema, 0)
-
-	if err := AgentModel.FindAll(&agents, bson.M{}); err != nil {
-		return fmt.Errorf("error finding agents with error: %s", err.Error())
-	}
-
-	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
-	if err != nil {
-		return err
-	}
-
-	for idx := range agents {
-		agent := &agents[idx]
-
-		for modidx := range agent.ModConfig.SelectedMods {
-			mod := &agent.ModConfig.SelectedMods[modidx]
-			if err := ModModel.PopulateField(mod, "Mod"); err != nil {
-				err = fmt.Errorf("error populating mod with error: %s", err.Error())
-				return err
-			}
-		}
-	}
-
-	for idx := range agents {
-		agent := &agents[idx]
-
-		for modidx := range agent.ModConfig.SelectedMods {
-			selectedMod := &agent.ModConfig.SelectedMods[modidx]
-
-			if len(selectedMod.Mod.Versions) == 0 {
-				continue
-			}
-
-			latestVersion, _ := semver.NewVersion(selectedMod.Mod.Versions[0].Version)
-
-			//installedVersion, _ := semver.NewVersion(selectedMod.InstalledVersion)
-			desiredVersion, _ := semver.NewVersion(selectedMod.DesiredVersion)
-
-			if latestVersion.Compare(desiredVersion) == 0 {
-				selectedMod.NeedsUpdate = false
-			} else if latestVersion.Compare(desiredVersion) > 0 {
-				selectedMod.NeedsUpdate = true
-			}
-		}
-
-		dbUpdate := bson.M{
-			"modConfig": agent.ModConfig,
-			"updatedAt": time.Now(),
-		}
-
-		if err := AgentModel.UpdateData(agent, dbUpdate); err != nil {
-			return err
 		}
 	}
 

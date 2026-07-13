@@ -1,0 +1,95 @@
+package agentmod
+
+import (
+	"context"
+	"time"
+
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
+	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"golang.org/x/mod/semver"
+)
+
+// newestVersion is the catalogue's highest version of a mod. semver.Compare needs
+// a leading v, which the catalogue's versions do not carry. The catalogue's
+// Versions order is not guaranteed, so this cannot just take the first element -
+// which is what the code this replaces did.
+func newestVersion(versions []models.ModVersion) string {
+	newest := ""
+
+	for _, v := range versions {
+		if newest == "" || semver.Compare("v"+v.Version, "v"+newest) > 0 {
+			newest = v.Version
+		}
+	}
+
+	return newest
+}
+
+// RefreshNeedsUpdate flags every agent mod whose catalogue version has moved past
+// its pin. It never touches desiredVersion and never enqueues a task: a version
+// bump is always a user action, so a bad mod release cannot take down a live
+// server unattended.
+//
+// This replaces CheckAgentModsConfigs, which loaded every agent document in the
+// database and wrote every mod config back to compute this boolean. Here it is
+// one updateMany per catalogue mod, keyed on modReference, never touching an
+// agent document at all.
+func RefreshNeedsUpdate() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	cur, err := repositories.GetMongoClient().GetCollection("mods").
+		Find(ctx, bson.M{}, nil)
+	if err != nil {
+		return err
+	}
+
+	catalogue := make([]models.ModSchema, 0)
+	if err := cur.All(ctx, &catalogue); err != nil {
+		return err
+	}
+
+	writes := make([]mongo.WriteModel, 0)
+	now := time.Now()
+
+	for idx := range catalogue {
+		m := &catalogue[idx]
+
+		latest := newestVersion(m.Versions)
+		if latest == "" {
+			continue
+		}
+
+		// needsUpdate is "the catalogue has moved past what this agent pinned".
+		// The $set uses an aggregation-pipeline update so it can be computed from
+		// the document's own desiredVersion in a single round trip. A string
+		// inequality is the right test here rather than a semver comparison: the
+		// pin is either exactly the catalogue's newest version or it is not.
+		writes = append(writes, mongo.NewUpdateManyModel().
+			SetFilter(bson.M{"modReference": m.ModReference}).
+			SetUpdate([]bson.M{{
+				"$set": bson.M{
+					"latestVersion": latest,
+					"needsUpdate": bson.M{
+						"$ne": bson.A{"$desiredVersion", latest},
+					},
+					"updatedAt": now,
+				},
+			}}))
+	}
+
+	if len(writes) == 0 {
+		return nil
+	}
+
+	res, err := collection().BulkWrite(ctx, writes)
+	if err != nil {
+		return err
+	}
+
+	logger.GetDebugLogger().Printf("refreshed needsUpdate on %d agent mods", res.ModifiedCount)
+	return nil
+}
