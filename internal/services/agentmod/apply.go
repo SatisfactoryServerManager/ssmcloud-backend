@@ -3,6 +3,7 @@ package agentmod
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const (
@@ -122,6 +124,28 @@ func Apply(agentID, accountID bson.ObjectID, ch ModChange, applyNow bool, trigge
 	return enqueueSync(agentID, accountID, lf, applyNow, trigger)
 }
 
+// ApplyConfigOnly persists an edit to a mod's .cfg text and enqueues a sync.
+//
+// A config-text edit moves no versions, so Diff on the resulting lockfile is
+// empty and Apply's diff-empty short circuit would silently drop it — but the
+// text only reaches the agent's disk inside ModLock.Config during a sync, so
+// skipping the enqueue here would leave the running server on the old config
+// indefinitely. The diff check is therefore skipped deliberately, not an
+// oversight: for a config-only change, "the lockfile didn't change" says
+// nothing about whether the agent needs to re-sync.
+func ApplyConfigOnly(agentID, accountID bson.ObjectID, modReference, config string, applyNow bool, trigger v2.TaskTrigger) ([]string, error) {
+	if err := SetConfig(agentID, modReference, config); err != nil {
+		return nil, err
+	}
+
+	lf, err := Resolve(agentID)
+	if err != nil {
+		return nil, err
+	}
+
+	return enqueueSync(agentID, accountID, lf, applyNow, trigger)
+}
+
 // persist writes the resolved lockfile back as the agent's selection.
 func persist(agentID, accountID bson.ObjectID, lf v2.Lockfile) error {
 	modIDs, err := catalogueIDs(lf)
@@ -144,22 +168,50 @@ func persist(agentID, accountID bson.ObjectID, lf v2.Lockfile) error {
 }
 
 func catalogueIDs(lf v2.Lockfile) (map[string]bson.ObjectID, error) {
-	ids := make(map[string]bson.ObjectID, len(lf.Mods))
+	refs := make([]string, 0, len(lf.Mods))
+	for _, m := range lf.Mods {
+		refs = append(refs, m.ModReference)
+	}
 
-	ModsModel, err := repositories.GetMongoClient().GetModel("Mod")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cur, err := repositories.GetMongoClient().GetCollection("mods").
+		Find(ctx, bson.M{"modReference": bson.M{"$in": refs}})
 	if err != nil {
 		return nil, err
 	}
 
-	for _, m := range lf.Mods {
-		dbMod := &models.ModSchema{}
-		if err := ModsModel.FindOne(dbMod, bson.M{"modReference": m.ModReference}); err != nil {
-			return nil, fmt.Errorf("mod %s is not in the catalogue: %w", m.ModReference, err)
+	var dbMods []models.ModSchema
+	if err := cur.All(ctx, &dbMods); err != nil {
+		return nil, err
+	}
+
+	ids := make(map[string]bson.ObjectID, len(dbMods))
+	for _, dbMod := range dbMods {
+		ids[dbMod.ModReference] = dbMod.ID
+	}
+
+	// The $in query silently drops any modReference not in the catalogue, so the
+	// missing-mod error has to be reconstructed by diffing the result against the
+	// request rather than surfacing from the query itself.
+	for _, ref := range refs {
+		if _, ok := ids[ref]; !ok {
+			return nil, fmt.Errorf("mod %s is not in the catalogue", ref)
 		}
-		ids[m.ModReference] = dbMod.ID
 	}
 
 	return ids, nil
+}
+
+// shouldEscalate decides, given a pending sync already exists, whether
+// enqueueSync must build the stop -> sync -> start chain instead of leaving
+// the pending task exactly as it was replaced. The user is escalating from a
+// deferred sync to "apply now" only when the server is running AND applyNow
+// was requested; every other combination leaves the replaced task's own
+// gating (already correct for its case) untouched.
+func shouldEscalate(running, applyNow bool) bool {
+	return running && applyNow
 }
 
 // enqueueSync puts the lockfile on the queue.
@@ -186,7 +238,11 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 	if err != nil {
 		return nil, err
 	}
-	if replaced != "" {
+	// If the user is escalating a deferred sync into "apply now", the replaced
+	// task's existing gate (requiresServerStopped) is exactly what must be
+	// undone, so it is NOT safe to return early here: fall through and build
+	// the stop -> sync -> start chain, adopting the replaced task as its sync.
+	if replaced != "" && !shouldEscalate(running, applyNow) {
 		return []string{replaced}, nil
 	}
 
@@ -228,6 +284,20 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 		return nil, err
 	}
 
+	// If replacePendingSync found a pending sync above, this Enqueue just adopted
+	// it on the dedupe key rather than creating a new task — and Enqueue's
+	// dedupe-adoption path IGNORES the opts passed to it. The adopted task is
+	// therefore still gated exactly as it was before (requiresServerStopped, for
+	// the deferred-sync-escalated-to-now case this branch exists for), with no
+	// dependsOn on the stop we just enqueued. Left alone, the chain deadlocks:
+	// the sync can never be claimed while the server is running. Re-gate it
+	// explicitly onto the new stop task.
+	if replaced != "" {
+		if err := agenttask.RegateForChain(syncID, stopOID); err != nil {
+			return nil, err
+		}
+	}
+
 	startID, err := agenttask.Enqueue(agentID, accountID, ActionStart, nil, "", trigger,
 		agenttask.EnqueueOpts{DependsOn: &syncOID})
 	if err != nil {
@@ -256,7 +326,14 @@ func replacePendingSync(agentID bson.ObjectID, lf v2.Lockfile) (string, error) {
 			bson.M{"$set": bson.M{"data": string(payload), "updatedAt": time.Now()}}).
 		Decode(task)
 	if err != nil {
-		return "", nil // no pending sync; not an error
+		// Only "no pending sync" may be swallowed. Any other error (timeout, decode
+		// failure, ...) must propagate: returning ("", nil) here would send Apply on
+		// to Enqueue, which adopts the still-pending task on its dedupe key and
+		// ships it the STALE lockfile — exactly the bug this function exists to stop.
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return "", nil
+		}
+		return "", err
 	}
 
 	logger.GetDebugLogger().Printf("replaced the lockfile on pending sync %s", task.ID.Hex())

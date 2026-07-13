@@ -144,6 +144,34 @@ func Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, 
 	return existing.ID.Hex(), nil
 }
 
+// RegateForChain re-points an already-enqueued task at a new parent, replacing
+// whatever gate it had before.
+//
+// It exists because Enqueue's dedupe-adoption path ignores the opts passed to
+// it: when an enqueue lands on an existing active task via dedupeKey, that task
+// keeps the gating it was created with. A caller that escalates a deferred
+// syncmods (gated on requiresServerStopped) into a stopsfserver -> syncmods
+// chain must therefore fix the gate up afterwards, or the adopted task stays
+// requiresServerStopped-gated forever while the server it is waiting to stop
+// is the very server the new stopsfserver task is about to stop — a deadlock.
+func RegateForChain(taskID string, parent bson.ObjectID) error {
+	oid, err := bson.ObjectIDFromHex(taskID)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err = collection().UpdateOne(ctx,
+		bson.M{"_id": oid},
+		bson.M{
+			"$set":   bson.M{"dependsOn": parent, "updatedAt": time.Now()},
+			"$unset": bson.M{"requiresServerStopped": ""},
+		})
+	return err
+}
+
 // FindByDedupeKey returns the newest task with this key whatever its status, or
 // nil if there is none.
 //

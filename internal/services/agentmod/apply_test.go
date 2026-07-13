@@ -65,6 +65,35 @@ func TestNextSelectionSetsAVersion(t *testing.T) {
 
 // "Update all" moves every direct mod's pin to the catalogue's latest. It must not
 // touch a mod with no newer version, and must not promote a dependency.
+// shouldEscalate is the decision that Finding 1 was about: given a pending
+// sync already exists, should enqueueSync build the stop -> sync -> start
+// chain instead of returning the replaced task as-is? It must say yes only
+// when the server is running AND the user asked for applyNow — every other
+// combination means the replaced task's own gating already fits its case.
+func TestShouldEscalateOnlyWhenRunningAndApplyNow(t *testing.T) {
+	cases := []struct {
+		name      string
+		running   bool
+		applyNow  bool
+		wantEscal bool
+	}{
+		{"stopped, apply now", false, true, false},
+		{"stopped, deferred", false, false, false},
+		{"running, deferred", true, false, false},
+		{"running, apply now", true, true, true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := shouldEscalate(c.running, c.applyNow)
+			if got != c.wantEscal {
+				t.Fatalf("shouldEscalate(running=%v, applyNow=%v) = %v, want %v",
+					c.running, c.applyNow, got, c.wantEscal)
+			}
+		})
+	}
+}
+
 func TestNextSelectionUpdateAllBumpsOnlyDirectModsWithUpdates(t *testing.T) {
 	current := []v2.AgentModSchema{
 		mod("RefinedPower", "3.2.1", true),
