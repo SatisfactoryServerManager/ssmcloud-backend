@@ -144,6 +144,50 @@ func Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, 
 	return existing.ID.Hex(), nil
 }
 
+// ReplacePendingPayload overwrites the data of an already-pending task of the
+// given action, returning its id, or "" if there was none. It marshals the
+// payload the same way Enqueue does.
+//
+// This is the only safe way to update a not-yet-claimed task's payload: it
+// matches status=pending only, never running, because a running task's
+// payload is already in the agent's hands and rewriting it here would not
+// reach the agent. Callers that need "replace if pending, otherwise enqueue"
+// must not fall back to Enqueue's dedupe-adoption on failure to find a
+// pending task, since adoption also matches a RUNNING task and would ship it
+// a payload update it can never see.
+func ReplacePendingPayload(agentID bson.ObjectID, action string, data interface{}) (string, error) {
+	payload := ""
+	if data != nil {
+		b, err := json.Marshal(data)
+		if err != nil {
+			return "", fmt.Errorf("error marshalling task data: %w", err)
+		}
+		payload = string(b)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	task := &v2.AgentTaskSchema{}
+	err := collection().FindOneAndUpdate(ctx,
+		bson.M{"agentId": agentID, "action": action, "status": v2.TaskStatusPending},
+		bson.M{"$set": bson.M{"data": payload, "updatedAt": time.Now()}}).
+		Decode(task)
+	if err != nil {
+		// Only "no pending task" may be swallowed. Any other error (timeout,
+		// decode failure, ...) must propagate: returning ("", nil) here would
+		// send the caller on to Enqueue, which can adopt a still-pending OR
+		// still-running task on its dedupe key and ship it a stale payload.
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	logger.GetDebugLogger().Printf("replaced the payload on pending %s task %s", action, task.ID.Hex())
+	return task.ID.Hex(), nil
+}
+
 // RegateForChain re-points an already-enqueued task at a new parent, replacing
 // whatever gate it had before.
 //

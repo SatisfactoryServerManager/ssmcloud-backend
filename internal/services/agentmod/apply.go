@@ -2,18 +2,14 @@ package agentmod
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const (
@@ -229,12 +225,14 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 		return nil, err
 	}
 
-	// A pending syncmods carries a lockfile that this change has just invalidated.
-	// Enqueue would adopt it on the dedupe key and ship the stale payload, so
-	// overwrite it in place first, and only enqueue if that matched nothing —
-	// the pending task's existing gating (requiresServerStopped, or a dependsOn
-	// chain) is left exactly as it was.
-	replaced, err := replacePendingSync(agentID, lf)
+	// A pending syncmods carries a lockfile that this change has just invalidated,
+	// so collapse a burst of UI clicks by overwriting it in place. This only ever
+	// matches status=pending: a RUNNING sync's payload is already in the agent's
+	// hands, so there is nothing to overwrite, and the running task must be left
+	// to finish and converge via the desired-state reconcile the handler already
+	// performs. The pending task's existing gating (requiresServerStopped, or a
+	// dependsOn chain) is left exactly as it was.
+	replaced, err := agenttask.ReplacePendingPayload(agentID, ActionSyncMods, lf)
 	if err != nil {
 		return nil, err
 	}
@@ -246,10 +244,18 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 		return []string{replaced}, nil
 	}
 
-	dedupe := "syncmods:" + agentID.Hex()
+	// syncmods deliberately has NO dedupe key. uniq_active_dedupe's partial filter
+	// covers "active", which is present for both pending AND RUNNING tasks — so a
+	// dedupe key here would let Enqueue ADOPT a task that is already running and
+	// mid-download, silently discarding this lockfile instead of shipping it. A
+	// second sync enqueued while one is running is fine: the queue serialises per
+	// agent, and the handler reconciles desired state, so the two converge. A lost
+	// lockfile is not fine. At-most-one-PENDING is enforced above by
+	// ReplacePendingPayload instead of by the index. Do not add a dedupe key back.
+	const syncDedupe = ""
 
 	if !running {
-		id, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, dedupe, trigger, agenttask.EnqueueOpts{})
+		id, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger, agenttask.EnqueueOpts{})
 		if err != nil {
 			return nil, err
 		}
@@ -257,7 +263,7 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 	}
 
 	if !applyNow {
-		id, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, dedupe, trigger,
+		id, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger,
 			agenttask.EnqueueOpts{RequiresServerStopped: true})
 		if err != nil {
 			return nil, err
@@ -265,7 +271,14 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 		return []string{id}, nil
 	}
 
-	stopID, err := agenttask.Enqueue(agentID, accountID, ActionStop, nil, "", trigger, agenttask.EnqueueOpts{})
+	// Unlike the sync, the chain's stop/start DO want dedupe-adoption: a second
+	// "apply now" click should re-point the sync at the SAME stop/start rather than
+	// littering the task list with orphaned duplicates that still run harmlessly
+	// but confuse the user.
+	stopDedupe := "syncchain-stop:" + agentID.Hex()
+	startDedupe := "syncchain-start:" + agentID.Hex()
+
+	stopID, err := agenttask.Enqueue(agentID, accountID, ActionStop, nil, stopDedupe, trigger, agenttask.EnqueueOpts{})
 	if err != nil {
 		return nil, err
 	}
@@ -274,70 +287,38 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 		return nil, err
 	}
 
-	syncID, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, dedupe, trigger,
-		agenttask.EnqueueOpts{DependsOn: &stopOID})
-	if err != nil {
-		return nil, err
+	// If ReplacePendingPayload found a pending sync above, reuse ITS id as the
+	// chain's sync instead of enqueueing a second one: the sync has no dedupe
+	// key (see above), so Enqueue cannot adopt it, and enqueueing anyway would
+	// leave the replaced task orphaned — still pending, still gated on
+	// requiresServerStopped, and liable to run a second, redundant sync the
+	// moment the server stops on its own. Re-gating the existing task onto the
+	// new stop turns it into the chain's sync instead of a stray duplicate.
+	var syncID string
+	if replaced != "" {
+		syncID = replaced
+		if err := agenttask.RegateForChain(syncID, stopOID); err != nil {
+			return nil, err
+		}
+	} else {
+		syncID, err = agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger,
+			agenttask.EnqueueOpts{DependsOn: &stopOID})
+		if err != nil {
+			return nil, err
+		}
 	}
 	syncOID, err := bson.ObjectIDFromHex(syncID)
 	if err != nil {
 		return nil, err
 	}
 
-	// If replacePendingSync found a pending sync above, this Enqueue just adopted
-	// it on the dedupe key rather than creating a new task — and Enqueue's
-	// dedupe-adoption path IGNORES the opts passed to it. The adopted task is
-	// therefore still gated exactly as it was before (requiresServerStopped, for
-	// the deferred-sync-escalated-to-now case this branch exists for), with no
-	// dependsOn on the stop we just enqueued. Left alone, the chain deadlocks:
-	// the sync can never be claimed while the server is running. Re-gate it
-	// explicitly onto the new stop task.
-	if replaced != "" {
-		if err := agenttask.RegateForChain(syncID, stopOID); err != nil {
-			return nil, err
-		}
-	}
-
-	startID, err := agenttask.Enqueue(agentID, accountID, ActionStart, nil, "", trigger,
+	startID, err := agenttask.Enqueue(agentID, accountID, ActionStart, nil, startDedupe, trigger,
 		agenttask.EnqueueOpts{DependsOn: &syncOID})
 	if err != nil {
 		return nil, err
 	}
 
 	return []string{stopID, syncID, startID}, nil
-}
-
-// replacePendingSync overwrites the payload of an already-pending sync, returning
-// its id, or "" if there was none.
-func replacePendingSync(agentID bson.ObjectID, lf v2.Lockfile) (string, error) {
-	payload, err := json.Marshal(lf)
-	if err != nil {
-		return "", err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	task := &v2.AgentTaskSchema{}
-	err = repositories.GetMongoClient().
-		GetCollection("agenttasks").
-		FindOneAndUpdate(ctx,
-			bson.M{"agentId": agentID, "action": ActionSyncMods, "status": v2.TaskStatusPending},
-			bson.M{"$set": bson.M{"data": string(payload), "updatedAt": time.Now()}}).
-		Decode(task)
-	if err != nil {
-		// Only "no pending sync" may be swallowed. Any other error (timeout, decode
-		// failure, ...) must propagate: returning ("", nil) here would send Apply on
-		// to Enqueue, which adopts the still-pending task on its dedupe key and
-		// ships it the STALE lockfile — exactly the bug this function exists to stop.
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return "", nil
-		}
-		return "", err
-	}
-
-	logger.GetDebugLogger().Printf("replaced the lockfile on pending sync %s", task.ID.Hex())
-	return task.ID.Hex(), nil
 }
 
 func serverIsRunning(agentID bson.ObjectID) (bool, error) {
