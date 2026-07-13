@@ -132,7 +132,9 @@ func ResolveSelection(agentID bson.ObjectID, direct map[string]string) (v2.Lockf
 		return v2.Lockfile{}, fmt.Errorf("agent has not reported its platform yet")
 	}
 
-	lf.SFVersion = strconv.FormatInt(dbAgent.Status.InstalledSFVersion, 10)
+	if dbAgent.Status.InstalledSFVersion != 0 {
+		lf.SFVersion = strconv.FormatInt(dbAgent.Status.InstalledSFVersion, 10)
+	}
 
 	if len(direct) == 0 {
 		return lf, nil
@@ -272,12 +274,11 @@ func serverTarget(dbMod *models.ModSchema, version, platform string) (models.Mod
 	for _, mv := range dbMod.Versions {
 		// The resolver hands back a version it normalised via semver.String()
 		// (e.g. "1.2.3"), but the catalogue's own version strings are not
-		// guaranteed canonical - the resolver's own parser accepts "v1.2.3",
-		// "1.2", and "01.2.3" too. Comparing byte-for-byte would make a
-		// non-canonical catalogue entry resolve fine and then fail this very
-		// lookup with a baffling "no version X in the catalogue". Compare
-		// semantically instead. semver.Compare requires a leading "v" and
-		// silently misbehaves without one, so both sides are prefixed.
+		// guaranteed canonical (e.g. "v1.2.3", "1.2"). Comparing byte-for-byte
+		// would make a non-canonical catalogue entry resolve fine and then fail
+		// this very lookup with a baffling "no version X in the catalogue".
+		// Compare semantically instead. semver.Compare requires a leading "v"
+		// and silently misbehaves without one, so both sides are prefixed.
 		if semver.Compare(withV(mv.Version), withV(version)) != 0 {
 			continue
 		}
