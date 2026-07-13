@@ -22,6 +22,7 @@ require (
 	github.com/mrhid6/go-mongoose-lock v0.0.6
 	github.com/satisfactorymodding/ficsit-resolver v0.0.6
 	go.mongodb.org/mongo-driver/v2 v2.8.0
+	golang.org/x/mod v0.37.0
 	google.golang.org/grpc v1.82.0
 )
 

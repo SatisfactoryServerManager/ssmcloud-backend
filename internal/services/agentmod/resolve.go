@@ -2,6 +2,9 @@ package agentmod
 
 import (
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
@@ -9,6 +12,7 @@ import (
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"golang.org/x/mod/semver"
 )
 
 // ficsitBaseURL is where a mod version target's relative link hangs off. The
@@ -117,15 +121,18 @@ func Resolve(agentID bson.ObjectID) (v2.Lockfile, error) {
 func ResolveSelection(agentID bson.ObjectID, direct map[string]string) (v2.Lockfile, error) {
 	lf := v2.Lockfile{Mods: make([]v2.ModLock, 0)}
 
-	platform, err := agentPlatform(agentID)
+	dbAgent, err := loadAgent(agentID)
 	if err != nil {
 		return v2.Lockfile{}, err
 	}
+	platform := dbAgent.Config.Platform
 	// Never guess: shipping a Linux build to a Windows agent (or vice versa)
 	// produces a mod that silently fails to load, with no error anywhere.
 	if platform == "" {
 		return v2.Lockfile{}, fmt.Errorf("agent has not reported its platform yet")
 	}
+
+	lf.SFVersion = strconv.FormatInt(dbAgent.Status.InstalledSFVersion, 10)
 
 	if len(direct) == 0 {
 		return lf, nil
@@ -149,7 +156,19 @@ func ResolveSelection(agentID bson.ObjectID, direct map[string]string) (v2.Lockf
 	// version it would then have nothing to install.
 	requiredTargets := []resolver.TargetName{resolver.TargetName(platform)}
 
-	resolved, err := r.ResolveModDependencies(constraints, nil, 0, requiredTargets)
+	// gameVersion MUST NOT be 0: the FactoryGame pseudo-package reports its
+	// installed version as its sole available version, so any mod dependency
+	// that carries a FactoryGame constraint (e.g. >=264901) is unsatisfiable
+	// against 0 — a valid selection would fail with an error the user cannot
+	// act on. Use the agent's real version when known; math.MaxInt (as
+	// InstallMod already does) means "no game-version constraint" when it
+	// isn't known yet.
+	gameVersion := math.MaxInt
+	if dbAgent.Status.InstalledSFVersion != 0 {
+		gameVersion = int(dbAgent.Status.InstalledSFVersion)
+	}
+
+	resolved, err := r.ResolveModDependencies(constraints, nil, gameVersion, requiredTargets)
 	if err != nil {
 		return lf, fmt.Errorf("cannot resolve mods: %w", err)
 	}
@@ -171,22 +190,23 @@ func ResolveSelection(agentID bson.ObjectID, direct map[string]string) (v2.Lockf
 	return lf, nil
 }
 
-// agentPlatform reads the agent's reported mod target ("WindowsServer" or
-// "LinuxServer") straight from the agent document. It is queried directly,
-// the same way lockFor queries the catalogue directly, rather than through the
-// agent package, to avoid a service-to-service dependency for one field.
-func agentPlatform(agentID bson.ObjectID) (string, error) {
+// loadAgent reads the agent document straight, the same way lockFor queries
+// the catalogue directly, rather than through the agent package, to avoid a
+// service-to-service dependency for a couple of fields. Both the platform and
+// the installed SF version are read from this single fetch so ResolveSelection
+// never queries the agent twice.
+func loadAgent(agentID bson.ObjectID) (*v2.AgentSchema, error) {
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	dbAgent := &v2.AgentSchema{}
 	if err := AgentModel.FindOne(dbAgent, bson.M{"_id": agentID}); err != nil {
-		return "", fmt.Errorf("cannot load agent %s: %w", agentID.Hex(), err)
+		return nil, fmt.Errorf("cannot load agent %s: %w", agentID.Hex(), err)
 	}
 
-	return dbAgent.Config.Platform, nil
+	return dbAgent, nil
 }
 
 // lockFor pins one mod: catalogue lookup for the artifact, agentmods lookup for
@@ -227,18 +247,38 @@ func lockFor(agentID bson.ObjectID, modReference, version, platform string) (v2.
 	return lock, nil
 }
 
+// withV ensures exactly one "v" prefix: semver.Compare requires it and
+// silently treats a version without it as invalid, but a version that
+// already has one (the catalogue's own strings are not guaranteed bare)
+// must not get a second.
+func withV(version string) string {
+	if strings.HasPrefix(version, "v") {
+		return version
+	}
+	return "v" + version
+}
+
 // serverTarget finds the build of a mod version for the agent's platform.
 //
 // A mod with no build for that platform cannot be installed on that agent, so
 // this is an error rather than a skip: the old code skipped it silently and the
 // user never learned why the mod never appeared.
 func serverTarget(dbMod *models.ModSchema, version, platform string) (models.ModVersionTarget, error) {
+	// ResolveSelection (the only caller) already rejects "" before reaching here.
 	if platform == "" {
-		return models.ModVersionTarget{}, fmt.Errorf("agent has not reported its platform yet")
+		return models.ModVersionTarget{}, fmt.Errorf("serverTarget: empty platform")
 	}
 
 	for _, mv := range dbMod.Versions {
-		if mv.Version != version {
+		// The resolver hands back a version it normalised via semver.String()
+		// (e.g. "1.2.3"), but the catalogue's own version strings are not
+		// guaranteed canonical - the resolver's own parser accepts "v1.2.3",
+		// "1.2", and "01.2.3" too. Comparing byte-for-byte would make a
+		// non-canonical catalogue entry resolve fine and then fail this very
+		// lookup with a baffling "no version X in the catalogue". Compare
+		// semantically instead. semver.Compare requires a leading "v" and
+		// silently misbehaves without one, so both sides are prefixed.
+		if semver.Compare(withV(mv.Version), withV(version)) != 0 {
 			continue
 		}
 		for _, t := range mv.Targets {

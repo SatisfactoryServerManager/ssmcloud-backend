@@ -3,6 +3,7 @@ package agentmod
 import (
 	"testing"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 )
 
@@ -93,5 +94,65 @@ func TestDiffIsEmptyWhenNothingMoves(t *testing.T) {
 
 	if !Diff(current, next).IsEmpty() {
 		t.Fatal("expected an unchanged selection to produce no change")
+	}
+}
+
+// The resolver hands back a version normalised through semver's String(), not
+// the raw string the catalogue stored. A catalogue entry written as "v1.2.3"
+// or "1.2" must still be found when the resolver asks for "1.2.3" - a
+// byte-for-byte comparison would reject both and produce a baffling
+// "no version in the catalogue" error for a perfectly valid mod.
+func TestServerTargetMatchesNonCanonicalCatalogueVersions(t *testing.T) {
+	// resolvedVersion is what the resolver would hand back: a semver-canonical
+	// string built from its parsed, normalised version. catalogueVersion is
+	// what the catalogue happens to store for that same release - not
+	// guaranteed canonical, since the resolver's own version parser accepts
+	// "v1.2.3" and "1.2" (missing patch defaults to 0) too.
+	cases := []struct {
+		catalogueVersion string
+		resolvedVersion  string
+	}{
+		{catalogueVersion: "v1.2.3", resolvedVersion: "1.2.3"},
+		{catalogueVersion: "1.2", resolvedVersion: "1.2.0"},
+	}
+
+	for _, tc := range cases {
+		dbMod := &models.ModSchema{
+			ModReference: "RefinedPower",
+			Versions: []models.ModVersion{
+				{
+					Version: tc.catalogueVersion,
+					Targets: []models.ModVersionTarget{
+						{TargetName: "WindowsServer", Link: "/download"},
+					},
+				},
+			},
+		}
+
+		target, err := serverTarget(dbMod, tc.resolvedVersion, "WindowsServer")
+		if err != nil {
+			t.Fatalf("catalogue version %q: expected a match for resolved version %q, got error: %v", tc.catalogueVersion, tc.resolvedVersion, err)
+		}
+		if target.Link != "/download" {
+			t.Fatalf("catalogue version %q: got wrong target %+v", tc.catalogueVersion, target)
+		}
+	}
+}
+
+func TestServerTargetErrorsWhenPlatformHasNoBuild(t *testing.T) {
+	dbMod := &models.ModSchema{
+		ModReference: "RefinedPower",
+		Versions: []models.ModVersion{
+			{
+				Version: "1.2.3",
+				Targets: []models.ModVersionTarget{
+					{TargetName: "LinuxServer", Link: "/download"},
+				},
+			},
+		},
+	}
+
+	if _, err := serverTarget(dbMod, "1.2.3", "WindowsServer"); err == nil {
+		t.Fatal("expected an error when the platform has no build, not a silent skip")
 	}
 }
