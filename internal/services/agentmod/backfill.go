@@ -10,6 +10,7 @@ import (
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // legacySelectedMod is one entry of the embedded modConfig.selectedMods array
@@ -47,17 +48,63 @@ func backfillDoc(agentID, accountID, modID bson.ObjectID, modReference string, s
 	return doc
 }
 
+// resolvedMod pairs one legacy selection with its catalogue lookup, so
+// backfillWrites can be pure: the I/O (modReferenceFor) happens in Backfill,
+// the decision of what to write happens here, and only the decision needs a test.
+type resolvedMod struct {
+	sm  legacySelectedMod
+	ref string
+	err error
+}
+
+// backfillWrites turns one agent's resolved selections into the upserts to run
+// against agentmods, and reports whether ANY mod failed to resolve.
+//
+// A single failure must NOT drop the mods that did resolve into a partial,
+// silently-truncated migration, and it must NOT be papered over as success:
+// the caller uses failed=true as the signal to leave modConfig in place so the
+// agent is retried on the next boot instead of being trimmed to whatever
+// happened to resolve on this pass.
+func backfillWrites(agentID, accountID bson.ObjectID, resolved []resolvedMod, now time.Time) (writes []mongo.WriteModel, failed bool) {
+	writes = make([]mongo.WriteModel, 0, len(resolved))
+
+	for _, r := range resolved {
+		if r.err != nil {
+			failed = true
+			continue
+		}
+
+		doc := backfillDoc(agentID, accountID, r.sm.ModID, r.ref, r.sm, now)
+
+		writes = append(writes, mongo.NewUpdateOneModel().
+			SetFilter(bson.M{"agentId": agentID, "modReference": r.ref}).
+			SetUpdate(bson.M{"$setOnInsert": doc}).
+			SetUpsert(true))
+	}
+
+	return writes, failed
+}
+
 // Backfill migrates the old embedded modConfig.selectedMods array into agentmods.
 //
 // It is idempotent: an agent whose array has already been unset does not match
 // the query below, so this is safe to run on every boot until it is deleted.
+//
+// A mod that is permanently absent from the catalogue (pruned, or a lookup
+// that keeps erroring) will block that agent's migration on EVERY boot, and
+// will say so in the error log every time. That is deliberate: a loud,
+// recoverable stall is preferable to a silent, permanent loss of the agent's
+// mod selection, and only an operator can tell the two failure modes apart.
 func Backfill() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	agents := repositories.GetMongoClient().GetCollection("agents")
 
-	cur, err := agents.Find(ctx, bson.M{"modConfig.selectedMods": bson.M{"$exists": true}})
+	// The 0-index existence check excludes agents whose array is present but
+	// empty (every newly created agent, per v2.NewAgent) so the job actually
+	// quiesces instead of doing an empty write/unset on them forever.
+	cur, err := agents.Find(ctx, bson.M{"modConfig.selectedMods.0": bson.M{"$exists": true}})
 	if err != nil {
 		return err
 	}
@@ -81,33 +128,38 @@ func Backfill() error {
 		}
 
 		now := time.Now()
-		writes := make([]mongo.WriteModel, 0, len(a.ModConfig.SelectedMods))
+		resolved := make([]resolvedMod, 0, len(a.ModConfig.SelectedMods))
 
 		for _, sm := range a.ModConfig.SelectedMods {
 			ref, err := modReferenceFor(ctx, sm.ModID)
 			if err != nil {
-				logger.GetErrorLogger().Printf("backfill: mod %s not in catalogue: %s", sm.ModID.Hex(), err.Error())
-				continue
+				logger.GetErrorLogger().Printf("backfill: agent %s mod %s not in catalogue: %s", a.ID.Hex(), sm.ModID.Hex(), err.Error())
 			}
-
-			doc := backfillDoc(a.ID, accountID, sm.ModID, ref, sm, now)
-
-			writes = append(writes, mongo.NewUpdateOneModel().
-				SetFilter(bson.M{"agentId": a.ID, "modReference": ref}).
-				SetUpdate(bson.M{"$setOnInsert": doc}).
-				SetUpsert(true))
+			resolved = append(resolved, resolvedMod{sm: sm, ref: ref, err: err})
 		}
+
+		writes, failed := backfillWrites(a.ID, accountID, resolved, now)
 
 		if len(writes) > 0 {
-			if _, err := collection().BulkWrite(ctx, writes); err != nil {
+			if _, err := collection().BulkWrite(ctx, writes, options.BulkWrite().SetOrdered(false)); err != nil {
 				logger.GetErrorLogger().Printf("backfill: agent %s: %s", a.ID.Hex(), err.Error())
+				// The array MUST stay: a partial/failed write plus an unset would
+				// lose whatever did not make it into agentmods.
 				continue
 			}
 		}
 
-		// $unset only after the upserts succeed: an agent whose array is unset is
-		// not matched by this job's own query, so a failure above must leave the
-		// array in place or this migration silently loses the agent's mods.
+		if failed {
+			// At least one mod failed to resolve: leave modConfig in place so this
+			// agent is retried (idempotently — the writes above already landed) on
+			// the next boot instead of silently losing the unresolved mod forever.
+			continue
+		}
+
+		// $unset only after every mod resolved AND the upserts succeeded: an agent
+		// whose array is unset is not matched by this job's own query, so any
+		// failure above must leave the array in place or this migration silently
+		// loses the agent's mods.
 		if _, err := agents.UpdateOne(ctx,
 			bson.M{"_id": a.ID},
 			bson.M{"$unset": bson.M{"modConfig": ""}}); err != nil {

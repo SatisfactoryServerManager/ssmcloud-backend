@@ -13,14 +13,21 @@ import (
 )
 
 // newestVersion is the catalogue's highest version of a mod. semver.Compare needs
-// a leading v, which the catalogue's versions do not carry. The catalogue's
-// Versions order is not guaranteed, so this cannot just take the first element -
-// which is what the code this replaces did.
+// a leading v, and the catalogue's version strings are not guaranteed to carry
+// one already (see withV in resolve.go). The catalogue's Versions order is not
+// guaranteed either, so this cannot just take the first element - which is what
+// the code this replaces did.
 func newestVersion(versions []models.ModVersion) string {
 	newest := ""
 
 	for _, v := range versions {
-		if newest == "" || semver.Compare("v"+v.Version, "v"+newest) > 0 {
+		// withV (defined in resolve.go) MUST be used on both sides here: the
+		// catalogue's version strings are not guaranteed bare, and "v"+v.Version
+		// double-prefixes an already-prefixed one (e.g. "v3.10.0" -> "vv3.10.0"),
+		// which semver.Compare treats as invalid. Invalid-vs-invalid compares
+		// equal, so newest would never advance past the first element again -
+		// exactly the Versions[0] bug this function exists to replace.
+		if newest == "" || semver.Compare(withV(v.Version), withV(newest)) > 0 {
 			newest = v.Version
 		}
 	}

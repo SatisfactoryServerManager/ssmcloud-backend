@@ -20,6 +20,24 @@ func TestNewestVersionPicksTheHighestSemver(t *testing.T) {
 	}
 }
 
+func TestNewestVersionHandlesAlreadyVPrefixedCatalogueVersions(t *testing.T) {
+	// The catalogue's version strings are not guaranteed bare. A duplicate
+	// "v"+v.Version helper double-prefixes "v3.10.0" into "vv3.10.0", which
+	// semver.Compare treats as invalid; invalid-vs-invalid compares equal, so
+	// newest never advances past the first element - degrading straight back
+	// into the Versions[0] bug this function exists to fix. Restoring that
+	// buggy form must make this test go red.
+	got := newestVersion([]models.ModVersion{
+		{Version: "v3.2.1"},
+		{Version: "v3.10.0"},
+		{Version: "v3.3.0"},
+	})
+
+	if got != "v3.10.0" {
+		t.Fatalf("expected v3.10.0, got %q", got)
+	}
+}
+
 func TestNewestVersionIsEmptyForNoVersions(t *testing.T) {
 	if got := newestVersion(nil); got != "" {
 		t.Fatalf("expected no version, got %q", got)
