@@ -275,6 +275,7 @@ const syncDedupe = ""
 // NOT an abstraction layer: agentmod still owns no queries against agenttasks.
 type taskQueue interface {
 	ServerIsRunning(agentID bson.ObjectID) (bool, error)
+	HasActiveAction(agentID bson.ObjectID, action string) (bool, error)
 	ReplacePendingPayload(agentID bson.ObjectID, action string, data interface{}) (string, error)
 	PendingIDByAction(agentID bson.ObjectID, action string) (string, error)
 	Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, dedupeKey string, trigger v2.TaskTrigger, opts agenttask.EnqueueOpts) (string, error)
@@ -286,6 +287,10 @@ type liveQueue struct{}
 
 func (liveQueue) ServerIsRunning(agentID bson.ObjectID) (bool, error) {
 	return serverIsRunning(agentID)
+}
+
+func (liveQueue) HasActiveAction(agentID bson.ObjectID, action string) (bool, error) {
+	return agenttask.HasActiveAction(agentID, action)
 }
 
 func (liveQueue) ReplacePendingPayload(agentID bson.ObjectID, action string, data interface{}) (string, error) {
@@ -329,12 +334,12 @@ func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool
 // The plan's inputs are read WITHOUT a lock, so they can go stale before the plan
 // lands: an in-flight sync completing between the read and the re-point cascades
 // the pending start's gate off and the dispatcher claims it, booting the game.
-// executePlan detects exactly that (errStartClaimed) and this loop re-reads —
-// serverIsRunning now reports true, so the new plan gates the sync instead of
-// leaving it claimable over a live server.
+// executePlan detects exactly that (errStartClaimed) and this loop re-reads — the
+// new plan then sees a running server and gates the sync instead of leaving it
+// claimable over a live one.
 func enqueueSyncWith(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool, trigger v2.TaskTrigger) ([]string, error) {
 	for attempt := 0; attempt < maxPlanAttempts; attempt++ {
-		running, err := q.ServerIsRunning(agentID)
+		running, err := planRunning(q, agentID)
 		if err != nil {
 			return nil, err
 		}
@@ -364,41 +369,48 @@ func enqueueSyncWith(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfi
 	return nil, fmt.Errorf("could not enqueue a mod sync: the server's task queue kept changing under the plan after %d attempts", maxPlanAttempts)
 }
 
-// executePlan executes a syncPlan. It makes no decisions; the ordering below is
-// the only thing it is responsible for.
+// planRunning answers the only question planFor's gating turns on: is the game
+// server running, OR is a task about to make it run?
+//
+// agents.status.running alone is NOT that question. It is what the AGENT last
+// reported, and it stays false for the entire time a startsfserver is mid-boot —
+// so a plan built on it alone decides "stopped" while the game is coming up, gates
+// nothing, and the ungated syncmods it inserts is claimed the instant the boot
+// finishes, rewriting the Mods directory under a live game. The staleness is NOT
+// one-directional: a stale false UNDER-gates.
+//
+// Over-gating is safe — the sync simply waits for a stop that is coming anyway.
+// Under-gating corrupts the user's install. When in doubt the answer is "running".
+func planRunning(q taskQueue, agentID bson.ObjectID) (bool, error) {
+	running, err := q.ServerIsRunning(agentID)
+	if err != nil {
+		return false, err
+	}
+	if running {
+		return true, nil
+	}
+	return q.HasActiveAction(agentID, ActionStart)
+}
+
+// executePlan executes a syncPlan. It makes no decisions; the WRITE ORDER below is
+// the only thing it is responsible for, and it is the whole of its correctness.
+//
+// PARENTS ARE WRITTEN LAST. Every _id is pre-assigned client-side, and the rows go
+// in reverse dependency order: the trailing start, then the sync, then the stop.
+// Two things depend on it.
+//
+//   - cascadeChildren only unsets dependsOn on rows that EXIST when the parent
+//     reaches a terminal state. A parent inserted before its child — and a
+//     stopsfserver is frequently an agent-side no-op that completes in
+//     milliseconds — can finish inside the gap, and the child then lands gated on a
+//     parent that will never cascade again. Nothing recovers it: the parent DOES
+//     exist, so the reaper's orphan sweep leaves it alone, and the user's server
+//     stays stopped forever.
+//   - An abort must leave NO writes behind. The load-bearing re-point below can
+//     fail the whole attempt (errStartClaimed); with the stop written first, an
+//     exhausted retry loop left a pending stopsfserver that ran on its own and took
+//     the user's server down with no sync and no start behind it.
 func executePlan(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, trigger v2.TaskTrigger, p syncPlan) ([]string, error) {
-	ids := make([]string, 0, 3)
-
-	// The chain's stop/start DO want dedupe-adoption: a second "apply now" should
-	// re-point at the same pair rather than litter the task list with duplicates.
-	var stopOID *bson.ObjectID
-	if p.NeedStop {
-		stopID, err := q.Enqueue(agentID, accountID, ActionStop, nil,
-			"syncchain-stop:"+agentID.Hex(), trigger, agenttask.EnqueueOpts{})
-		if err != nil {
-			return nil, err
-		}
-		oid, err := bson.ObjectIDFromHex(stopID)
-		if err != nil {
-			return nil, err
-		}
-		stopOID = &oid
-		ids = append(ids, stopID)
-	}
-
-	gate := agenttask.EnqueueOpts{}
-	switch p.Gate {
-	case gateAfterStop:
-		gate.DependsOn = stopOID
-	case gateServerStopped:
-		gate.RequiresServerStopped = true
-	}
-
-	// Pre-assign the sync's _id so the pending start can be gated onto it BEFORE the
-	// sync row exists. Gating second would leave a window in which the start is both
-	// ungated and OLDER than the new sync: an in-flight sync completing inside it
-	// cascades the start's gate off, the oldest-first claim takes the start, and the
-	// game boots into a Mods rewrite. Order, not timing, is what closes this.
 	syncOID := bson.NewObjectID()
 	if p.ReuseSyncID != "" {
 		oid, err := bson.ObjectIDFromHex(p.ReuseSyncID)
@@ -407,14 +419,18 @@ func executePlan(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, 
 		}
 		syncOID = oid
 	}
+	stopOID := bson.NewObjectID()
 
-	// LOAD-BEARING no-op check. This start is PRE-EXISTING: it was already pending
-	// when the plan's inputs were read, and nothing here owns it. SetGate matches
-	// status=pending, so `matched == false` means the dispatcher claimed it in the
-	// window between that read and this write — the game server is booting right
-	// now and the plan's `running` is stale. Inserting the sync anyway is the
-	// original bug: an ungated syncmods rewriting Mods under a live game. Abort and
-	// let enqueueSync re-read.
+	// LOAD-BEARING no-op check, and it is deliberately the plan's FIRST write: it is
+	// the only step that can abort the attempt, and it is an UPDATE, so an abort here
+	// leaves the queue exactly as it found it.
+	//
+	// This start is PRE-EXISTING: it was already pending when the plan's inputs were
+	// read, and nothing here owns it. SetGate matches status=pending, so
+	// `matched == false` means the dispatcher claimed it in the window between that
+	// read and this write — the game server is booting right now and the plan's
+	// `running` is stale. Inserting the sync anyway is the original bug: an ungated
+	// syncmods rewriting Mods under a live game. Abort and let enqueueSync re-read.
 	if p.RepointStartID != "" {
 		matched, err := q.SetGate(p.RepointStartID, agenttask.EnqueueOpts{DependsOn: &syncOID})
 		if err != nil {
@@ -425,51 +441,132 @@ func executePlan(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, 
 		}
 	}
 
+	trailingStart, err := ensureTrailingStart(q, agentID, accountID, trigger, p, syncOID)
+	if err != nil {
+		// Nothing is gated on the sync but the re-point, which must be released or the
+		// user's server stays down behind an _id that will never exist.
+		releaseGates(q, p.RepointStartID)
+		return nil, err
+	}
+
+	gate := agenttask.EnqueueOpts{}
+	switch p.Gate {
+	case gateAfterStop:
+		gate.DependsOn = &stopOID
+	case gateServerStopped:
+		gate.RequiresServerStopped = true
+	}
+
 	if p.ReuseSyncID != "" {
 		// A no-op here is safe to ignore: the sync being claimed means it is running
 		// with this very payload (ReplacePendingPayload just wrote it), so its gates
 		// have already been evaluated and there is nothing left to gate.
 		if _, err := q.SetGate(p.ReuseSyncID, gate); err != nil {
+			releaseGates(q, p.RepointStartID, trailingStart)
 			return nil, err
 		}
 	} else {
 		gate.ID = &syncOID
 		if _, err := q.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger, gate); err != nil {
-			// The start is now gated behind an _id that will never exist. Release it, or
-			// the user's server stays down: nothing else recovers this. There is no parent
-			// row to cascade and no running task to reap. If the release ALSO fails, the
-			// reaper's orphaned-gate sweep is the backstop — log loudly, because until it
-			// runs the server is down.
-			if p.RepointStartID != "" {
-				if _, rerr := q.SetGate(p.RepointStartID, agenttask.EnqueueOpts{}); rerr != nil {
-					logger.GetErrorLogger().Printf(
-						"could not release startsfserver task %s after its syncmods insert failed; it is gated on an _id that will never exist and stays pending until the reaper's orphan sweep: %s",
-						p.RepointStartID, rerr.Error())
-				}
+			// Every start we gated is now behind an _id that will never exist. Release them,
+			// or the user's server stays down: nothing else recovers this. There is no parent
+			// row to cascade and no running task to reap. If a release ALSO fails, the
+			// reaper's orphaned-gate sweep is the backstop — releaseGates logs loudly,
+			// because until it runs the server is down.
+			releaseGates(q, p.RepointStartID, trailingStart)
+			return nil, err
+		}
+	}
+
+	ids := make([]string, 0, 3)
+	ids = append(ids, syncOID.Hex())
+	if trailingStart != "" {
+		ids = append(ids, trailingStart)
+	}
+
+	if p.NeedStop {
+		// The stop is the sync's PARENT, so it goes in last, on the _id the sync is
+		// already gated onto — and it carries NO dedupe key. Adoption would hand the sync
+		// a parent that is already ACTIVE (uniq_active_dedupe's partial filter covers
+		// running), i.e. one that can complete before the sync row exists — the exact gap
+		// this ordering closes — and it would return an _id other than the one the sync
+		// is gated on. A duplicate stopsfserver is a harmless no-op against a server that
+		// is already down; a sync gated on a parent that will never cascade leaves the
+		// server down forever.
+		if _, err := q.Enqueue(agentID, accountID, ActionStop, nil, "", trigger,
+			agenttask.EnqueueOpts{ID: &stopOID}); err != nil {
+			// The sync is gated on an _id that will never exist. Move it onto
+			// requiresServerStopped rather than releasing it: released, it would be claimable
+			// NOW, over a live game (invariant 1). Gated this way it waits for the next stop,
+			// and the trailing start still follows it.
+			if _, rerr := q.SetGate(syncOID.Hex(), agenttask.EnqueueOpts{RequiresServerStopped: true}); rerr != nil {
+				logger.GetErrorLogger().Printf(
+					"could not re-gate syncmods task %s after its stopsfserver insert failed; it is gated on an _id that will never exist and stays pending until the reaper's orphan sweep, which will make it claimable over a RUNNING game server: %s",
+					syncOID.Hex(), rerr.Error())
 			}
 			return nil, err
 		}
-	}
-	ids = append(ids, syncOID.Hex())
-
-	if p.EnsureStart {
-		startID, err := q.Enqueue(agentID, accountID, ActionStart, nil,
-			"syncchain-start:"+agentID.Hex(), trigger, agenttask.EnqueueOpts{DependsOn: &syncOID})
-		if err != nil {
-			return nil, err
-		}
-		// Adoption ignores opts, so an adopted start may still carry a stale gate.
-		// Unlike the re-point above, a no-op here is NOT load-bearing: the sync this
-		// start trails is gated (p.EnsureStart only ever comes with gateAfterStop), so
-		// a start that got claimed in this window boots a server the sync cannot yet
-		// touch. On the freshly-inserted path it is a free idempotent no-op.
-		if _, err := q.SetGate(startID, agenttask.EnqueueOpts{DependsOn: &syncOID}); err != nil {
-			return nil, err
-		}
-		ids = append(ids, startID)
+		ids = append(ids, stopOID.Hex())
 	}
 
 	return ids, nil
+}
+
+// ensureTrailingStart gives the chain a startsfserver that trails ITS sync.
+//
+// The agent-wide dedupe key is what collapses a burst of "apply now" clicks onto
+// one start. But Enqueue adopts on that key, and uniq_active_dedupe's partial
+// filter covers active — pending AND RUNNING. A second "apply now" issued while the
+// PREVIOUS chain's start is still booting therefore adopts that RUNNING start, and
+// SetGate correctly no-ops against it: the new chain becomes stop -> sync ->
+// nothing, the server goes down for the sync and never comes back.
+//
+// `matched == false` is exactly that case and nothing else (a start we inserted
+// ourselves a microsecond ago is pending and gated behind a sync that does not even
+// exist yet, so it cannot have been claimed). The adopted start cannot serve as this
+// chain's tail, so insert a fresh one under a key scoped to this sync, which no
+// in-flight start can collide with.
+func ensureTrailingStart(q taskQueue, agentID, accountID bson.ObjectID, trigger v2.TaskTrigger, p syncPlan, syncOID bson.ObjectID) (string, error) {
+	if !p.EnsureStart {
+		return "", nil
+	}
+
+	gate := agenttask.EnqueueOpts{DependsOn: &syncOID}
+
+	startID, err := q.Enqueue(agentID, accountID, ActionStart, nil,
+		"syncchain-start:"+agentID.Hex(), trigger, gate)
+	if err != nil {
+		return "", err
+	}
+
+	// Adoption ignores opts, so an adopted start still carries whatever gate it was
+	// created with.
+	matched, err := q.SetGate(startID, gate)
+	if err != nil {
+		return "", err
+	}
+	if matched {
+		return startID, nil
+	}
+
+	return q.Enqueue(agentID, accountID, ActionStart, nil,
+		"syncchain-start:"+agentID.Hex()+":"+syncOID.Hex(), trigger, gate)
+}
+
+// releaseGates makes tasks gated onto a pre-assigned _id whose insert failed
+// claimable again. It is compensation, never a decision: the only tasks passed here
+// are startsfservers, and a released start brings the user's game server back up.
+func releaseGates(q taskQueue, taskIDs ...string) {
+	for _, id := range taskIDs {
+		if id == "" {
+			continue
+		}
+		if _, err := q.SetGate(id, agenttask.EnqueueOpts{}); err != nil {
+			logger.GetErrorLogger().Printf(
+				"could not release startsfserver task %s after the mod-sync plan failed; it is gated on an _id that will never exist and stays pending until the reaper's orphan sweep: %s",
+				id, err.Error())
+		}
+	}
 }
 
 func serverIsRunning(agentID bson.ObjectID) (bool, error) {

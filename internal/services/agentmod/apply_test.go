@@ -10,11 +10,20 @@ import (
 )
 
 // fakeQueue is a taskQueue that records what executePlan did, in order, and can
-// simulate the dispatcher claiming the pending start mid-plan.
+// simulate both races the plan has to survive: the dispatcher claiming the pending
+// start mid-plan, and Enqueue's dedupe key ADOPTING a start that is already running.
 type fakeQueue struct {
 	running      bool
 	pendingSync  string
 	pendingStart string
+
+	// runningStartID is a startsfserver the dispatcher has already claimed. The agent
+	// has NOT yet reported running:true — the game is still booting — which is exactly
+	// why agents.status.running cannot be the plan's only notion of "running".
+	//
+	// It is adoptable (uniq_active_dedupe covers running) and it is NOT re-gatable
+	// (SetGate matches pending only), which together are the trap of finding 2.
+	runningStartID string
 
 	// startClaimedOnRepoint makes the FIRST SetGate of the pending start report a
 	// no-op, exactly as Mongo does once the dispatcher has moved it to running. The
@@ -28,8 +37,9 @@ type fakeQueue struct {
 }
 
 type enqueueCall struct {
-	action string
-	opts   agenttask.EnqueueOpts
+	action    string
+	dedupeKey string
+	opts      agenttask.EnqueueOpts
 }
 
 type gateCall struct {
@@ -40,6 +50,15 @@ type gateCall struct {
 func (f *fakeQueue) ServerIsRunning(bson.ObjectID) (bool, error) {
 	f.plans++
 	return f.running, nil
+}
+
+// An active start is a pending one or a running one. Mirrors agenttask's `active`
+// field, which is present for exactly those two statuses.
+func (f *fakeQueue) HasActiveAction(_ bson.ObjectID, action string) (bool, error) {
+	if action != ActionStart {
+		return false, nil
+	}
+	return f.pendingStart != "" || f.runningStartID != "", nil
 }
 
 func (f *fakeQueue) ReplacePendingPayload(bson.ObjectID, string, interface{}) (string, error) {
@@ -53,13 +72,25 @@ func (f *fakeQueue) PendingIDByAction(_ bson.ObjectID, action string) (string, e
 	return "", nil
 }
 
-func (f *fakeQueue) Enqueue(_, _ bson.ObjectID, action string, _ interface{}, _ string, _ v2.TaskTrigger, opts agenttask.EnqueueOpts) (string, error) {
-	f.enqueued = append(f.enqueued, enqueueCall{action: action, opts: opts})
+func (f *fakeQueue) Enqueue(agentID, _ bson.ObjectID, action string, _ interface{}, dedupeKey string, _ v2.TaskTrigger, opts agenttask.EnqueueOpts) (string, error) {
+	f.enqueued = append(f.enqueued, enqueueCall{action: action, dedupeKey: dedupeKey, opts: opts})
+
+	// The chain's agent-wide start key collides with the still-RUNNING start, so
+	// Enqueue adopts it and silently drops opts — which is how a new chain ends up
+	// with no start of its own at all.
+	if action == ActionStart && f.runningStartID != "" && dedupeKey == "syncchain-start:"+agentID.Hex() {
+		return f.runningStartID, nil
+	}
 	return bson.NewObjectID().Hex(), nil
 }
 
 func (f *fakeQueue) SetGate(taskID string, opts agenttask.EnqueueOpts) (bool, error) {
 	f.gates = append(f.gates, gateCall{taskID: taskID, opts: opts})
+
+	// Already running: SetGate matches status=pending, so it lands on nothing.
+	if taskID != "" && taskID == f.runningStartID {
+		return false, nil
+	}
 
 	if taskID == f.pendingStart && f.startClaimedOnRepoint {
 		// It has been claimed: it is running, so SetGate matches nothing, the game
@@ -81,6 +112,109 @@ func (f *fakeQueue) syncEnqueue(t *testing.T) enqueueCall {
 	}
 	t.Fatal("expected a syncmods to have been enqueued")
 	return enqueueCall{}
+}
+
+func (f *fakeQueue) enqueuesOf(action string) []enqueueCall {
+	out := make([]enqueueCall, 0, len(f.enqueued))
+	for _, e := range f.enqueued {
+		if e.action == action {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// FINDING 1. The agent-reported status is blind to task state: it is still false
+// for the whole time a startsfserver is mid-boot. A plan that reads only that field
+// therefore decides "stopped" while the game is coming up and gates NOTHING —
+// uniq_running_per_agent holds the sync back only until the start finishes, by which
+// point the game is live and the ungated sync rewrites Mods underneath it. The
+// staleness is not one-directional: a stale false UNDER-gates.
+//
+// Revert planRunning's HasActiveAction OR and this goes red: the sync ships ungated.
+func TestEnqueueSyncGatesTheSyncWhileAStartIsStillBooting(t *testing.T) {
+	q := &fakeQueue{
+		running:        false, // the agent has not reported the boot yet ...
+		runningStartID: "652f000000000000000000c3",
+	} // ... but its startsfserver is RUNNING right now
+
+	if _, err := enqueueSyncWith(q, bson.NewObjectID(), bson.NewObjectID(), v2.Lockfile{}, false, v2.TaskTrigger{Type: v2.TaskTriggerUser}); err != nil {
+		t.Fatal(err)
+	}
+
+	sync := q.syncEnqueue(t)
+	if sync.opts.DependsOn == nil && !sync.opts.RequiresServerStopped {
+		t.Fatal("a syncmods was inserted UNGATED while a startsfserver was mid-boot: it becomes claimable the moment the game is live and rewrites the Mods directory under it")
+	}
+}
+
+// FINDING 2. uniq_active_dedupe is partial on `active`, which covers RUNNING, so the
+// chain's agent-wide start key ADOPTS the previous chain's still-booting start.
+// SetGate then correctly no-ops against it (it is not pending), and the new chain is
+// stop -> sync -> NOTHING: the server goes down for the sync and never comes back.
+// Invariant 3.
+//
+// Revert ensureTrailingStart's `if matched { return }` / fresh-insert fallback and
+// this goes red: the chain's only start IS the running one.
+func TestEnqueueSyncNeverAdoptsARunningStartAsItsOwnTail(t *testing.T) {
+	const runningStart = "652f000000000000000000c3"
+
+	agentID := bson.NewObjectID()
+	q := &fakeQueue{running: false, runningStartID: runningStart}
+
+	ids, err := enqueueSyncWith(q, agentID, bson.NewObjectID(), v2.Lockfile{}, true, v2.TaskTrigger{Type: v2.TaskTriggerUser})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	starts := q.enqueuesOf(ActionStart)
+	if len(starts) != 2 {
+		t.Fatalf("expected the adopted running start to be rejected and a fresh one inserted, got %d start enqueue(s)", len(starts))
+	}
+	if starts[1].dedupeKey == starts[0].dedupeKey {
+		t.Fatal("the fresh start reused the agent-wide dedupe key, so it adopts the very running start it exists to replace")
+	}
+	if starts[1].opts.DependsOn == nil {
+		t.Fatal("the chain's own start must trail its sync")
+	}
+
+	// ids is [sync, start, stop]: the tail must not be the start that was already
+	// booting, or nothing brings the server back up after the sync.
+	if len(ids) != 3 {
+		t.Fatalf("expected sync + start + stop, got %v", ids)
+	}
+	if ids[1] == runningStart {
+		t.Fatal("the chain adopted the RUNNING start as its tail: it cannot be gated behind the sync, so the server goes down for the sync and never comes back up")
+	}
+	if len(q.enqueuesOf(ActionStop)) != 1 {
+		t.Fatal("expected the chain to take the server down before the sync")
+	}
+}
+
+// FINDING 3. An aborted attempt must leave NOTHING behind. Parents go in last, so
+// the only step that can abort — the re-point of a pre-existing pending start, which
+// is an UPDATE — runs before any insert. A stopsfserver written before it would
+// survive the abort, run on its own, and take the user's game server down with no
+// sync and no start behind it.
+//
+// Revert executePlan's parents-last ordering (write the stop first) and this goes
+// red: three exhausted attempts leave three stopsfservers pending.
+func TestEnqueueSyncLeavesNoTasksBehindWhenTheAttemptIsAborted(t *testing.T) {
+	q := &alwaysClaimedQueue{fakeQueue{running: true}}
+
+	_, err := enqueueSyncWith(q, bson.NewObjectID(), bson.NewObjectID(), v2.Lockfile{}, true, v2.TaskTrigger{Type: v2.TaskTriggerUser})
+	if err == nil {
+		t.Fatal("expected an error once the plan attempts were exhausted")
+	}
+
+	if len(q.enqueued) != 0 {
+		t.Fatalf("an aborted plan wrote tasks it can no longer order: %+v", q.enqueued)
+	}
+	for _, e := range q.enqueued {
+		if e.action == ActionStop {
+			t.Fatal("an orphaned stopsfserver survived the abort: it will run on its own and leave the user's server down with nothing to sync or restart it")
+		}
+	}
 }
 
 // THE race the whole rework exists to close, and the one planFor cannot see: the

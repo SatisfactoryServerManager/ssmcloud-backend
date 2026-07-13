@@ -307,6 +307,34 @@ func FindPendingByAction(agentID bson.ObjectID, action string) (*v2.AgentTaskSch
 	return task, nil
 }
 
+// HasActiveAction reports whether the agent has an ACTIVE (pending or running)
+// task of this action.
+//
+// It exists because agent-reported status is blind to task state. `agents.status.running`
+// is still false for the whole time a startsfserver is mid-boot, so a caller that
+// decides "is the game server running?" from that field alone decides FALSE while
+// the game is coming up, and gates nothing. A syncmods inserted on that decision is
+// claimable the moment the boot finishes, and rewrites the Mods directory under a
+// live game. "Running" for gating purposes must mean "running, or about to be", and
+// this is the second half of that.
+//
+// `active` is present exactly for pending and running, and is unset on every
+// terminal transition, so it is the whole predicate.
+func HasActiveAction(agentID bson.ObjectID, action string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	n, err := collection().CountDocuments(ctx, bson.M{
+		"agentId": agentID,
+		"action":  action,
+		"active":  bson.M{"$exists": true},
+	}, options.Count().SetLimit(1))
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 func Get(taskID string) (*v2.AgentTaskSchema, error) {
 	oid, err := bson.ObjectIDFromHex(taskID)
 	if err != nil {
