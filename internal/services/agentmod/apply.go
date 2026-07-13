@@ -200,171 +200,180 @@ func catalogueIDs(lf v2.Lockfile) (map[string]bson.ObjectID, error) {
 	return ids, nil
 }
 
-// shouldEscalate decides, given a pending sync already exists, whether
-// enqueueSync must build the stop -> sync -> start chain instead of leaving
-// the pending task exactly as it was replaced. The user is escalating from a
-// deferred sync to "apply now" only when the server is running AND applyNow
-// was requested; every other combination leaves the replaced task's own
-// gating (already correct for its case) untouched.
-func shouldEscalate(running, applyNow bool) bool {
-	return running && applyNow
+// syncGate is the single gate a syncmods carries. The three values are mutually
+// exclusive by construction, which is what makes the escalation deadlock
+// unrepresentable: a sync gated behind the chain's own stop CANNOT also be gated
+// on requiresServerStopped, because that condition is evaluated against a
+// Status.Running the stop has not yet been observed to have cleared.
+type syncGate int
+
+const (
+	gateNone          syncGate = iota // claimable now; the server is already stopped
+	gateAfterStop                     // dependsOn the chain's stopsfserver
+	gateServerStopped                 // requiresServerStopped; claimed whenever the server next stops
+)
+
+// syncPlan is the whole decision. The executor does nothing this does not say.
+type syncPlan struct {
+	NeedStop       bool     // enqueue (or adopt) the chain's stopsfserver
+	ReuseSyncID    string   // "" => insert a fresh syncmods; else re-gate this pending one
+	Gate           syncGate // the gate the sync ends up carrying, whether reused or fresh
+	EnsureStart    bool     // enqueue (or adopt) a startsfserver trailing the sync
+	RepointStartID string   // "" => none; else the pending start to drag onto the sync
 }
 
-// enqueueSync puts the lockfile on the queue.
+// planFor is the whole of enqueueSync's correctness, as a pure function of the
+// only four inputs that matter.
 //
-//   - Server stopped: one ungated task.
-//   - Server running, applyNow: stop -> sync -> start, chained on dependsOn. The
-//     chain's own stop satisfies the precondition, so the sync is NOT gated on
-//     requiresServerStopped — gating it against a Status.Running that has not yet
-//     been observed as false would deadlock the chain against a stale status write.
-//   - Server running, deferred: one task gated on requiresServerStopped, claimed
-//     within a dispatch tick of the server next stopping.
+// INVARIANT 1: a syncmods must never be claimable while the game is running —
+// hence a gate on every running path.
+// INVARIANT 2: a pending startsfserver must always trail the NEWEST sync —
+// hence RepointStartID is set whenever a start is pending, on EVERY path. A
+// start left pending from an earlier chain is older than the sync we are about
+// to add, and the dispatcher claims oldest-first, so leaving it ungated boots
+// the game and then rewrites Mods underneath it.
+//
+// A pending sync is always REUSED, never duplicated: it has no dedupe key, so
+// Enqueue cannot collapse a second one, and the orphan would re-run the sync the
+// next time the server stopped.
+//
+// Re-pointing a leftover start from a CANCELLED chain (server deliberately left
+// stopped) is still right: that start is already pending and already ungated, so
+// it is going to boot the server regardless — refusing to re-point does not
+// prevent the boot, it only lets it happen BEFORE the sync instead of after.
+func planFor(running, applyNow bool, pendingSyncID, pendingStartID string) syncPlan {
+	p := syncPlan{ReuseSyncID: pendingSyncID, RepointStartID: pendingStartID}
+
+	switch {
+	case running && applyNow:
+		p.NeedStop = true
+		p.Gate = gateAfterStop
+		p.EnsureStart = true
+	case running:
+		p.Gate = gateServerStopped
+	default:
+		p.Gate = gateNone
+	}
+
+	return p
+}
+
+// syncmods deliberately has NO dedupe key. uniq_active_dedupe's partial filter
+// covers "active", which is present for pending AND RUNNING tasks, so a key here
+// would let Enqueue ADOPT a mid-download sync and silently discard this lockfile.
+// At-most-one-PENDING is enforced by ReplacePendingPayload instead of by the
+// index. Do not add a dedupe key back.
+const syncDedupe = ""
+
+// enqueueSync gathers the four facts planFor needs, then executes its plan.
 func enqueueSync(agentID, accountID bson.ObjectID, lf v2.Lockfile, applyNow bool, trigger v2.TaskTrigger) ([]string, error) {
 	running, err := serverIsRunning(agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	// A pending syncmods carries a lockfile that this change has just invalidated,
-	// so collapse a burst of UI clicks by overwriting it in place. This only ever
-	// matches status=pending: a RUNNING sync's payload is already in the agent's
-	// hands, so there is nothing to overwrite, and the running task must be left
-	// to finish and converge via the desired-state reconcile the handler already
-	// performs. The pending task's existing gating (requiresServerStopped, or a
-	// dependsOn chain) is left exactly as it was.
-	replaced, err := agenttask.ReplacePendingPayload(agentID, ActionSyncMods, lf)
+	// Collapses a burst of UI clicks. Matches status=pending only: a running sync's
+	// payload is already in the agent's hands, and its handler reconciles desired
+	// state, so the two converge.
+	pendingSync, err := agenttask.ReplacePendingPayload(agentID, ActionSyncMods, lf)
 	if err != nil {
 		return nil, err
 	}
-	// If the user is escalating a deferred sync into "apply now", the replaced
-	// task's existing gate (requiresServerStopped) is exactly what must be
-	// undone, so it is NOT safe to return early here: fall through and build
-	// the stop -> sync -> start chain, adopting the replaced task as its sync.
-	if replaced != "" && !shouldEscalate(running, applyNow) {
-		if err := regatePendingStart(agentID, replaced); err != nil {
-			return nil, err
-		}
-		return []string{replaced}, nil
+
+	pendingStart := ""
+	start, err := agenttask.FindPendingByAction(agentID, ActionStart)
+	if err != nil {
+		return nil, err
+	}
+	if start != nil {
+		pendingStart = start.ID.Hex()
 	}
 
-	// syncmods deliberately has NO dedupe key. uniq_active_dedupe's partial filter
-	// covers "active", which is present for both pending AND RUNNING tasks — so a
-	// dedupe key here would let Enqueue ADOPT a task that is already running and
-	// mid-download, silently discarding this lockfile instead of shipping it. A
-	// second sync enqueued while one is running is fine: the queue serialises per
-	// agent, and the handler reconciles desired state, so the two converge. A lost
-	// lockfile is not fine. At-most-one-PENDING is enforced above by
-	// ReplacePendingPayload instead of by the index. Do not add a dedupe key back.
-	const syncDedupe = ""
+	return executePlan(agentID, accountID, lf, trigger, planFor(running, applyNow, pendingSync, pendingStart))
+}
 
-	if !running {
-		id, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger, agenttask.EnqueueOpts{})
+// executePlan executes a syncPlan. It makes no decisions; the ordering below is
+// the only thing it is responsible for.
+func executePlan(agentID, accountID bson.ObjectID, lf v2.Lockfile, trigger v2.TaskTrigger, p syncPlan) ([]string, error) {
+	ids := make([]string, 0, 3)
+
+	// The chain's stop/start DO want dedupe-adoption: a second "apply now" should
+	// re-point at the same pair rather than litter the task list with duplicates.
+	var stopOID *bson.ObjectID
+	if p.NeedStop {
+		stopID, err := agenttask.Enqueue(agentID, accountID, ActionStop, nil,
+			"syncchain-stop:"+agentID.Hex(), trigger, agenttask.EnqueueOpts{})
 		if err != nil {
 			return nil, err
 		}
-		// INVARIANT: a pending startsfserver must always trail the NEWEST sync.
-		// This is the ungated, no-chain path, so nothing else re-points a leftover
-		// start left pending from an earlier "apply now" whose sync has since
-		// finished (see enqueueSync's doc comment for the full scenario).
-		if err := regatePendingStart(agentID, id); err != nil {
-			return nil, err
-		}
-		return []string{id}, nil
-	}
-
-	if !applyNow {
-		id, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger,
-			agenttask.EnqueueOpts{RequiresServerStopped: true})
+		oid, err := bson.ObjectIDFromHex(stopID)
 		if err != nil {
 			return nil, err
 		}
-		if err := regatePendingStart(agentID, id); err != nil {
+		stopOID = &oid
+		ids = append(ids, stopID)
+	}
+
+	gate := agenttask.EnqueueOpts{}
+	switch p.Gate {
+	case gateAfterStop:
+		gate.DependsOn = stopOID
+	case gateServerStopped:
+		gate.RequiresServerStopped = true
+	}
+
+	// Pre-assign the sync's _id so the pending start can be gated onto it BEFORE the
+	// sync row exists. Gating second would leave a window in which the start is both
+	// ungated and OLDER than the new sync: an in-flight sync completing inside it
+	// cascades the start's gate off, the oldest-first claim takes the start, and the
+	// game boots into a Mods rewrite. Order, not timing, is what closes this.
+	syncOID := bson.NewObjectID()
+	if p.ReuseSyncID != "" {
+		oid, err := bson.ObjectIDFromHex(p.ReuseSyncID)
+		if err != nil {
 			return nil, err
 		}
-		return []string{id}, nil
+		syncOID = oid
 	}
 
-	// Unlike the sync, the chain's stop/start DO want dedupe-adoption: a second
-	// "apply now" click should re-point the sync at the SAME stop/start rather than
-	// littering the task list with orphaned duplicates that still run harmlessly
-	// but confuse the user.
-	stopDedupe := "syncchain-stop:" + agentID.Hex()
-	startDedupe := "syncchain-start:" + agentID.Hex()
-
-	stopID, err := agenttask.Enqueue(agentID, accountID, ActionStop, nil, stopDedupe, trigger, agenttask.EnqueueOpts{})
-	if err != nil {
-		return nil, err
-	}
-	stopOID, err := bson.ObjectIDFromHex(stopID)
-	if err != nil {
-		return nil, err
+	if p.RepointStartID != "" {
+		if err := agenttask.SetGate(p.RepointStartID, agenttask.EnqueueOpts{DependsOn: &syncOID}); err != nil {
+			return nil, err
+		}
 	}
 
-	// If ReplacePendingPayload found a pending sync above, reuse ITS id as the
-	// chain's sync instead of enqueueing a second one: the sync has no dedupe
-	// key (see above), so Enqueue cannot adopt it, and enqueueing anyway would
-	// leave the replaced task orphaned — still pending, still gated on
-	// requiresServerStopped, and liable to run a second, redundant sync the
-	// moment the server stops on its own. Re-gating the existing task onto the
-	// new stop turns it into the chain's sync instead of a stray duplicate.
-	var syncID string
-	if replaced != "" {
-		syncID = replaced
-		if err := agenttask.RegateForChain(syncID, stopOID); err != nil {
+	if p.ReuseSyncID != "" {
+		if err := agenttask.SetGate(p.ReuseSyncID, gate); err != nil {
 			return nil, err
 		}
 	} else {
-		syncID, err = agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger,
-			agenttask.EnqueueOpts{DependsOn: &stopOID})
-		if err != nil {
+		gate.ID = &syncOID
+		if _, err := agenttask.Enqueue(agentID, accountID, ActionSyncMods, lf, syncDedupe, trigger, gate); err != nil {
+			// The start is now gated behind an _id that will never exist. Release it;
+			// the dead/cancelled cascade's recovery-exempt release covers the rest.
+			if p.RepointStartID != "" {
+				_ = agenttask.SetGate(p.RepointStartID, agenttask.EnqueueOpts{})
+			}
 			return nil, err
 		}
 	}
-	syncOID, err := bson.ObjectIDFromHex(syncID)
-	if err != nil {
-		return nil, err
+	ids = append(ids, syncOID.Hex())
+
+	if p.EnsureStart {
+		startID, err := agenttask.Enqueue(agentID, accountID, ActionStart, nil,
+			"syncchain-start:"+agentID.Hex(), trigger, agenttask.EnqueueOpts{DependsOn: &syncOID})
+		if err != nil {
+			return nil, err
+		}
+		// Adoption ignores opts, so an adopted start may still carry a stale gate.
+		// SetGate is idempotent; on the freshly-inserted path this is a free no-op.
+		if err := agenttask.SetGate(startID, agenttask.EnqueueOpts{DependsOn: &syncOID}); err != nil {
+			return nil, err
+		}
+		ids = append(ids, startID)
 	}
 
-	startID, err := agenttask.Enqueue(agentID, accountID, ActionStart, nil, startDedupe, trigger,
-		agenttask.EnqueueOpts{DependsOn: &syncOID})
-	if err != nil {
-		return nil, err
-	}
-	// Enqueue's dedupe-adoption path ignores opts: if startDedupe adopted an
-	// existing active start whose dependsOn still points at a stale sync, the
-	// EnqueueOpts.DependsOn above never took effect. RegateForChain is
-	// idempotent, so calling it unconditionally is free on the non-adopted
-	// path and closes the gap on the adopted one.
-	if err := agenttask.RegateForChain(startID, syncOID); err != nil {
-		return nil, err
-	}
-
-	return []string{stopID, syncID, startID}, nil
-}
-
-// regatePendingStart re-points the agent's pending startsfserver, if any, at
-// syncID.
-//
-// INVARIANT: a pending startsfserver must always trail the NEWEST sync. Any
-// time enqueueSync settles on a sync's id — new, replaced-in-place, or part of
-// a chain — a start left pending from an earlier "apply now" must be dragged
-// forward onto it, or the dispatcher's FIFO claim can let that stale start run
-// BEFORE this sync, booting the game server and then rewriting Mods underneath
-// it. RegateForChain is idempotent and a no-op when there is no pending start.
-func regatePendingStart(agentID bson.ObjectID, syncID string) error {
-	start, err := agenttask.FindPendingByAction(agentID, ActionStart)
-	if err != nil {
-		return err
-	}
-	if start == nil {
-		return nil
-	}
-
-	syncOID, err := bson.ObjectIDFromHex(syncID)
-	if err != nil {
-		return err
-	}
-	return agenttask.RegateForChain(start.ID.Hex(), syncOID)
+	return ids, nil
 }
 
 func serverIsRunning(agentID bson.ObjectID) (bool, error) {

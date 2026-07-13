@@ -93,7 +93,15 @@ func EnsureIndexes() error {
 // EnqueueOpts carries the optional gates through to the stored task. Zero
 // value means "claimable as soon as the agent is idle", which is what every
 // existing caller wants.
+//
+// ID lets the caller pre-assign the task's _id. That is what allows a caller to
+// gate an ALREADY-PENDING task behind a task it has not inserted yet: gating
+// first and inserting second means the pending task is never simultaneously
+// ungated and older than the new one, which is the only ordering under which the
+// dispatcher's FIFO claim cannot run them backwards. If the insert then fails,
+// the caller must SetGate the stranded task back to claimable.
 type EnqueueOpts struct {
+	ID                    *bson.ObjectID
 	DependsOn             *bson.ObjectID
 	RequiresServerStopped bool
 }
@@ -116,6 +124,9 @@ func Enqueue(agentID, accountID bson.ObjectID, action string, data interface{}, 
 		DependsOn:             opts.DependsOn,
 		RequiresServerStopped: opts.RequiresServerStopped,
 	})
+	if opts.ID != nil {
+		doc.ID = *opts.ID
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -188,31 +199,45 @@ func ReplacePendingPayload(agentID bson.ObjectID, action string, data interface{
 	return task.ID.Hex(), nil
 }
 
-// RegateForChain re-points an already-enqueued task at a new parent, replacing
-// whatever gate it had before.
+// SetGate makes a PENDING task's claim gates exactly the ones in opts, replacing
+// whatever it carried before. It is a no-op on any other status: a running task's
+// gates have already been evaluated.
 //
-// It exists because Enqueue's dedupe-adoption path ignores the opts passed to
-// it: when an enqueue lands on an existing active task via dedupeKey, that task
-// keeps the gating it was created with. A caller that escalates a deferred
-// syncmods (gated on requiresServerStopped) into a stopsfserver -> syncmods
-// chain must therefore fix the gate up afterwards, or the adopted task stays
-// requiresServerStopped-gated forever while the server it is waiting to stop
-// is the very server the new stopsfserver task is about to stop — a deadlock.
-func RegateForChain(taskID string, parent bson.ObjectID) error {
+// It exists because Enqueue's dedupe-adoption path ignores opts — an adopted task
+// keeps the gating it was created with — and because a caller's plan may need to
+// move an existing task onto a different gate entirely (escalating a deferred
+// syncmods into a stop -> sync chain must CLEAR requiresServerStopped as it sets
+// dependsOn, or the chain's own stop is what the sync ends up waiting on forever).
+// Gates are therefore set as a set, not patched.
+//
+// The zero EnqueueOpts releases the task. That is also how a caller un-strands a
+// task it gated onto a pre-assigned _id whose insert then failed.
+func SetGate(taskID string, opts EnqueueOpts) error {
 	oid, err := bson.ObjectIDFromHex(taskID)
 	if err != nil {
 		return err
+	}
+
+	set := bson.M{"updatedAt": time.Now()}
+	unset := bson.M{}
+
+	if opts.DependsOn != nil {
+		set["dependsOn"] = *opts.DependsOn
+	} else {
+		unset["dependsOn"] = ""
+	}
+	if opts.RequiresServerStopped {
+		set["requiresServerStopped"] = true
+	} else {
+		unset["requiresServerStopped"] = ""
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	_, err = collection().UpdateOne(ctx,
-		bson.M{"_id": oid},
-		bson.M{
-			"$set":   bson.M{"dependsOn": parent, "updatedAt": time.Now()},
-			"$unset": bson.M{"requiresServerStopped": ""},
-		})
+		bson.M{"_id": oid, "status": v2.TaskStatusPending},
+		bson.M{"$set": set, "$unset": unset})
 	return err
 }
 
@@ -249,7 +274,7 @@ func FindByDedupeKey(agentID bson.ObjectID, dedupeKey string) (*v2.AgentTaskSche
 // if there is none.
 //
 // This exists so a caller outside the package (agentmod, re-pointing a pending
-// startsfserver at a newer sync — see RegateForChain) never needs its own
+// startsfserver at a newer sync — see SetGate) never needs its own
 // GetCollection("agenttasks") read: the queue owns that collection, and every
 // query against it lives here.
 func FindPendingByAction(agentID bson.ObjectID, action string) (*v2.AgentTaskSchema, error) {
