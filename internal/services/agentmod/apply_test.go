@@ -31,6 +31,14 @@ type fakeQueue struct {
 	// the re-plan must observe.
 	startClaimedOnRepoint bool
 
+	// startAppearsAfterSyncInsert simulates a startsfserver enqueued by someone
+	// else AFTER PendingIDByAction reported "" (so RepointStartID was empty and
+	// the read-time re-point never ran) but BEFORE HasActiveAction is checked
+	// again once the sync exists. HasActiveAction flips to true the moment the
+	// sync has been inserted.
+	startAppearsAfterSyncInsert bool
+	syncInserted                bool
+
 	enqueued []enqueueCall
 	gates    []gateCall
 	plans    int
@@ -58,6 +66,9 @@ func (f *fakeQueue) HasActiveAction(_ bson.ObjectID, action string) (bool, error
 	if action != ActionStart {
 		return false, nil
 	}
+	if f.startAppearsAfterSyncInsert && f.syncInserted {
+		return true, nil
+	}
 	return f.pendingStart != "" || f.runningStartID != "", nil
 }
 
@@ -74,6 +85,10 @@ func (f *fakeQueue) PendingIDByAction(_ bson.ObjectID, action string) (string, e
 
 func (f *fakeQueue) Enqueue(agentID, _ bson.ObjectID, action string, _ interface{}, dedupeKey string, _ v2.TaskTrigger, opts agenttask.EnqueueOpts) (string, error) {
 	f.enqueued = append(f.enqueued, enqueueCall{action: action, dedupeKey: dedupeKey, opts: opts})
+
+	if action == ActionSyncMods {
+		f.syncInserted = true
+	}
 
 	// The chain's agent-wide start key collides with the still-RUNNING start, so
 	// Enqueue adopts it and silently drops opts — which is how a new chain ends up
@@ -250,6 +265,44 @@ func TestEnqueueSyncNeverInsertsAnUngatedSyncWhenTheStartWasClaimedMidPlan(t *te
 	}
 	if q.plans < 2 {
 		t.Fatalf("expected the lost re-point to force a re-plan, got %d plan(s)", q.plans)
+	}
+}
+
+// THE remaining hole: HasActiveAction at plan-read time is a READ, not a fence. It
+// closes the case where a start already exists when the plan's inputs are read,
+// but not one that appears AFTER PendingIDByAction returned "" and the plan lands
+// with gateNone -- there is no pending start to re-point onto, so
+// errStartClaimed's abort never fires and nothing re-plans.
+//
+// Revert executePlan's post-insert re-check and this goes red: the sync ships
+// with gateNone while a startsfserver is active.
+func TestEnqueueSyncReGatesTheSyncWhenAStartAppearsAfterItIsInserted(t *testing.T) {
+	q := &fakeQueue{
+		running:                     false, // stopped at read time: no pending or running start either
+		startAppearsAfterSyncInsert: true,   // ... but one is claimed the instant the sync exists
+	}
+
+	ids, err := enqueueSyncWith(q, bson.NewObjectID(), bson.NewObjectID(), v2.Lockfile{}, false, v2.TaskTrigger{Type: v2.TaskTriggerUser})
+	if err != nil {
+		t.Fatalf("expected the plan to succeed, got %v", err)
+	}
+	if len(ids) == 0 {
+		t.Fatal("expected the sync to have been enqueued")
+	}
+
+	sync := q.syncEnqueue(t)
+	if sync.opts.DependsOn != nil || sync.opts.RequiresServerStopped {
+		t.Fatalf("expected the sync to be inserted with gateNone before the post-insert check, got %+v", sync.opts)
+	}
+
+	found := false
+	for _, g := range q.gates {
+		if g.taskID == sync.opts.ID.Hex() && g.opts.RequiresServerStopped {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected the post-insert check to re-gate the sync onto requiresServerStopped once the start appeared, got gates=%+v", q.gates)
 	}
 }
 

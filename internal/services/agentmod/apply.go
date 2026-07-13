@@ -478,6 +478,45 @@ func executePlan(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, 
 		}
 	}
 
+	// A start can appear AFTER the plan's inputs were read but leave nothing to
+	// abort on: PendingIDByAction saw no pending start (so RepointStartID was
+	// empty and the load-bearing re-point above never ran), yet a start has since
+	// been claimed and the game is booting. The sync above just landed with
+	// gateNone. Re-check right here and re-gate if one appeared.
+	//
+	// Safe in both race orders: if the start won the dispatcher's claim, this sync
+	// is necessarily still pending (the dispatcher holds one claim per agent and
+	// it is on that start), so the SetGate below matches and lands. If the sync
+	// won the claim instead, the server was stopped when it ran, which was
+	// already safe, and the start is still pending behind it. Over-gating is
+	// always safe (the sync just waits for the agent to report stopped);
+	// under-gating rewrites Mods under a live game, so a HasActiveAction error
+	// here is treated as "gate it" rather than swallowed into false.
+	// A start can appear AFTER the plan's inputs were read but leave nothing to
+	// abort on: PendingIDByAction saw no pending start (so RepointStartID was
+	// empty and the load-bearing re-point above never ran), yet a start has since
+	// been claimed and the game is booting. The sync above just landed with
+	// gateNone. Re-check right here and re-gate if one appeared.
+	//
+	// Safe in both race orders: if the start won the dispatcher's claim, this sync
+	// is necessarily still pending (the dispatcher holds one claim per agent and
+	// it is on that start), so the SetGate below matches and lands. If the sync
+	// won the claim instead, the server was stopped when it ran, which was
+	// already safe, and the start is still pending behind it. Over-gating is
+	// always safe (the sync just waits for the agent to report stopped);
+	// under-gating rewrites Mods under a live game, so a HasActiveAction error
+	// here is treated as "gate it" rather than swallowed into false.
+	if p.Gate == gateNone {
+		active, err := q.HasActiveAction(agentID, ActionStart)
+		if err != nil || active {
+			if _, serr := q.SetGate(syncOID.Hex(), agenttask.EnqueueOpts{RequiresServerStopped: true}); serr != nil {
+				logger.GetErrorLogger().Printf(
+					"could not re-gate syncmods task %s after a startsfserver appeared post-insert; it may still be claimable over a booting game server: %s",
+					syncOID.Hex(), serr.Error())
+			}
+		}
+	}
+
 	ids := make([]string, 0, 3)
 	ids = append(ids, syncOID.Hex())
 	if trailingStart != "" {
