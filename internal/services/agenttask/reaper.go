@@ -46,7 +46,7 @@ func ReapExpiredLeases() error {
 			// the agent that would have reported FAILED and hit this flag in Fail is gone.
 			terminalStatus = v2.TaskStatusCancelled
 			update = bson.M{
-				"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now, "lastError": "lease expired"},
+				"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now, "lastError": "cancelled; the agent did not acknowledge before its lease expired"},
 				"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": ""},
 			}
 		case task.Attempts >= task.MaxAttempts:

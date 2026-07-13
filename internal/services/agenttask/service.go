@@ -350,11 +350,17 @@ func Fail(taskID, leaseToken, errMsg string) error {
 		}
 	}
 
-	if _, err = collection().UpdateOne(ctx, filter, update); err != nil {
+	res, err := collection().UpdateOne(ctx, filter, update)
+	if err != nil {
 		return err
 	}
 
-	if current.CancelRequested || current.Attempts >= current.MaxAttempts {
+	// The filter is still fenced on leaseToken+status=running from the FindOne above.
+	// If the reaper terminalised this task between our FindOne and this UpdateOne, the
+	// leaseToken has moved on and res.MatchedCount is 0: our write landed on nothing,
+	// so cascading here would kill the chain of a task we no longer hold. Only cascade
+	// the write that actually took effect.
+	if res.MatchedCount > 0 && (current.CancelRequested || current.Attempts >= current.MaxAttempts) {
 		status := v2.TaskStatusDead
 		if current.CancelRequested {
 			status = v2.TaskStatusCancelled
@@ -520,12 +526,49 @@ func Retry(taskID string) error {
 	return nil
 }
 
+// recoveryExemptAction is the one action a dead/cancelled cascade must never
+// cancel. stopsfserver -> syncmods -> startsfserver takes the game server down
+// to rewrite Mods and bring it back up; if the chain dies anywhere after the
+// stop, cancelling the remaining startsfserver would strand the server down
+// with nothing left to start it — the exact failure the cascade exists to
+// prevent, just moved one step later. The startsfserver handler is contractually
+// idempotent ("already running: complete, no-op"), so releasing it is safe even
+// if the chain died before the stop ever ran: it simply completes as a no-op
+// against a server that was never stopped. Do not remove this exemption as
+// "dead code cleanup" — it is the fix for that stranding case.
+const recoveryExemptAction = "startsfserver"
+
+// cascadeDecision is what should happen to one gated child when its parent has
+// just reached a terminal state. Pure so the recovery-exemption rule can be
+// tested without a database.
+type cascadeDecision int
+
+const (
+	cascadeRelease cascadeDecision = iota
+	cascadeCancel
+)
+
+// decideCascade returns how a child with the given action should be resolved
+// when its parent finishes with parentStatus. Completed parents always release
+// (the gate lifts, nothing is cancelled). Dead/cancelled parents cancel every
+// child except recoveryExemptAction, which is released instead so it becomes
+// claimable and can bring the server back up.
+func decideCascade(parentStatus string, childAction string) cascadeDecision {
+	if parentStatus == v2.TaskStatusCompleted {
+		return cascadeRelease
+	}
+	if childAction == recoveryExemptAction {
+		return cascadeRelease
+	}
+	return cascadeCancel
+}
+
 // cascadeChildren resolves the tasks gated behind a task that has just reached a
 // terminal state. On success the gate is simply lifted and the dispatcher is
 // woken, since a child may now be immediately claimable. On death or
-// cancellation the children are cancelled with the parent, so a cancelled
-// stop -> sync -> start chain never strands the server stopped; nothing became
-// claimable there, so no wake is needed.
+// cancellation the children are cancelled with the parent, EXCEPT for a child
+// whose action is recoveryExemptAction — see the comment on that constant for
+// why that one case must be released rather than cancelled.
 func cascadeChildren(ctx context.Context, parentID bson.ObjectID, parentStatus string, agentID bson.ObjectID) error {
 	now := time.Now()
 
@@ -540,11 +583,25 @@ func cascadeChildren(ctx context.Context, parentID bson.ObjectID, parentStatus s
 		return nil
 	}
 
-	_, err := collection().UpdateMany(ctx,
-		bson.M{"dependsOn": parentID, "active": bson.M{"$exists": true}},
+	// Dead or cancelled parent: cancel every gated child except the recovery
+	// exemption, which is released (dependsOn cleared) instead of cancelled.
+	if _, err := collection().UpdateMany(ctx,
+		bson.M{"dependsOn": parentID, "active": bson.M{"$exists": true}, "action": bson.M{"$ne": recoveryExemptAction}},
 		bson.M{
 			"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now, "lastError": "cancelled with its parent task"},
 			"$unset": bson.M{"active": "", "dependsOn": "", "leaseToken": "", "leaseExpiresAt": "", "message": ""},
-		})
-	return err
+		}); err != nil {
+		return err
+	}
+
+	res, err := collection().UpdateMany(ctx,
+		bson.M{"dependsOn": parentID, "active": bson.M{"$exists": true}, "action": recoveryExemptAction},
+		bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount > 0 {
+		notifyEnqueued(agentID)
+	}
+	return nil
 }
