@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	v2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -37,12 +38,24 @@ func ReapExpiredLeases() error {
 		task := &expired[idx]
 
 		var update bson.M
-		if task.Attempts >= task.MaxAttempts {
+		var terminalStatus string
+		switch {
+		case task.CancelRequested:
+			// A cancelled task must never come back on the next tick: requeueing it to
+			// pending here would re-dispatch a task the user explicitly cancelled, since
+			// the agent that would have reported FAILED and hit this flag in Fail is gone.
+			terminalStatus = v2.TaskStatusCancelled
+			update = bson.M{
+				"$set":   bson.M{"status": v2.TaskStatusCancelled, "finishedAt": now, "updatedAt": now, "lastError": "lease expired"},
+				"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": ""},
+			}
+		case task.Attempts >= task.MaxAttempts:
+			terminalStatus = v2.TaskStatusDead
 			update = bson.M{
 				"$set":   bson.M{"status": v2.TaskStatusDead, "finishedAt": now, "updatedAt": now, "lastError": "lease expired"},
 				"$unset": bson.M{"active": "", "leaseToken": "", "leaseExpiresAt": ""},
 			}
-		} else {
+		default:
 			update = bson.M{
 				"$set": bson.M{
 					"status":        v2.TaskStatusPending,
@@ -67,8 +80,18 @@ func ReapExpiredLeases() error {
 			"status":         v2.TaskStatusRunning,
 			"leaseExpiresAt": bson.M{"$lt": now},
 		}
-		if _, err := collection().UpdateOne(ctx, fence, update); err != nil {
+		res, err := collection().UpdateOne(ctx, fence, update)
+		if err != nil {
 			return err
+		}
+
+		// A task that won the renewal race in the fencing window is still alive:
+		// cascading its children away here would sever a chain that has not actually
+		// died. Only cascade the write that actually took effect.
+		if terminalStatus != "" && res.MatchedCount > 0 {
+			if err := cascadeChildren(ctx, task.ID, terminalStatus, task.AgentID); err != nil {
+				logger.GetErrorLogger().Printf("error cascading children of reaped task %s: %s", task.ID.Hex(), err.Error())
+			}
 		}
 	}
 

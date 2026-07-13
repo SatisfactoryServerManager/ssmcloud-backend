@@ -287,16 +287,18 @@ func Complete(taskID, leaseToken string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	res, err := collection().UpdateOne(ctx, filter, update)
-	if err != nil {
-		return err
-	}
-	if res.MatchedCount == 0 {
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	task := &v2.AgentTaskSchema{}
+	err = collection().FindOneAndUpdate(ctx, filter, update, opts).Decode(task)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		logger.GetDebugLogger().Printf("Complete: stale lease for task %s, ignoring", taskID)
 		return nil
 	}
+	if err != nil {
+		return err
+	}
 
-	if err := cascadeChildren(ctx, oid, v2.TaskStatusCompleted); err != nil {
+	if err := cascadeChildren(ctx, oid, v2.TaskStatusCompleted, task.AgentID); err != nil {
 		logger.GetErrorLogger().Printf("error cascading children of completed task %s: %s", taskID, err.Error())
 	}
 	return nil
@@ -357,7 +359,7 @@ func Fail(taskID, leaseToken, errMsg string) error {
 		if current.CancelRequested {
 			status = v2.TaskStatusCancelled
 		}
-		if err := cascadeChildren(ctx, current.ID, status); err != nil {
+		if err := cascadeChildren(ctx, current.ID, status, current.AgentID); err != nil {
 			logger.GetErrorLogger().Printf("error cascading children of failed task %s: %s", taskID, err.Error())
 		}
 	}
@@ -453,7 +455,8 @@ func Cancel(taskID string) error {
 		return err
 	}
 	if res.MatchedCount > 0 {
-		if err := cascadeChildren(ctx, oid, v2.TaskStatusCancelled); err != nil {
+		// Cancelled branch never wakes a dispatcher, so the zero-value agentID here is inert.
+		if err := cascadeChildren(ctx, oid, v2.TaskStatusCancelled, bson.ObjectID{}); err != nil {
 			logger.GetErrorLogger().Printf("error cascading children of cancelled task %s: %s", taskID, err.Error())
 		}
 		return nil
@@ -518,17 +521,23 @@ func Retry(taskID string) error {
 }
 
 // cascadeChildren resolves the tasks gated behind a task that has just reached a
-// terminal state. On success the gate is simply lifted. On death or cancellation
-// the children are cancelled with the parent, so a cancelled
-// stop -> sync -> start chain never strands the server stopped.
-func cascadeChildren(ctx context.Context, parentID bson.ObjectID, parentStatus string) error {
+// terminal state. On success the gate is simply lifted and the dispatcher is
+// woken, since a child may now be immediately claimable. On death or
+// cancellation the children are cancelled with the parent, so a cancelled
+// stop -> sync -> start chain never strands the server stopped; nothing became
+// claimable there, so no wake is needed.
+func cascadeChildren(ctx context.Context, parentID bson.ObjectID, parentStatus string, agentID bson.ObjectID) error {
 	now := time.Now()
 
 	if parentStatus == v2.TaskStatusCompleted {
 		_, err := collection().UpdateMany(ctx,
 			bson.M{"dependsOn": parentID},
 			bson.M{"$unset": bson.M{"dependsOn": ""}, "$set": bson.M{"updatedAt": now}})
-		return err
+		if err != nil {
+			return err
+		}
+		notifyEnqueued(agentID)
+		return nil
 	}
 
 	_, err := collection().UpdateMany(ctx,
