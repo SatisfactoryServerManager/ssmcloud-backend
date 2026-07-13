@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
-	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.93
+	github.com/SatisfactoryServerManager/ssmcloud-resources v0.0.94
 	github.com/TwiN/go-away v1.8.1
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.29
@@ -17,7 +17,6 @@ require (
 	github.com/gtuk/discordwebhook v1.2.0
 	github.com/joho/godotenv v1.5.1
 	github.com/machinebox/graphql v0.2.2
-	github.com/mircearoata/pubgrub-go v0.3.4
 	github.com/mrhid6/go-mongoose v0.1.0
 	github.com/mrhid6/go-mongoose-lock v0.0.6
 	github.com/satisfactorymodding/ficsit-resolver v0.0.6
@@ -62,6 +61,7 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/matryer/is v1.4.1 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mircearoata/pubgrub-go v0.3.4 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
