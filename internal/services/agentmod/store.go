@@ -135,20 +135,51 @@ func UpsertMany(agentID, accountID bson.ObjectID, locks []v2.ModLock, modIDs map
 	return err
 }
 
+var errNilKeepList = errors.New("DeleteAbsent: nil keep list; refusing to delete every mod for the agent")
+
+// deleteAbsentFilter builds the DeleteMany filter for DeleteAbsent, or refuses if
+// keep is nil.
+//
+// nil and an explicit empty slice are NOT interchangeable here even though a
+// $nin over either matches everything:
+//   - keep == nil means the caller could not express any list at all - typically
+//     an unchecked error from the lockfile resolution this feeds from. Passing that
+//     straight through used to normalise nil to []string{}, which produced
+//     modReference: {$nin: []}, matching every row for the agent and wiping the
+//     agent's entire mod selection on what was really a transient failure. This is
+//     exactly the bug the agentmods collection replaced (see the model's doc
+//     comment in ssmcloud-resources/models/v2/agentmod.go): the old code deleted
+//     files on disk for anything absent from a list a failed DB read could empty.
+//   - keep == []string{} (non-nil, empty) means the resolver ran successfully and
+//     concluded the user has zero mods left - e.g. they removed their last one.
+//     That is a real outcome and must be allowed to delete every row, or the last
+//     mod could never be removed.
+//
+// Do not "simplify" this by dropping the nil check: nil and []string{} look
+// identical at the call site but mean opposite things.
+func deleteAbsentFilter(agentID bson.ObjectID, keep []string) (bson.M, error) {
+	if keep == nil {
+		return nil, errNilKeepList
+	}
+
+	return bson.M{
+		"agentId":      agentID,
+		"modReference": bson.M{"$nin": keep},
+	}, nil
+}
+
 // DeleteAbsent removes the agent's rows for mods no longer in the lockfile. It is
 // how a removed mod, and a dependency nothing needs any more, leave the selection.
 func DeleteAbsent(agentID bson.ObjectID, keep []string) error {
+	filter, err := deleteAbsentFilter(agentID, keep)
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if keep == nil {
-		keep = []string{}
-	}
-
-	_, err := collection().DeleteMany(ctx, bson.M{
-		"agentId":      agentID,
-		"modReference": bson.M{"$nin": keep},
-	})
+	_, err = collection().DeleteMany(ctx, filter)
 	return err
 }
 
