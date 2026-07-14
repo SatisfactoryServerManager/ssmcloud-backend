@@ -1,3 +1,6 @@
+## 1.0.80 (July 14, 2026)
+  - feat: user api keys
+
 ## 1.0.79 (July 14, 2026)
   - fix: Fixed agent platform config update
   - fix: refuse to escalate a mod change when no sync is pending
