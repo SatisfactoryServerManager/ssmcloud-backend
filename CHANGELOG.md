@@ -1,3 +1,54 @@
+## 1.0.79 (July 14, 2026)
+  - fix: Fixed agent platform config update
+  - fix: refuse to escalate a mod change when no sync is pending
+  - feat: let an already-deferred mod change be escalated to apply now
+  - feat: serve each agent's direct mod count on the dashboard agent list
+  - feat!: serve mod changes over preview/apply RPCs
+  - fix: treat an empty modReference as a backfill failure
+  - chore: update deps
+  - fix: don't unset modConfig when a mod fails to resolve during backfill
+  - feat: flag mod updates without rewriting every agent
+  - docs: drop a duplicated comment block in executePlan
+  - fix: re-gate a sync if a start appears after read-time inputs saw none
+  - fix: re-gate orphaned syncmods instead of releasing it ungated
+  - fix: gate the mod sync on in-flight starts, not just agent status
+  - fix: abort the mod sync when its pending start is claimed mid-plan
+  - refactor(agentmod): make the sync enqueue ordering correct by construction
+  - fix: keep a pending startsfserver gated on the newest sync
+  - fix: stop syncmods dedupe key from adopting a running task
+  - fix: escalate deferred mod sync to a running chain and stop silent data loss
+  - feat: apply mod changes by enqueueing a syncmods task
+  - fix: correct SFVersion handling and version comment in agentmod
+  - fix: resolve real game version and normalise mod version matches
+  - feat: resolve agent mods to a pinned lockfile
+  - fix: refuse nil keep list in DeleteAbsent to prevent wiping mod selection
+  - feat: add the agentmods store
+  - fix: unify cascade rule into one tested function, fix write ordering
+  - fix: never cancel the startsfserver that would recover a stranded chain
+  - fix: cascade dependent tasks on reaper death and cancel, wake dispatcher
+  - feat: gate task claims on dependencies and server state
+  - chore: Update deps
+  - fix: clear the progress note when a task finishes
+  - docs: correct the boot-update dedupe comments
+  - feat: serve frontend task RPCs with account authz
+  - feat: backend enqueues the boot update task
+  - fix!: run shutdown operations in declared order
+  - refactor: drop dead API_AgentTaskItem_PutData type
+  - fix: stop un-deduped tasks colliding and workflows re-running finished work
+  - fix: do not execute a nil handler for an unknown workflow action
+  - feat: workflow awaits task terminal status
+  - fix: identify agent task streams by pointer, not by a client-supplied id
+  - feat!: serve streaming task dispatch, drop task purge
+  - fix: fence reaper on lease expiry and remove dispatcher restart race
+  - feat: task lease reaper and service lifecycle
+  - fix: hold read lock across registry send to prevent send-on-closed-channel panic
+  - feat: task stream registry and dispatcher
+  - feat: agenttask state transitions with fencing tokens
+  - feat: register agenttasks collection with correctness indexes
+  - chore: ignore .superpowers scratch dir
+  - chore: Updated deps
+  - feat: Updates to workflow system
+
 ## 1.0.78 (July 09, 2026)
   - chore: Updated deps
   - feat: server-side mod filtering (status/updates/hidden)
