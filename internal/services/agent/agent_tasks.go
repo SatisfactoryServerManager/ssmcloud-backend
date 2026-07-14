@@ -186,7 +186,7 @@ func UploadPendingLogs() error {
 	return nil
 }
 
-func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
+func UpdateAgentConfigApi(agentAPIKey string, version string, ip string, platform string) error {
 	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
 	if err != nil {
 		return err
@@ -199,12 +199,14 @@ func UpdateAgentConfigApi(agentAPIKey string, version string, ip string) error {
 
 	theAgent.Config.Version = version
 	theAgent.Config.IP = ip
+	theAgent.Config.Platform = platform
 
 	dbUpdate := bson.M{
 		"$set": bson.M{
-			"config.version": theAgent.Config.Version,
-			"config.ip":      theAgent.Config.IP,
-			"updatedAt":      time.Now(),
+			"config.version":  theAgent.Config.Version,
+			"config.ip":       theAgent.Config.IP,
+			"config.platform": theAgent.Config.Platform,
+			"updatedAt":       time.Now(),
 		},
 	}
 

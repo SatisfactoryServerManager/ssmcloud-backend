@@ -42,5 +42,5 @@ func (s *Handler) UpdateAgentConfigVersionIp(ctx context.Context, in *pb.UpdateA
 		return &pbModels.SSMEmpty{}, err
 	}
 
-	return &pbModels.SSMEmpty{}, agent.UpdateAgentConfigApi(*apiKey, in.Version, in.Ip)
+	return &pbModels.SSMEmpty{}, agent.UpdateAgentConfigApi(*apiKey, in.Version, in.Ip, in.Platform)
 }
