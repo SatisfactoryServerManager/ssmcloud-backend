@@ -69,6 +69,57 @@ func ListForAgent(agentID bson.ObjectID) ([]v2.AgentModSchema, error) {
 	return mods, nil
 }
 
+// CountDirectByAgent counts each agent's directly-selected mods - the user's own
+// selection, not the resolved dependency closure - in a single aggregation over
+// the whole batch. The dashboard lists every agent on an account and needs a count
+// per card; a count query per agent would be an N+1 on the most-loaded page in the
+// product.
+//
+// Callers must pass only agent IDs they have already authorised: this scopes to the
+// IDs given and nothing else, so it neither widens nor enforces account access.
+//
+// Agents with no mods are absent from the aggregation's output entirely, so the map
+// simply has no entry for them and a lookup yields the zero value - which is the
+// count you want.
+func CountDirectByAgent(agentIDs []bson.ObjectID) (map[bson.ObjectID]int32, error) {
+	counts := make(map[bson.ObjectID]int32, len(agentIDs))
+	if len(agentIDs) == 0 {
+		return counts, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"agentId": bson.M{"$in": agentIDs},
+			"direct":  true,
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":   "$agentId",
+			"count": bson.M{"$sum": 1},
+		}}},
+	}
+
+	cur, err := collection().Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	var rows []struct {
+		AgentID bson.ObjectID `bson:"_id"`
+		Count   int32         `bson:"count"`
+	}
+	if err := cur.All(ctx, &rows); err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		counts[row.AgentID] = row.Count
+	}
+	return counts, nil
+}
+
 // Get returns the agent's row for one mod, or (nil, nil) if it has none.
 func Get(agentID bson.ObjectID, modReference string) (*v2.AgentModSchema, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

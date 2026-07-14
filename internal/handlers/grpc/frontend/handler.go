@@ -12,6 +12,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	accountsvc "github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/account"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agentmod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/user"
@@ -157,10 +158,26 @@ func (s *Handler) GetUserActiveAccountAgents(ctx context.Context, in *pb.GetUser
 		return nil, nil
 	}
 
+	// One aggregation for the whole list, not a count query per agent: this is the
+	// dashboard's agent list and a per-agent query would be an N+1. The IDs are the
+	// account's own agents, so the count stays scoped to the account being listed.
+	agentIDs := make([]bson.ObjectID, 0, len(agents))
+	for i := range agents {
+		agentIDs = append(agentIDs, agents[i].ID)
+	}
+
+	modCounts, err := agentmod.CountDirectByAgent(agentIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	pbAgents := make([]*pbModels.Agent, 0, len(agents))
 
 	for i := range agents {
-		pbAgents = append(pbAgents, mapper.MapAgentToProto(agents[i]))
+		pbAgent := mapper.MapAgentToProto(agents[i])
+		// Agents with no mods are absent from the map; the zero value is the count.
+		pbAgent.ModCount = modCounts[agents[i].ID]
+		pbAgents = append(pbAgents, pbAgent)
 	}
 
 	return &pb.GetUserActiveAccountAgentsResponse{
