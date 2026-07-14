@@ -521,6 +521,10 @@ func (s *Handler) GetAgentTasks(ctx context.Context, in *pb.GetAgentTasksRequest
 			TriggeredByType:       t.TriggeredBy.Type,
 			TriggeredByExternalId: t.TriggeredBy.ExternalID,
 			CreatedAt:             t.CreatedAt.Unix(),
+			// The gate, not just the status: a pending syncmods behind this flag is
+			// deferred to the next restart, while one gated on its own chain's
+			// stopsfserver is being applied right now. Both are "pending".
+			RequiresServerStopped: t.RequiresServerStopped,
 		}
 		if t.StartedAt != nil {
 			view.StartedAt = t.StartedAt.Unix()

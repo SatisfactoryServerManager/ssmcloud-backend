@@ -25,6 +25,9 @@ const (
 	OpRemove     = "remove"
 	OpSetVersion = "setVersion"
 	OpUpdateAll  = "updateAll"
+	// OpApplyPending carries no modReference and no version: it escalates the
+	// change that is ALREADY persisted and pending, it does not describe a new one.
+	OpApplyPending = "applyPending"
 )
 
 // ModChange is one user action on the mod selection.
@@ -120,6 +123,33 @@ func Apply(agentID, accountID bson.ObjectID, ch ModChange, applyNow bool, trigge
 	}
 
 	return enqueueSync(agentID, accountID, lf, applyNow, trigger)
+}
+
+// ApplyPendingNow escalates an already-deferred change to run immediately.
+//
+// The selection was persisted when the change was deferred, so Diff is empty and
+// Apply's short circuit would silently drop this — but the pending sync is real
+// and is only waiting for the server to stop. The diff check is skipped
+// deliberately, exactly as in ApplyConfigOnly: "the lockfile didn't change" says
+// nothing about whether a sync is still owed.
+//
+// Nothing is persisted here either; there is nothing new to persist. planFor sees
+// the pending sync id plus applyNow and RE-POINTS that same sync onto a fresh
+// stop -> sync -> start chain rather than adding a second one.
+func ApplyPendingNow(agentID, accountID bson.ObjectID, trigger v2.TaskTrigger) ([]string, error) {
+	lf, err := Resolve(agentID)
+	if err != nil {
+		return nil, err
+	}
+
+	return applyPendingNowWith(liveQueue{}, agentID, accountID, lf, trigger)
+}
+
+// applyPendingNowWith is ApplyPendingNow minus the mongo read, so the thing that
+// matters — that a chain IS built for a lockfile whose diff is empty — is testable.
+// There is deliberately no diff check between here and enqueueSync.
+func applyPendingNowWith(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, trigger v2.TaskTrigger) ([]string, error) {
+	return enqueueSyncWith(q, agentID, accountID, lf, true, trigger)
 }
 
 // ApplyConfigOnly persists an edit to a mod's .cfg text and enqueues a sync.

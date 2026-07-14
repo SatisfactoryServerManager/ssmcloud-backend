@@ -351,6 +351,61 @@ func TestEnqueueSyncGivesUpRatherThanInsertingASyncItCannotOrder(t *testing.T) {
 	}
 }
 
+// ApplyPendingNow's ENTIRE reason for existing. The selection was already
+// persisted when the change was deferred, so the lockfile it resolves is the one
+// the agent's rows already describe: Apply's diff is EMPTY and it correctly
+// returns []string{} without building anything. But the deferred sync is real and
+// is sitting on requiresServerStopped, so "Apply now" must still build the
+// stop -> sync -> start chain around it. Routing this through Apply is a silent
+// no-op — the exact bug the pending banner's button shipped with.
+//
+// Make applyPendingNowWith short-circuit the way Apply does (return []string{},
+// nil before enqueueSyncWith) and this goes red on the assertions below.
+func TestApplyPendingNowBuildsAChainForAnAlreadyPersistedChange(t *testing.T) {
+	const pendingSync = "652f000000000000000000a1"
+
+	// The server is running and the deferred sync is pending: exactly the state the
+	// "Mods pending" banner renders over.
+	q := &fakeQueue{running: true, pendingSync: pendingSync}
+
+	ids, err := applyPendingNowWith(q, bson.NewObjectID(), bson.NewObjectID(), v2.Lockfile{}, v2.TaskTrigger{Type: v2.TaskTriggerUser})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ids) == 0 {
+		t.Fatal("ApplyPendingNow enqueued nothing: the deferred sync stays gated on requiresServerStopped and the user's 'Apply now' is a silent no-op")
+	}
+	if len(q.enqueuesOf(ActionStop)) != 1 {
+		t.Fatal("expected the escalation to stop the server: nothing else releases the deferred sync's gate")
+	}
+	if len(q.enqueuesOf(ActionStart)) != 1 {
+		t.Fatal("expected a trailing startsfserver: an apply-now that stops the server and never restarts it leaves the game DOWN")
+	}
+
+	// The deferred sync is REUSED, not duplicated, and it must come off
+	// requiresServerStopped and onto the chain's stop — otherwise the stop takes the
+	// game down and the sync, still waiting on a status that already read stopped
+	// before the chain began, may never be claimed.
+	if len(q.enqueuesOf(ActionSyncMods)) != 0 {
+		t.Fatal("expected the pending deferred sync to be reused, not a second one inserted")
+	}
+	regated := false
+	for _, g := range q.gates {
+		if g.taskID == pendingSync {
+			if g.opts.RequiresServerStopped {
+				t.Fatal("the reused sync kept requiresServerStopped while being gated onto the chain's stop")
+			}
+			if g.opts.DependsOn != nil {
+				regated = true
+			}
+		}
+	}
+	if !regated {
+		t.Fatalf("expected the pending sync to be re-gated onto the chain's stopsfserver, got gates=%+v", q.gates)
+	}
+}
+
 // alwaysClaimedQueue loses the re-point on every attempt.
 type alwaysClaimedQueue struct{ fakeQueue }
 

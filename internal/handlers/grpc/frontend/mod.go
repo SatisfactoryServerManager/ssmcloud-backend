@@ -248,13 +248,24 @@ func (s *Handler) ApplyModChange(ctx context.Context, in *pb.ApplyModChangeReque
 		return nil, err
 	}
 
-	taskIDs, err := agentmod.Apply(
-		theAgent.ID,
-		account.ID,
-		modChangeFromProto(in.Change),
-		in.ApplyNow,
-		modelsV2.TaskTrigger{Type: modelsV2.TaskTriggerUser, ExternalID: in.Change.Eid},
-	)
+	trigger := modelsV2.TaskTrigger{Type: modelsV2.TaskTriggerUser, ExternalID: in.Change.Eid}
+
+	// applyPending is not a change; it is an escalation of one that was already
+	// applied and deferred. It carries no modReference and no version, and it must
+	// NOT go through Apply: the selection is already persisted, so the diff is
+	// empty and Apply would drop it on the floor.
+	var taskIDs []string
+	if in.Change.Op == agentmod.OpApplyPending {
+		taskIDs, err = agentmod.ApplyPendingNow(theAgent.ID, account.ID, trigger)
+	} else {
+		taskIDs, err = agentmod.Apply(
+			theAgent.ID,
+			account.ID,
+			modChangeFromProto(in.Change),
+			in.ApplyNow,
+			trigger,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
