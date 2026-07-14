@@ -38,23 +38,8 @@ func GetAllAgents(accountIdStr string) ([]*modelsv2.AgentSchema, error) {
 		return nil, fmt.Errorf("error populating account agents with error: %s", err.Error())
 	}
 
-	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
-	if err != nil {
-		return nil, err
-	}
-
 	for idx := range theAccount.Agents {
-		agent := &theAccount.Agents[idx]
-
-		for modidx := range agent.ModConfig.SelectedMods {
-			mod := &agent.ModConfig.SelectedMods[modidx]
-			if err := ModModel.PopulateField(mod, "Mod"); err != nil {
-				err = fmt.Errorf("error populating mod with error: %s", err.Error())
-				return nil, err
-			}
-		}
-
-		allAgents = append(allAgents, agent)
+		allAgents = append(allAgents, &theAccount.Agents[idx])
 	}
 
 	return allAgents, nil

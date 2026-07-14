@@ -7,6 +7,7 @@ import (
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
+	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agentmod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
@@ -14,7 +15,9 @@ import (
 	pb "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated"
 	pbModels "github.com/SatisfactoryServerManager/ssmcloud-resources/proto/generated/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type Handler struct {
@@ -139,6 +142,37 @@ func (s *Handler) ReportTaskStatus(ctx context.Context, in *pb.TaskStatusReport)
 		if err := agenttask.Release(in.TaskId, in.LeaseToken); err != nil {
 			return nil, err
 		}
+	}
+
+	return &pbModels.SSMEmpty{}, nil
+}
+
+// ReportInstalledMods records what is actually in the agent's Mods directory. The
+// agent is the only authority on that, so its own API key is the authz: it can
+// only ever report for itself.
+func (s *Handler) ReportInstalledMods(ctx context.Context, in *pb.InstalledModsReport) (*pbModels.SSMEmpty, error) {
+	apiKey, err := utils.GetAPIKeyFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	theAgent, err := agent.GetAgentByAPIKey(*apiKey)
+	if err != nil {
+		logger.GetErrorLogger().Println("Invalid API key:", err)
+		return nil, status.Error(codes.Unauthenticated, "unknown agent")
+	}
+
+	mods := make([]v2.InstalledMod, 0, len(in.Mods))
+	for _, m := range in.Mods {
+		mods = append(mods, v2.InstalledMod{
+			ModReference:     m.ModReference,
+			InstalledVersion: m.InstalledVersion,
+			Installed:        m.Installed,
+		})
+	}
+
+	if err := agentmod.ReportInstalled(theAgent.ID, mods); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &pbModels.SSMEmpty{}, nil

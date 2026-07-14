@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agent"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/agenttask"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/mod"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/user"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
@@ -550,183 +548,6 @@ func (s *Handler) RetryAgentTask(ctx context.Context, in *pb.RetryAgentTaskReque
 	return &pbModels.SSMEmpty{}, nil
 }
 
-func (s *Handler) GetAgentMods(ctx context.Context, in *pb.GetAgentModsRequest) (*pb.GetAgentModsResponse, error) {
-	if err := s.validateAPIKey(ctx); err != nil {
-		return nil, err
-	}
-
-	oid, err := bson.ObjectIDFromHex(in.AgentId)
-	if err != nil {
-		return nil, err
-	}
-
-	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
-
-	if err != nil {
-		return nil, err
-	}
-
-	account, err := accountsvc.GetUserActiveAccount(theUser)
-	if err != nil {
-		return nil, err
-
-	}
-
-	agents, err := agent.GetUserAccountAgents(account, oid)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(agents) == 0 {
-		return nil, errors.New("agent not found")
-	}
-
-	theAgent := agents[0]
-
-	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
-	if err != nil {
-		return nil, err
-	}
-
-	for idx := range theAgent.ModConfig.SelectedMods {
-		mod := &theAgent.ModConfig.SelectedMods[idx]
-		if err := ModModel.PopulateField(mod, "Mod"); err != nil {
-			return nil, fmt.Errorf("error populating mod with error: %s", err.Error())
-		}
-	}
-
-	// Build the agent's install-state reference sets for server-side filtering.
-	installedRefs := make([]string, 0)
-	updatableRefs := make([]string, 0)
-	for idx := range theAgent.ModConfig.SelectedMods {
-		selectedMod := &theAgent.ModConfig.SelectedMods[idx]
-		ref := selectedMod.Mod.ModReference
-		if ref == "" {
-			continue
-		}
-		if selectedMod.Installed {
-			installedRefs = append(installedRefs, ref)
-		}
-		if selectedMod.NeedsUpdate {
-			updatableRefs = append(updatableRefs, ref)
-		}
-	}
-
-	modFilter := mod.ModQueryFilter{
-		Search:        in.Search,
-		ShowAvailable: in.FilterAvailable,
-		ShowInstalled: in.FilterInstalled,
-		OnlyUpdatable: in.OnlyUpdatable,
-		IncludeHidden: in.IncludeHidden,
-		InstalledRefs: installedRefs,
-		UpdatableRefs: updatableRefs,
-	}
-
-	mods, err := mod.GetModsFromDB(int(in.Page), in.Sort, in.Direction, modFilter)
-	if err != nil {
-		return nil, err
-	}
-	modCount, err := mod.GetDBModCount(modFilter)
-	if err != nil {
-		return nil, err
-	}
-
-	pages := float64(modCount) / float64(30)
-
-	pbMods := make([]*pbModels.Mod, 0, len(*mods))
-
-	for i := range *mods {
-		mod := &(*mods)[i]
-		pbMods = append(pbMods, mapper.MapModToProto(mod))
-	}
-
-	return &pb.GetAgentModsResponse{
-		Mods:           pbMods,
-		AgentModConfig: mapper.MapAgentModConfigToProto(&theAgent.ModConfig),
-		TotalMods:      int32(modCount),
-		Pages:          int32(math.Ceil(pages)),
-	}, nil
-}
-
-func (s *Handler) InstallAgentMod(ctx context.Context, in *pb.InstallAgentModRequest) (*pbModels.SSMEmpty, error) {
-	if err := s.validateAPIKey(ctx); err != nil {
-		return nil, err
-	}
-
-	oid, err := bson.ObjectIDFromHex(in.AgentId)
-	if err != nil {
-		return nil, err
-	}
-
-	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
-
-	if err != nil {
-		return nil, err
-	}
-
-	account, err := accountsvc.GetUserActiveAccount(theUser)
-	if err != nil {
-		return nil, err
-
-	}
-
-	agents, err := agent.GetUserAccountAgents(account, oid)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(agents) == 0 {
-		return nil, errors.New("agent not found")
-	}
-
-	theAgent := agents[0]
-
-	if err := agent.UpdateMod(theAgent, in.ModReference); err != nil {
-		return nil, err
-	}
-
-	return &pbModels.SSMEmpty{}, nil
-}
-
-func (s *Handler) UninstallAgentMod(ctx context.Context, in *pb.UninstallAgentModRequest) (*pbModels.SSMEmpty, error) {
-	if err := s.validateAPIKey(ctx); err != nil {
-		return nil, err
-	}
-
-	oid, err := bson.ObjectIDFromHex(in.AgentId)
-	if err != nil {
-		return nil, err
-	}
-
-	theUser, err := user.GetUser(bson.ObjectID{}, in.Eid, "", "")
-
-	if err != nil {
-		return nil, err
-	}
-
-	account, err := accountsvc.GetUserActiveAccount(theUser)
-	if err != nil {
-		return nil, err
-
-	}
-
-	agents, err := agent.GetUserAccountAgents(account, oid)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(agents) == 0 {
-		return nil, errors.New("agent not found")
-	}
-
-	theAgent := agents[0]
-
-	if err := agent.UninstallMod(theAgent, in.ModReference); err != nil {
-		return nil, err
-	}
-
-	return &pbModels.SSMEmpty{}, nil
-}
 
 func (s *Handler) UpdateAgentSettings(ctx context.Context, in *pb.UpdateAgentSettingsRequest) (*pbModels.SSMEmpty, error) {
 	if err := s.validateAPIKey(ctx); err != nil {

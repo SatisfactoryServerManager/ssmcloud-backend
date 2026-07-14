@@ -3,7 +3,6 @@ package agent
 import (
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/repositories"
@@ -11,11 +10,8 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/audit"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/services/integration"
 	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/types"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils"
-	"github.com/SatisfactoryServerManager/ssmcloud-backend/internal/utils/logger"
 	models "github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	modelsv2 "github.com/SatisfactoryServerManager/ssmcloud-resources/models/v2"
-	resolver "github.com/satisfactorymodding/ficsit-resolver"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -230,36 +226,6 @@ func UpdateAgentSettings(theAgent *modelsv2.AgentSchema, PostData *types.APIUpda
 		theAgent.Config.BackupInterval = PostData.BackupInterval
 		theAgent.Config.BackupKeepAmount = PostData.BackupKeep
 		updateData["config"] = theAgent.Config
-	case "modsettings":
-		ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
-		if err != nil {
-			return err
-		}
-
-		for idx := range theAgent.ModConfig.SelectedMods {
-			mod := &theAgent.ModConfig.SelectedMods[idx]
-			if err := ModModel.PopulateField(mod, "Mod"); err != nil {
-				return err
-			}
-		}
-
-		var selectedMod *modelsv2.AgentModConfigSelectedModSchema
-		for idx := range theAgent.ModConfig.SelectedMods {
-			mod := &theAgent.ModConfig.SelectedMods[idx]
-			if mod.Mod.ModReference == PostData.ModReference {
-				selectedMod = mod
-				break
-			}
-		}
-
-		if selectedMod == nil {
-			return errors.New("error cant find mod in selected mods list")
-		}
-
-		selectedMod.Config = PostData.ModConfig
-
-		updateData["modConfig"] = theAgent.ModConfig
-
 	default:
 		return errors.New("error unknown config setting")
 	}
@@ -305,163 +271,6 @@ func CreateAgentTask(theAgent *modelsv2.AgentSchema, theAccount *modelsv2.Accoun
 		modelsv2.TaskTrigger{Type: modelsv2.TaskTriggerUser, ExternalID: externalID},
 		agenttask.EnqueueOpts{},
 	)
-}
-
-func InstallMod(theAgent *modelsv2.AgentSchema, modReference string, version string) error {
-
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
-	if err != nil {
-		return err
-	}
-
-	ModModel, err := repositories.GetMongoClient().GetModel("Mod")
-	if err != nil {
-		return err
-	}
-
-	SelectedModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
-	if err != nil {
-		return err
-	}
-
-	depResolver := resolver.NewDependencyResolver(utils.SSMProvider{})
-
-	constraints := make(map[string]string, 0)
-
-	constraints[modReference] = version
-
-	requiredTargets := make([]resolver.TargetName, 0)
-	requiredTargets = append(requiredTargets, resolver.TargetNameWindowsServer)
-	requiredTargets = append(requiredTargets, resolver.TargetNameLinuxServer)
-
-	resolved, err := depResolver.ResolveModDependencies(constraints, nil, math.MaxInt, requiredTargets)
-
-	if err != nil {
-		return err
-	}
-
-	for idx := range theAgent.ModConfig.SelectedMods {
-		mod := &theAgent.ModConfig.SelectedMods[idx]
-		if err := SelectedModModel.PopulateField(mod, "Mod"); err != nil {
-			return err
-		}
-	}
-
-	mods := resolved.Mods
-
-	for k := range mods {
-		mod := mods[k]
-
-		exists := false
-		for idx := range theAgent.ModConfig.SelectedMods {
-			selectedMod := &theAgent.ModConfig.SelectedMods[idx]
-
-			if selectedMod.Mod.ModReference == k {
-				selectedMod.DesiredVersion = mod.Version
-				exists = true
-				break
-			}
-		}
-
-		if !exists {
-
-			var dbMod models.ModSchema
-			if err := ModModel.FindOne(&dbMod, bson.M{"modReference": k}); err != nil {
-				return err
-			}
-
-			logger.GetInfoLogger().Printf("Installing Mod %s", k)
-
-			newSelectedMod := modelsv2.AgentModConfigSelectedModSchema{
-				ModId:            dbMod.ID,
-				Mod:              dbMod,
-				DesiredVersion:   mod.Version,
-				InstalledVersion: "0.0.0",
-				Config:           "{}",
-			}
-
-			theAgent.ModConfig.SelectedMods = append(theAgent.ModConfig.SelectedMods, newSelectedMod)
-		}
-	}
-
-	dbUpdate := bson.M{
-		"modConfig": theAgent.ModConfig,
-		"updatedAt": time.Now(),
-	}
-
-	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func UpdateMod(theAgent *modelsv2.AgentSchema, modReference string) error {
-
-	ModModel, err := repositories.GetMongoClient().GetModel("Mod")
-	if err != nil {
-		return err
-	}
-
-	var dbMod models.ModSchema
-
-	if err := ModModel.FindOne(&dbMod, bson.M{"modReference": modReference}); err != nil {
-		return fmt.Errorf("error finding mod with error: %s", err.Error())
-	}
-
-	if len(dbMod.Versions) == 0 {
-		return errors.New("error updating mod with error: no mod versions")
-	}
-
-	latestVersion := dbMod.Versions[0].Version
-
-	if err := InstallMod(theAgent, dbMod.ModReference, latestVersion); err != nil {
-		return fmt.Errorf("error installing mod with error: %s", err.Error())
-	}
-
-	return nil
-}
-
-func UninstallMod(theAgent *modelsv2.AgentSchema, modReference string) error {
-
-	AgentModel, err := repositories.GetMongoClient().GetModel("Agent")
-	if err != nil {
-		return err
-	}
-
-	ModModel, err := repositories.GetMongoClient().GetModel("AgentModConfigSelectedMod")
-	if err != nil {
-		return err
-	}
-
-	for idx := range theAgent.ModConfig.SelectedMods {
-		mod := &theAgent.ModConfig.SelectedMods[idx]
-		if err := ModModel.PopulateField(mod, "Mod"); err != nil {
-			return err
-		}
-	}
-
-	newSelectedModsList := make([]modelsv2.AgentModConfigSelectedModSchema, 0)
-
-	for idx := range theAgent.ModConfig.SelectedMods {
-		selectedMod := theAgent.ModConfig.SelectedMods[idx]
-
-		if selectedMod.Mod.ModReference != modReference {
-			newSelectedModsList = append(newSelectedModsList, selectedMod)
-		}
-	}
-
-	theAgent.ModConfig.SelectedMods = newSelectedModsList
-
-	dbUpdate := bson.M{
-		"modConfig": theAgent.ModConfig,
-		"updatedAt": time.Now(),
-	}
-
-	if err := AgentModel.UpdateData(theAgent, dbUpdate); err != nil {
-		return err
-	}
-	return nil
 }
 
 func AddAgentStat(theAgent *modelsv2.AgentSchema, runningState bool, cpu float64, memory float32) error {
