@@ -1,6 +1,8 @@
 package user
 
 import (
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"time"
@@ -104,12 +106,74 @@ func UpdateUserProfilePicture(theUser *models.UserSchema, avatarUrl string) erro
 		return nil
 	}
 
-	if theUser.ProfileImageURL != "" {
+	// The identity provider owns the avatar, so follow it whenever it changes.
+	if theUser.ProfileImageStr == avatarUrl {
 		return nil
 	}
 
+	theUser.ProfileImageStr = avatarUrl
+	theUser.ProfileImageURL = template.URL(avatarUrl)
+
 	if err := UserModel.UpdateData(theUser, bson.M{"profileImageUrl": avatarUrl}); err != nil {
 		return fmt.Errorf("error updating user avatar with error: %s", err.Error())
+	}
+
+	return nil
+}
+
+// CreateUserAPIKey generates a new personal API key for the user. The full key
+// is returned once here and never leaves the database again - the UI only ever
+// shows the short key after this point.
+func CreateUserAPIKey(theUser *models.UserSchema) (models.UserAPIKey, error) {
+	UserModel, err := repositories.GetMongoClient().GetModel("User")
+	if err != nil {
+		return models.UserAPIKey{}, err
+	}
+
+	secret := make([]byte, 24)
+	if _, err := cryptorand.Read(secret); err != nil {
+		return models.UserAPIKey{}, fmt.Errorf("error generating api key with error: %s", err.Error())
+	}
+
+	encoded := hex.EncodeToString(secret)
+	newKey := models.UserAPIKey{
+		Key:      "API-" + encoded,
+		ShortKey: encoded[len(encoded)-4:],
+	}
+
+	theUser.APIKeys = append(theUser.APIKeys, newKey)
+
+	if err := UserModel.UpdateData(theUser, bson.M{"apiKeys": theUser.APIKeys}); err != nil {
+		return models.UserAPIKey{}, fmt.Errorf("error saving api key with error: %s", err.Error())
+	}
+
+	return newKey, nil
+}
+
+func DeleteUserAPIKey(theUser *models.UserSchema, shortKey string) error {
+	UserModel, err := repositories.GetMongoClient().GetModel("User")
+	if err != nil {
+		return err
+	}
+
+	newKeys := make([]models.UserAPIKey, 0)
+	found := false
+	for _, key := range theUser.APIKeys {
+		if key.ShortKey == shortKey {
+			found = true
+			continue
+		}
+		newKeys = append(newKeys, key)
+	}
+
+	if !found {
+		return fmt.Errorf("error api key (%s) doesnt exist on user", shortKey)
+	}
+
+	theUser.APIKeys = newKeys
+
+	if err := UserModel.UpdateData(theUser, bson.M{"apiKeys": theUser.APIKeys}); err != nil {
+		return fmt.Errorf("error deleting api key with error: %s", err.Error())
 	}
 
 	return nil

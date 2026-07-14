@@ -58,11 +58,18 @@ func (s *Handler) CheckUserExistsOrCreate(ctx context.Context, in *pb.CheckUserE
 	theUser, _ := user.GetUser(bson.NilObjectID, in.Eid, in.Email, in.Username)
 
 	if theUser == nil {
-		if _, err := user.CreateUser(in.Eid, in.Email, in.Username); err != nil {
+		newUser, err := user.CreateUser(in.Eid, in.Email, in.Username)
+		if err != nil {
 			return nil, err
 		}
+		theUser = newUser
 	}
-	return nil, nil
+
+	if err := user.UpdateUserProfilePicture(theUser, in.AvatarUrl); err != nil {
+		return nil, err
+	}
+
+	return &pbModels.SSMEmpty{}, nil
 }
 
 func (s *Handler) GetUser(ctx context.Context, in *pb.GetUserRequest) (*pb.GetUserResponse, error) {
@@ -991,4 +998,44 @@ func (s *Handler) GetAccountIntegrationEvents(ctx context.Context, in *pb.GetAcc
 	return &pb.GetAccountIntegrationEventsResponse{
 		Events: mapper.MapIntegrationEventsToProto(events),
 	}, nil
+}
+
+func (s *Handler) CreateUserAPIKey(ctx context.Context, in *pb.CreateUserAPIKeyRequest) (*pb.CreateUserAPIKeyResponse, error) {
+
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	newKey, err := user.CreateUserAPIKey(theUser)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.CreateUserAPIKeyResponse{
+		Key:      newKey.Key,
+		ShortKey: newKey.ShortKey,
+	}, nil
+}
+
+func (s *Handler) DeleteUserAPIKey(ctx context.Context, in *pb.DeleteUserAPIKeyRequest) (*pbModels.SSMEmpty, error) {
+
+	if err := s.validateAPIKey(ctx); err != nil {
+		return nil, err
+	}
+
+	theUser, err := user.GetUser(bson.NilObjectID, in.Eid, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := user.DeleteUserAPIKey(theUser, in.ShortKey); err != nil {
+		return nil, err
+	}
+
+	return &pbModels.SSMEmpty{}, nil
 }
