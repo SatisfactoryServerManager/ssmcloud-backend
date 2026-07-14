@@ -69,7 +69,12 @@ func backfillWrites(agentID, accountID bson.ObjectID, resolved []resolvedMod, no
 	writes = make([]mongo.WriteModel, 0, len(resolved))
 
 	for _, r := range resolved {
-		if r.err != nil {
+		// An empty ref is a failure even with a nil error: FindOne succeeds on a
+		// catalogue document that simply has no modReference field (a partial
+		// ficsit sync writes those), and migrating {modReference: ""} would be
+		// unmatchable by every later resolve while the $unset destroys the only
+		// other copy of the user's selection.
+		if r.err != nil || r.ref == "" {
 			failed = true
 			continue
 		}
@@ -132,8 +137,11 @@ func Backfill() error {
 
 		for _, sm := range a.ModConfig.SelectedMods {
 			ref, err := modReferenceFor(ctx, sm.ModID)
-			if err != nil {
+			switch {
+			case err != nil:
 				logger.GetErrorLogger().Printf("backfill: agent %s mod %s not in catalogue: %s", a.ID.Hex(), sm.ModID.Hex(), err.Error())
+			case ref == "":
+				logger.GetErrorLogger().Printf("backfill: agent %s mod %s has no modReference in catalogue", a.ID.Hex(), sm.ModID.Hex())
 			}
 			resolved = append(resolved, resolvedMod{sm: sm, ref: ref, err: err})
 		}

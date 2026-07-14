@@ -9,6 +9,7 @@ import (
 	"github.com/SatisfactoryServerManager/ssmcloud-resources/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"golang.org/x/mod/semver"
 )
 
@@ -92,7 +93,10 @@ func RefreshNeedsUpdate() error {
 		return nil
 	}
 
-	res, err := collection().BulkWrite(ctx, writes)
+	// Unordered: each updateMany is keyed on a distinct modReference, so one bad
+	// catalogue mod must not abort the rest of the batch and leave their
+	// needsUpdate flags stale until the next tick.
+	res, err := collection().BulkWrite(ctx, writes, options.BulkWrite().SetOrdered(false))
 	if err != nil {
 		return err
 	}

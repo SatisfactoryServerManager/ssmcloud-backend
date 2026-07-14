@@ -105,6 +105,29 @@ func TestBackfillWritesEmptyWhenEveryModFails(t *testing.T) {
 	}
 }
 
+func TestBackfillWritesTreatsEmptyModReferenceAsFailure(t *testing.T) {
+	// A catalogue document that exists but carries no modReference decodes with a
+	// nil error and an empty ref. That must count as a failure: writing
+	// {modReference: ""} into agentmods and then unsetting modConfig would leave
+	// the mod unmatchable by every later resolve, with no copy left to recover it.
+	agentID, accountID := bson.NewObjectID(), bson.NewObjectID()
+	modA := bson.NewObjectID()
+	now := time.Now()
+
+	resolved := []resolvedMod{
+		{sm: legacySelectedMod{ModID: modA, DesiredVersion: "1.0.0"}, ref: ""},
+	}
+
+	writes, failed := backfillWrites(agentID, accountID, resolved, now)
+
+	if !failed {
+		t.Fatalf("expected failed=true for an empty modReference with a nil error")
+	}
+	if len(writes) != 0 {
+		t.Fatalf("expected zero writes, got %d", len(writes))
+	}
+}
+
 func TestBackfillDocPreservesUninstalledState(t *testing.T) {
 	agentID, accountID, modID := bson.NewObjectID(), bson.NewObjectID(), bson.NewObjectID()
 
