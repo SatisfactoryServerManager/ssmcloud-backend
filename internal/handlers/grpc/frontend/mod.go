@@ -31,6 +31,23 @@ func assertAgentModOwned(m *modelsV2.AgentModSchema, accountID bson.ObjectID) er
 	return nil
 }
 
+// validateOp rejects an op the service does not know.
+//
+// nextSelection returns the selection UNCHANGED for an unrecognised op, which then
+// diffs empty and reports success having done nothing. A typo ("addd", or the
+// case-sensitive "applypending") would therefore be indistinguishable from a
+// change that was genuinely already applied - a mystery bug with no error and no
+// log line. The op name is a string shared across three repos; spell it wrong and
+// you should hear about it.
+func validateOp(op string) error {
+	switch op {
+	case agentmod.OpAdd, agentmod.OpRemove, agentmod.OpSetVersion, agentmod.OpUpdateAll, agentmod.OpApplyPending:
+		return nil
+	default:
+		return status.Errorf(codes.InvalidArgument, "unknown mod change op %q", op)
+	}
+}
+
 // resolveAgentForUser is the same walk the other agent RPCs in this package do:
 // user by external id -> their active account -> the agent, but only if that
 // account owns it. Every mod RPC takes an agentId from the caller, so this is
@@ -214,6 +231,10 @@ func (s *Handler) PreviewModChange(ctx context.Context, in *pb.ModChangeRequest)
 		return nil, status.Error(codes.InvalidArgument, "missing change")
 	}
 
+	if err := validateOp(in.Op); err != nil {
+		return nil, err
+	}
+
 	theAgent, _, err := resolveAgentForUser(in.Eid, in.AgentId)
 	if err != nil {
 		return nil, err
@@ -241,6 +262,10 @@ func (s *Handler) ApplyModChange(ctx context.Context, in *pb.ApplyModChangeReque
 
 	if in.Change == nil {
 		return nil, status.Error(codes.InvalidArgument, "missing change")
+	}
+
+	if err := validateOp(in.Change.Op); err != nil {
+		return nil, err
 	}
 
 	theAgent, account, err := resolveAgentForUser(in.Change.Eid, in.Change.AgentId)

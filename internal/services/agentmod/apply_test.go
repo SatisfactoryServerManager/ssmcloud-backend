@@ -77,8 +77,14 @@ func (f *fakeQueue) ReplacePendingPayload(bson.ObjectID, string, interface{}) (s
 }
 
 func (f *fakeQueue) PendingIDByAction(_ bson.ObjectID, action string) (string, error) {
-	if action == ActionStart {
+	switch action {
+	case ActionStart:
 		return f.pendingStart, nil
+	case ActionSyncMods:
+		// The real one is generic over the action; a fake that answered only for
+		// startsfserver would let a caller that asks about a pending SYNC (the
+		// escalation guard in applyPendingNowWith) pass its test against a lie.
+		return f.pendingSync, nil
 	}
 	return "", nil
 }
@@ -403,6 +409,35 @@ func TestApplyPendingNowBuildsAChainForAnAlreadyPersistedChange(t *testing.T) {
 	}
 	if !regated {
 		t.Fatalf("expected the pending sync to be re-gated onto the chain's stopsfserver, got gates=%+v", q.gates)
+	}
+}
+
+// The stale-banner case. The deferred sync has already run (or was cancelled), but
+// the tasks poll has not refreshed the page, so the "Mods pending" banner and its
+// Apply-now button are still on screen. Clicking it must do NOTHING.
+//
+// Without the pending-sync guard, planFor gets an empty pendingSyncID plus
+// (running && applyNow) and builds a WHOLE NEW chain: a healthy running server is
+// stopped, synced to the state it is already in, and restarted - every player
+// kicked, with no preview and no confirmation in the way. The diff check that
+// normally catches a no-op change is deliberately skipped on this path, so this
+// guard is the only thing in front of it.
+func TestApplyPendingNowDoesNothingWithNoPendingSync(t *testing.T) {
+	q := &fakeQueue{running: true} // running server, NO pending sync
+
+	ids, err := applyPendingNowWith(q, bson.NewObjectID(), bson.NewObjectID(), v2.Lockfile{}, v2.TaskTrigger{Type: v2.TaskTriggerUser})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ids) != 0 {
+		t.Fatalf("expected no tasks, got %v", ids)
+	}
+	if len(q.enqueuesOf(ActionStop)) != 0 {
+		t.Fatal("a stale Apply-now click stopped a healthy running server: there was no deferred sync to escalate")
+	}
+	if len(q.enqueuesOf(ActionStart)) != 0 || len(q.enqueuesOf(ActionSyncMods)) != 0 {
+		t.Fatal("a stale Apply-now click built a spurious chain")
 	}
 }
 

@@ -149,6 +149,22 @@ func ApplyPendingNow(agentID, accountID bson.ObjectID, trigger v2.TaskTrigger) (
 // matters — that a chain IS built for a lockfile whose diff is empty — is testable.
 // There is deliberately no diff check between here and enqueueSync.
 func applyPendingNowWith(q taskQueue, agentID, accountID bson.ObjectID, lf v2.Lockfile, trigger v2.TaskTrigger) ([]string, error) {
+	// There must actually BE a deferred sync to escalate. Without this, an "Apply
+	// now" click on a banner that has gone stale — the sync already ran, or the user
+	// cancelled it, and the tasks poll has not caught up — reaches planFor with an
+	// empty pendingSyncID and (running && applyNow) builds a WHOLE NEW chain: a
+	// healthy running server is stopped, synced to a state it is already in, and
+	// restarted, kicking every player, with no preview and no confirmation in the
+	// way. The diff check that would normally catch a no-op change is deliberately
+	// skipped on this path, so this is the only thing standing in front of it.
+	pending, err := q.PendingIDByAction(agentID, ActionSyncMods)
+	if err != nil {
+		return nil, err
+	}
+	if pending == "" {
+		return []string{}, nil
+	}
+
 	return enqueueSyncWith(q, agentID, accountID, lf, true, trigger)
 }
 
